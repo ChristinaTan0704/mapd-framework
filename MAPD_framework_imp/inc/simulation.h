@@ -1,0 +1,369 @@
+#pragma once
+#include "types.h"
+#include "config.h"
+#include "map_loader.h"
+#include <map>
+#include <queue>
+#include <functional>
+#include <vector>
+#include <list>
+#include <string>
+#include <set>
+#include <unordered_set>
+#include <stack>
+
+// ============ CostFlow (Min-Cost Max-Flow for TA-Hybrid) ============
+#define COSTFLOW_INF 1111111111
+
+struct CostFlowEdge {
+    int from, to, capcity, cost, loc, next, origin_capcity;
+};
+
+class CostFlow {
+public:
+    CostFlow(int node_cnt, int source, int sink);
+    void AddEdges(int from, int to, int capcity, int cost, int loc);
+    void RemoveEdges(int from, int to);
+    int MinCostFlow();
+    std::vector<std::vector<int>> GetPath();
+    int cost;
+private:
+    std::queue<int> Q;
+    std::vector<CostFlowEdge> edges;
+    std::vector<int> head;
+    std::vector<int> pre;
+    std::vector<bool> in_queue;
+    std::vector<int> dis;
+    int node_cnt, source, sink;
+    void AddEdge(int from, int to, int capcity, int cost, int loc);
+    bool SPFA();
+};
+
+// ============ Node for A* search ============
+struct SearchNode {
+    int loc;
+    int g_val;
+    int h_val;
+    int timestep;
+    SearchNode* parent;
+    bool in_openlist;
+
+    SearchNode(int l, int g, int h, SearchNode* p, int t)
+        : loc(l), g_val(g), h_val(h), parent(p), timestep(t), in_openlist(true) {}
+    SearchNode(int l, int g, SearchNode* p, int t)
+        : loc(l), g_val(g), h_val(0), parent(p), timestep(t), in_openlist(true) {}
+    int getFVal() const { return g_val + h_val; }
+};
+
+struct CompareNode {
+    bool operator()(const SearchNode* n1, const SearchNode* n2) const {
+        if (n1->getFVal() != n2->getFVal()) return n1->getFVal() > n2->getFVal();
+        return n1->g_val <= n2->g_val;
+    }
+};
+
+typedef priority_queue<SearchNode*, vector<SearchNode*>, CompareNode> heap_open_t;
+
+// ============ PriorityGraph for PBS ============
+class PriorityGraph {
+public:
+    void clear() { adj_.clear(); }
+    void copy(const PriorityGraph& other) { adj_ = other.adj_; }
+    // add: from has LOWER priority than to (from yields to to)
+    void add(int from, int to) { adj_[from].insert(to); }
+    // connected: is there a directed path from 'from' to 'to'?
+    bool connected(int from, int to) const {
+        if (from == to) return false;
+        std::list<int> open;
+        std::set<int> closed;
+        open.push_back(from);
+        closed.insert(from);
+        while (!open.empty()) {
+            int curr = open.back(); open.pop_back();
+            auto it = adj_.find(curr);
+            if (it == adj_.end()) continue;
+            for (int next : it->second) {
+                if (next == to) return true;
+                if (closed.find(next) == closed.end()) {
+                    open.push_back(next);
+                    closed.insert(next);
+                }
+            }
+        }
+        return false;
+    }
+    // get all nodes reachable from root (higher-priority agents)
+    std::set<int> get_higher_priority(int root) const {
+        std::list<int> open;
+        std::set<int> closed;
+        open.push_back(root);
+        while (!open.empty()) {
+            int curr = open.back(); open.pop_back();
+            auto it = adj_.find(curr);
+            if (it == adj_.end()) continue;
+            for (int next : it->second) {
+                if (closed.find(next) == closed.end()) {
+                    open.push_back(next);
+                    closed.insert(next);
+                }
+            }
+        }
+        return closed;
+    }
+private:
+    std::map<int, std::set<int>> adj_;
+};
+
+// ============ PBS Node for priority-based search ============
+struct PBSNode {
+    PBSNode* parent;
+    PriorityGraph priorities;
+    std::vector<std::vector<int>> paths;      // paths[agent] = location path
+    std::list<std::tuple<int,int,int,int,int>> conflicts; // (a1, a2, loc1, loc2, timestep)
+    std::tuple<int,int,int,int,int> conflict; // chosen conflict
+    std::pair<int,int> priority;              // (lower, higher)
+    int num_collisions;
+    int earliest_collision;
+    int cost;
+
+    PBSNode() : parent(nullptr), num_collisions(0), earliest_collision(INT_MAX), cost(0) {}
+};
+
+// ============ Token (shared path table) ============
+struct Token {
+    vector<vector<unsigned int>> path;
+    vector<bool> my_map;
+    vector<bool> my_endpoints;
+    list<Task*> tasks;
+    unsigned int timestep;
+
+    Token() : timestep(0) {}
+};
+
+// ============ Simulation ============
+class Simulation {
+public:
+    Simulation() {}
+    void init(const string& map_file, const string& task_file, const MAPDConfig& config,
+              const string& tour_file = "");
+    void run();
+    bool fullCollisionCheck(const string& alg_name) const;
+    void showTask() const;
+    void saveOutput(const string& filepath, double runtime_ms) const;
+
+private:
+    MAPDConfig config;
+    MAPDMap mapd_map;
+    vector<Agent> agents;
+    vector<Task> all_tasks;
+    vector<vector<int>> task_indices_by_time;
+    Token token;
+    unsigned int maxtime;
+    int t_task;
+
+    // --- CENTRAL state management ---
+    vector<Task*> agent_pending_task;
+
+    // --- Shared state between assign_hungarian() and path_planning() ---
+    vector<int> phase2_free_ids_;
+    vector<Task*> phase2_tasks_;
+    vector<int> phase2_goal_locs_;
+    vector<int> phase2_goal_eps_;
+
+    // --- Unified Main Loop (Section 2 of pseudocode) ---
+    bool end() const;
+    void release_tasks();
+    void update_system();
+    void task_assignment_and_path_planning();
+
+    // --- Dispatchers within task_assignment_and_path_planning ---
+    bool should_assign() const;        // Section 5 — switches on assign_trigger
+    void task_assignment();            // Section 6 — switches on assign_method
+    bool should_replan() const;        // true for CENTRAL, false for TP/TPTS
+    void path_planning();              // Section 11 — switches on mapf
+
+    // --- Task Assignment: Decoupled Greedy (Section 9.1) ---
+    bool assign_decoupled_greedy(Agent& ag);
+
+    // --- Task Assignment: Decoupled Greedy with Swaps (Section 9.2) ---
+    bool assign_tpts(Agent& ag, int depth = 0);
+
+    // --- Task Assignment: Centralized Greedy (Section 9.3) ---
+    void assign_centralized_greedy();
+
+    // --- Task Assignment: Hungarian (Section 9.4) ---
+    void assign_hungarian();
+
+    // --- Path Planning: CBS (Section 11.1) ---
+    void path_planning_cbs();
+
+    // --- Path Planning: CBS Group 1 + PBS Group 2 (CENTRAL with PBS override) ---
+    void path_planning_cbs_with_pp();
+
+    // --- Path Planning: Prioritized Planning (Section 11.2) ---
+    void path_planning_pp();
+
+    // --- Path Planning: HBH-MLA* Decoupled PP with MLA* (Section 12.1) ---
+    void plan_hbh_mla();
+
+    // --- Single-Agent Search: Space-Time A* (Section 13.1) ---
+    int astar(Agent& ag, int start_loc, int begin_time, const Endpoint& goal, int ag_hide);
+    bool isConstrained(int agent_id, int curr_id, int next_id, int next_timestep, int ag_hide);
+    void updatePath(Agent& ag, const SearchNode& goal_node);
+
+    // --- Token-based MLA* for pickup+delivery in one search ---
+    // ag_hide: additional agent ID to ignore in constraint checks (-1 = none)
+    // Returns (arrive_start, arrive_goal) or (-1,-1) on failure.
+    // Writes planned path to ag.path.
+    pair<int,int> token_mla_star(Agent& ag, Task& task, int ag_hide = -1);
+
+    // --- Plan one task: switches between 2xA* and token MLA* based on config ---
+    // ag_hide: additional agent ID to ignore in constraint checks (-1 = none)
+    // Returns (arrive_start, arrive_goal) or (-1,-1) on failure.
+    // Writes path to ag.path (caller must commit to token.path).
+    pair<int,int> plan_task_token(Agent& ag, Task& task, int ag_hide = -1);
+
+    // --- Dummy Path / Move to Endpoint (Section 12.0) ---
+    bool move2EP(Agent& ag);
+
+    // --- Helpers ---
+    void releaseNodes(map<unsigned int, SearchNode*>& table);
+    int findEndpointIndex(int loc) const;
+
+    // --- Loop state ---
+    int last_released_time_;  // tracks up to which timestep tasks have been released
+    bool ta_planning_done_;   // for offline algorithms: set after first iteration
+    Agent* tp_agent_;        // the single agent selected per iteration (TP/TPTS)
+
+    // --- Loop state for CENTRAL ---
+    bool central_has_event_;       // any event (pickup arrival, delivery done, new tasks)
+    bool central_reassign_event_;  // only delivery-done or new-tasks (for CENTRAL_FIXED)
+    bool central_first_iter_;
+
+    // --- TA-Prioritized (Section 10.1 + 12.0 + 14.5) ---
+    string tour_file_;
+    vector<vector<int>> all_pairs_dist_;   // BFS all-pairs shortest paths
+
+    void assign_ta_tsp();                  // parse tour file, build per-agent task sequences
+    void plan_ta_prioritized();            // prioritized path planning for TA methods
+
+    // Two-phase A*: start → goal → parking
+    // Returns the timestep when goal_loc is reached, or -1 on failure.
+    // Writes the full path (including dummy to parking) into the agent's path array.
+    int astar_with_dummy(Agent& ag, int start_loc, int start_time,
+                         int goal_loc, int park_loc,
+                         const vector<int>& h_goal, const vector<int>& h_park,
+                         const vector<vector<int>>& cons_paths,
+                         int release_time);
+
+    // BFS all-pairs distances (only free cells)
+    void compute_all_pairs_bfs();
+
+    // --- TA-Hybrid (Section 20+) ---
+    vector<queue<Task*>> hybrid_seqs_;       // per-sequence task queues
+    vector<int> hybrid_prefer_agent_;        // prefer_agent[seq_id] = agent_id
+    vector<int> hybrid_tsp_agent_;           // initial agent assignment from tour
+    int hybrid_global_makespan_;             // estimated global makespan for cost flow horizon
+    unsigned int hybrid_timestep_;           // per-timestep simulation counter
+
+    void plan_ta_hybrid();                   // main per-timestep TA-Hybrid loop
+
+    // TA-Hybrid helpers
+    int hybrid_cost(int t, queue<Task*> seq);  // estimate completion time for a sequence
+    void hybrid_calc_flow(vector<Agent*>& flow_agents, vector<Task*>& flow_tasks,
+                          const vector<vector<int>>& cons_paths,
+                          vector<int> len, int& flow,
+                          vector<vector<int>>& paths);
+    int hybrid_go_home(vector<Agent*>& ags);   // plan dummy paths to parking
+    bool hybrid_replan_dummy(Agent* ag);        // replan dummy path if collision
+    void hybrid_assign_new_task(int seq_id);    // steal a task from another sequence
+
+    // Group 1: delivery planning via prioritized A* with dummy
+    bool hybrid_group1_plan(vector<Agent*>& delivery_agents,
+                            vector<Agent*>& constraint_agents);
+
+    // --- HUNGARIAN_PBS / HUNGARIAN_wPBS ---
+
+    // State for online PBS loop
+    bool pbs_has_event_;          // any assignment event occurred
+    int pbs_last_replan_time_;    // for wPBS periodic replanning
+
+    // Repeated Hungarian task assignment (builds task_sequences for all agents)
+    void assign_repeated_hungarian();
+
+    // Repeated Hungarian + LNS improvement (LNS-PBS, LNS-wPBS)
+    void assign_repeated_hungarian_lns();
+    int estimate_sequence_cost(int agent_id) const;
+    void lns_destroy(vector<int>& removed_tasks);
+    void lns_repair(vector<int>& removed_tasks);
+
+    // Build goal sequences from task_sequences + dummy endpoints
+    // Returns goal_sequences[agent] = vector<pair<loc, release_time>>
+    vector<vector<pair<int,int>>> build_goal_sequences();
+
+    // Choose a flexible dummy endpoint for an agent
+    int choose_dummy_endpoint(int agent_id, int last_goal_loc,
+                              const vector<int>& assigned_dummies,
+                              bool strict);
+
+    // SeqMLA*: plans through ALL goals in one search
+    vector<int> seq_mla_star(int agent_id, int start_loc, int start_time,
+                             const vector<pair<int,int>>& goals,
+                             const vector<vector<int>>& cons_paths,
+                             const vector<vector<int>>& old_paths,
+                             bool use_old_paths,
+                             bool skip_holding = false);
+
+    // Task-by-task MLA*: plans each task group separately
+    vector<int> mla_star_taskwise(int agent_id, int start_loc, int start_time,
+                                   const vector<vector<pair<int,int>>>& task_groups,
+                                   const vector<vector<int>>& cons_paths,
+                                   const vector<vector<int>>& old_paths,
+                                   bool use_old_paths);
+
+    // Split flat goal sequence into per-task groups for mla_star_taskwise
+    vector<vector<pair<int,int>>> split_into_task_groups(
+        int agent_id,
+        const vector<pair<int,int>>& goal_seq) const;
+
+    // PP+MLA* path planning for HUNGARIAN/LNS (alternative to PBS/wPBS)
+    void path_planning_pp_mla();
+
+    // PBS path planning
+    void path_planning_pbs();
+
+    // wPBS path planning
+    void path_planning_wpbs();
+
+    // Shared PBS core
+    bool pbs_core(bool windowed);
+
+    // PBS: find earliest conflict between two agent paths
+    bool pbs_find_conflict(const vector<int>& p1, const vector<int>& p2,
+                           int a1, int a2,
+                           tuple<int,int,int,int,int>& conflict);
+
+    // Update system for PBS online mode
+    void update_system_pbs();
+
+    // --- REALPATH_LNS_IMP: Generic Anytime Improvement (Chen et al. 2021, Sec IV-D) ---
+    // Independent post-processing: destroy tasks, re-assign with real collision-free
+    // path planning, accept if cost improves. Can be called after any algorithm.
+    // Returns number of improving iterations found.
+public:
+    int realpath_lns_imp(int num_rounds, int group_size = 5);
+
+private:
+    // Compute real-path cost: sum of (completion_time - release_time) for all assigned tasks
+    int compute_realpath_cost() const;
+
+    // RMCA-style destroy: RANDOM, WORST, MULTIPLE
+    void rmca_destroy(vector<int>& removed, int group_size);
+
+    // RMCA-style repair: regret-based re-insertion
+    void rmca_repair(vector<int>& removed, vector<vector<int>>& agent_task_lists);
+
+    // Re-plan a single agent's path using token-based A* for its current task
+    // Returns true if planning succeeded
+    bool replan_agent_path(int agent_id);
+};

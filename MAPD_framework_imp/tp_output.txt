@@ -1,0 +1,2 @@
+/Users/jiaqit/Desktop/paper/reference_code/CENTRAL-TP-TPTS/COBRA/kiva-0.2.task 2532 19270 25.7674
+/Users/jiaqit/Desktop/paper/reference_code/TA-ICBS/Instances/small/kiva-500.task 1136 256428 40.8151
