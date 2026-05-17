@@ -3806,7 +3806,8 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
                                   const vector<vector<int>>& cons_paths,
                                   const vector<vector<int>>& old_paths,
                                   bool use_old_paths,
-                                  bool skip_holding) {
+                                  bool skip_holding,
+                                  int constraint_window) {
     if (goals.empty()) return {start_loc};
 
     int map_size = mapd_map.row * mapd_map.col;
@@ -3867,8 +3868,10 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
     };
 
     // Constraint checking: higher-priority paths (hard constraints)
+    // In windowed mode, only enforce within the constraint window
     auto is_constrained_hard = [&](int curr_loc, int next_loc, int abs_t) -> bool {
         if (!mapd_map.grid[next_loc]) return true;
+        if (constraint_window > 0 && abs_t > constraint_window) return false;
         for (auto& cp : cons_paths) {
             int cp_loc = (abs_t < (int)cp.size()) ? cp[abs_t] : cp.back();
             int cp_loc_prev = (abs_t - 1 >= 0 && abs_t - 1 < (int)cp.size()) ? cp[abs_t - 1] : (cp.empty() ? -1 : cp.back());
@@ -3878,11 +3881,11 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
         return false;
     };
 
-    // PBS: also check old_paths (but only up to a limited horizon)
-    int old_path_horizon = start_time + 300;  // don't enforce old_paths too far ahead
+    // PBS: also check old_paths (within window or limited horizon)
+    int old_path_horizon = (constraint_window > 0) ? constraint_window : start_time + 300;
     auto is_constrained_old = [&](int curr_loc, int next_loc, int abs_t) -> bool {
         if (!use_old_paths) return false;
-        if (abs_t > old_path_horizon) return false;  // relax constraints beyond horizon
+        if (abs_t > old_path_horizon) return false;
         for (auto& op : old_paths) {
             int op_loc = (abs_t < (int)op.size()) ? op[abs_t] : op.back();
             int op_loc_prev = (abs_t - 1 >= 0 && abs_t - 1 < (int)op.size()) ? op[abs_t - 1] : (op.empty() ? -1 : op.back());
@@ -3897,8 +3900,9 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
     int last_goal_loc = goals.back().first;
     int earliest_holding = 0;
     if (!skip_holding) {
+        int hold_scan_limit = (constraint_window > 0) ? constraint_window + 1 : search_horizon;
         for (auto& cp : cons_paths) {
-            for (int t = min((int)cp.size(), search_horizon) - 1; t >= 0; t--) {
+            for (int t = min((int)cp.size(), hold_scan_limit) - 1; t >= 0; t--) {
                 if (cp[t] == last_goal_loc) {
                     earliest_holding = max(earliest_holding, t + 1);
                     break;
@@ -3907,7 +3911,7 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
         }
         if (use_old_paths) {
             for (auto& op : old_paths) {
-                for (int t = min({(int)op.size(), search_horizon, old_path_horizon + 1}) - 1; t >= 0; t--) {
+                for (int t = min({(int)op.size(), hold_scan_limit, old_path_horizon + 1}) - 1; t >= 0; t--) {
                     if (op[t] == last_goal_loc) {
                         earliest_holding = max(earliest_holding, t + 1);
                         break;
@@ -4065,7 +4069,8 @@ vector<int> Simulation::mla_star_taskwise(
     const vector<vector<pair<int,int>>>& task_groups,
     const vector<vector<int>>& cons_paths,
     const vector<vector<int>>& old_paths,
-    bool use_old_paths)
+    bool use_old_paths,
+    int constraint_window)
 {
     if (task_groups.empty()) return {start_loc};
 
@@ -4085,7 +4090,8 @@ vector<int> Simulation::mla_star_taskwise(
 
         vector<int> segment = seq_mla_star(agent_id, cur_loc, cur_time,
                                             goals, cons_paths, old_paths,
-                                            use_old_paths, !is_last);
+                                            use_old_paths, !is_last,
+                                            constraint_window);
         if (segment.empty()) return {};
 
         for (int t = cur_time; t < max_t; t++)
@@ -4159,14 +4165,17 @@ bool Simulation::pbs_core(bool windowed) {
             all_task_groups[i] = split_into_task_groups(i, goal_seqs[i]);
     }
 
+    int cons_window = windowed ? (int)token.timestep + config.replan_window + 1 : -1;
+
     auto plan_agent = [&](int aid, int loc, int time,
                           const vector<vector<int>>& cons,
                           const vector<vector<int>>& old,
                           bool use_old) -> vector<int> {
         if (use_taskwise)
             return mla_star_taskwise(aid, loc, time, all_task_groups[aid],
-                                      cons, old, use_old);
-        return seq_mla_star(aid, loc, time, goal_seqs[aid], cons, old, use_old);
+                                      cons, old, use_old, cons_window);
+        return seq_mla_star(aid, loc, time, goal_seqs[aid], cons, old, use_old,
+                             false, cons_window);
     };
 
     // Save old paths

@@ -307,19 +307,22 @@ private:
                               bool strict);
 
     // SeqMLA*: plans through ALL goals in one search
+    // constraint_window: if >0, only enforce constraints up to this absolute timestep
     vector<int> seq_mla_star(int agent_id, int start_loc, int start_time,
                              const vector<pair<int,int>>& goals,
                              const vector<vector<int>>& cons_paths,
                              const vector<vector<int>>& old_paths,
                              bool use_old_paths,
-                             bool skip_holding = false);
+                             bool skip_holding = false,
+                             int constraint_window = -1);
 
     // Task-by-task MLA*: plans each task group separately
     vector<int> mla_star_taskwise(int agent_id, int start_loc, int start_time,
                                    const vector<vector<pair<int,int>>>& task_groups,
                                    const vector<vector<int>>& cons_paths,
                                    const vector<vector<int>>& old_paths,
-                                   bool use_old_paths);
+                                   bool use_old_paths,
+                                   int constraint_window = -1);
 
     // Split flat goal sequence into per-task groups for mla_star_taskwise
     vector<vector<pair<int,int>>> split_into_task_groups(
