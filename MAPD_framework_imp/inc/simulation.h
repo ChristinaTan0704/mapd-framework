@@ -285,7 +285,8 @@ private:
     // --- HUNGARIAN_PBS / HUNGARIAN_wPBS ---
 
     // State for online PBS loop
-    bool pbs_has_event_;          // any assignment event occurred
+    bool pbs_has_event_;          // any event (replan or assign)
+    bool pbs_assign_event_;       // real event needing re-assignment (not periodic)
     int pbs_last_replan_time_;    // for wPBS periodic replanning
 
     // Repeated Hungarian task assignment (builds task_sequences for all agents)
@@ -316,6 +317,15 @@ private:
                              bool skip_holding = false,
                              int constraint_window = -1);
 
+    // SIPP search: uses safe intervals for faster multi-goal planning
+    // Same interface as seq_mla_star — drop-in replacement
+    vector<int> sipp_search(int agent_id, int start_loc, int start_time,
+                            const vector<pair<int,int>>& goals,
+                            const vector<vector<int>>& cons_paths,
+                            const vector<vector<int>>& old_paths,
+                            bool use_old_paths,
+                            bool skip_holding = false);
+
     // Task-by-task MLA*: plans each task group separately
     vector<int> mla_star_taskwise(int agent_id, int start_loc, int start_time,
                                    const vector<vector<pair<int,int>>>& task_groups,
@@ -331,9 +341,13 @@ private:
 
     // PP+MLA* path planning for HUNGARIAN/LNS (alternative to PBS/wPBS)
     void path_planning_pp_mla();
+    vector<deque<int>> pp_mla_prev_seqs_;
 
-    // PBS path planning
+    // PBS path planning (MLA* low-level)
     void path_planning_pbs();
+
+    // PBS path planning with SIPP low-level (faster, opt-in via --sipp)
+    bool pbs_core_sipp();
 
     // wPBS path planning
     void path_planning_wpbs();

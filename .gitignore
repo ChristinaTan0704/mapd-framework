@@ -1,0 +1,23 @@
+output/
+
+# Large directories
+reference_code/
+
+# PDF files
+*.pdf
+
+# Compiled binaries and object files
+*.o
+*.out
+*.exe
+*.a
+*.dylib
+*.so
+MAPD_framework_imp/mapd
+MAPD_framework_imp/exp_mg_wpbs/
+
+# macOS
+.DS_Store
+
+# Claude
+.claude/

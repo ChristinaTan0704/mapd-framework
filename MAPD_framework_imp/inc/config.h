@@ -62,12 +62,13 @@ struct MAPDConfig {
     double ecbs_weight;  // for ECBS/CBS (1.0 = optimal)
     int lns_time_limit;  // LNS improvement time limit in seconds (0 = no LNS)
     MLAMode mla_mode;
+    bool use_sipp;  // use SIPP instead of MLA* for PBS low-level search
 
     MAPDConfig() : name("Custom"), mode(MODE_ONLINE), assign_type(ASSIGN_IA),
         assign_method(AM_DECOUPLED_GREEDY), assign_trigger(AT_ON_FREE_WAITS),
         mapf(MAPF_DECOUPLED_PP), single_agent(SA_STA_TASK_EP),
         deadlock(DA_HOLDING_ENDPOINT), replan_window(10), ecbs_weight(1.0),
-        lns_time_limit(1), mla_mode(MLA_TASKWISE) {}
+        lns_time_limit(1), mla_mode(MLA_TASKWISE), use_sipp(false) {}
 };
 
 // ============ Algorithm Presets ============

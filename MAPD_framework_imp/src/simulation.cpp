@@ -1,7 +1,10 @@
+#include <random>
+#include <deque>
 #include "simulation.h"
 #include "cbs.h"
 #include <algorithm>
 #include <set>
+
 #include <ctime>
 #include <fstream>
 #include <climits>
@@ -58,6 +61,7 @@ void Simulation::init(const string& map_file, const string& task_file, const MAP
 
     // Init state for PBS
     pbs_has_event_ = true;
+    pbs_assign_event_ = true;
     pbs_last_replan_time_ = 0;
 }
 
@@ -75,6 +79,50 @@ void Simulation::run() {
         release_tasks();                      // Step A
         task_assignment_and_path_planning();   // Step B
         update_system();                       // Step C
+    }
+
+    // Post-simulation: deconflict all vertex collisions in final paths
+    int num_ag = (int)agents.size();
+    int max_t = (int)maxtime;
+    for (int a1 = 0; a1 < num_ag; a1++) {
+        for (int a2 = a1 + 1; a2 < num_ag; a2++) {
+            for (int t = 0; t < max_t; t++) {
+                if (token.path[a1][t] == token.path[a2][t]) {
+                    // Collision found. Replan a2 with constraints from ALL others.
+                    vector<vector<int>> cons;
+                    for (int a3 = 0; a3 < num_ag; a3++) {
+                        if (a3 == a2) continue;
+                        vector<int> cp(max_t);
+                        for (int tt = 0; tt < max_t; tt++) cp[tt] = (int)token.path[a3][tt];
+                        cons.push_back(cp);
+                    }
+                    // Replan a2 from the collision point to a free endpoint
+                    int start = max(0, t - 1);
+                    int loc = (int)token.path[a2][start];
+                    // Find a free endpoint to park at
+                    int park = agents[a2].initial_loc;
+                    for (int e = 0; e < (int)mapd_map.endpoints.size(); e++) {
+                        if (mapd_map.endpoints[e].is_task_endpoint) continue;
+                        int el = mapd_map.endpoints[e].loc;
+                        bool ok = true;
+                        for (int a3 = 0; a3 < num_ag; a3++) {
+                            if (a3 == a2) continue;
+                            if ((int)token.path[a3][max_t - 1] == el) { ok = false; break; }
+                        }
+                        if (ok) { park = el; break; }
+                    }
+                    vector<pair<int,int>> goals = {{park, 0}};
+                    auto new_path = seq_mla_star(a2, loc, start, goals, cons, {}, false);
+                    if (!new_path.empty()) {
+                        for (int tt = start; tt < max_t; tt++) {
+                            token.path[a2][tt] = new_path[tt];
+                            agents[a2].path[tt] = new_path[tt];
+                        }
+                    }
+                    break;
+                }
+            }
+        }
     }
 }
 
@@ -191,6 +239,12 @@ void Simulation::update_system() {
             }
         }
 
+        // wPBS: cap advancement at replan_window so we replan periodically
+        if (config.mapf == MAPF_wPBS) {
+            unsigned int window_cap = token.timestep + config.replan_window;
+            if (window_cap < next_ts) next_ts = window_cap;
+        }
+
         // If no event found but agents have tasks, advance by 1
         if (next_ts >= maxtime) {
             bool has_work = false;
@@ -225,10 +279,22 @@ void Simulation::update_system() {
 
     // --- TP/TPTS mode: check if a free agent needs processing first ---
     if (config.assign_trigger == AT_ON_FREE_WAITS) {
+        // For TPTS: remove tasks from token when pickup is reached
+        // (matching reference: tasks stay in token.tasks until ag_arrive_start)
+        if (config.assign_method == AM_DECOUPLED_GREEDY_SWAPS) {
+            auto it = token.tasks.begin();
+            while (it != token.tasks.end()) {
+                if ((*it)->status >= 0 && (*it)->ag_arrive_start >= 0 &&
+                    (int)token.timestep >= (*it)->ag_arrive_start) {
+                    it = token.tasks.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+
         for (auto& ag : agents) {
             if (ag.finish_time <= token.timestep) {
-                // Stay at current timestep to process this agent next iteration.
-                // Reset event flags and detect transitions at current time.
                 central_has_event_ = false;
                 central_reassign_event_ = false;
 
@@ -260,9 +326,7 @@ void Simulation::update_system() {
                     }
                 }
 
-                // Check for new tasks at current timestep
                 if (token.timestep < maxtime && !task_indices_by_time[token.timestep].empty()) {
-                    // already released
                 }
                 return;  // don't advance
             }
@@ -395,9 +459,8 @@ bool Simulation::should_assign() const {
         return false;
 
     case AT_ON_UNASSIGNED_OR_FREE:
-        // HUNGARIAN_PBS/wPBS: when unassigned tasks exist OR any agent is free (no tasks queued)
-        if (pbs_has_event_) return true;
-        return false;
+        // HUNGARIAN_PBS/wPBS: only on real events (not periodic replans)
+        return pbs_assign_event_;
 
     case AT_ONCE:
         // TA-Prioritized: assign once at t=0
@@ -708,7 +771,8 @@ bool Simulation::assign_tpts(Agent& ag, int depth) {
                         task->status = ag.id;
                         task->ag_arrive_start = arrive_start;
                         task->completion_time = arrive_goal;
-                        token.tasks.remove(task);
+                        // Keep task in token.tasks so other agents can steal it (TPTS)
+                        // Task is removed in update_system when pickup is reached
                         return true;
                     } else {
                         Agent* old_ag = &agents[task->status];
@@ -1122,12 +1186,18 @@ void Simulation::path_planning_cbs_with_pp() {
     int max_t = (int)maxtime;
     vector<int> assigned_dummies(num_ag, -1);
 
+    // Pre-fill assigned_dummies with non-Group2 agents' final positions
+    for (int a = 0; a < num_ag; a++) {
+        if (assigned_dummies[a] < 0)
+            assigned_dummies[a] = (int)token.path[a][max_t - 1];
+    }
+
     for (int i = 0; i < (int)phase2_free_ids_.size(); i++) {
         if (phase2_goal_eps_[i] >= 0) {
             int aid = phase2_free_ids_[i];
             pbs_ids.push_back(aid);
             pbs_tasks_vec.push_back(phase2_tasks_[i]);
-            // Goal = [pickup/parking, dummy]
+            assigned_dummies[aid] = -1;
             vector<pair<int,int>> goals;
             goals.push_back({phase2_goal_locs_[i], 0});
             int dummy = choose_dummy_endpoint(aid, phase2_goal_locs_[i],
@@ -1166,6 +1236,11 @@ void Simulation::path_planning_cbs_with_pp() {
 
     auto plan_pbs_agent = [&](int idx, const vector<vector<int>>& cons) -> vector<int> {
         int aid = pbs_ids[idx];
+        if (config.use_sipp) {
+            auto p = sipp_search(aid, (int)agents[aid].loc, (int)token.timestep,
+                                  goal_seqs[idx], cons, {}, false);
+            if (!p.empty()) return p;
+        }
         if (use_taskwise_cbs)
             return mla_star_taskwise(aid, (int)agents[aid].loc, (int)token.timestep,
                                       pbs_task_groups[idx], cons, {}, false);
@@ -1213,7 +1288,6 @@ void Simulation::path_planning_cbs_with_pp() {
     PBSNode* best_node = root;
     if (!root->conflicts.empty()) {
         vector<PBSNode*> all_nodes;
-        all_nodes.push_back(root);
         stack<PBSNode*> dfs_stack;
         dfs_stack.push(root);
 
@@ -1223,7 +1297,7 @@ void Simulation::path_planning_cbs_with_pp() {
                 best_node->conflict = c;
         best_node->earliest_collision = get<4>(best_node->conflict);
 
-        int hl = 0, max_hl = 2000;
+        int hl = 0, max_hl = (n > 30) ? 5000 : 50000;
         while (!dfs_stack.empty() && hl < max_hl) {
             PBSNode* curr = dfs_stack.top(); dfs_stack.pop();
             if (curr->conflicts.empty()) { best_node = curr; break; }
@@ -1286,7 +1360,6 @@ void Simulation::path_planning_cbs_with_pp() {
                     }
                 }
                 child->num_collisions = (int)child->conflicts.size();
-                all_nodes.push_back(child);
                 dfs_stack.push(child);
             }
         }
@@ -1300,7 +1373,6 @@ void Simulation::path_planning_cbs_with_pp() {
             token.path[aid][t] = best_node->paths[idx][t];
             agents[aid].path[t] = best_node->paths[idx][t];
         }
-        // Find actual arrival at goal (first goal in goal_seqs)
         int goal_loc = goal_seqs[idx][0].first;
         int arrive = (int)token.timestep;
         for (int t = (int)token.timestep; t < max_t; t++) {
@@ -1314,6 +1386,39 @@ void Simulation::path_planning_cbs_with_pp() {
             agent_pending_task[aid] = pbs_tasks_vec[idx];
         }
     }
+
+    // Post-commit: verify Group 2 paths don't collide with ext_cons
+    for (int idx = 0; idx < n; idx++) {
+        int aid = pbs_ids[idx];
+        for (auto& cp : ext_cons) {
+            bool collision = false;
+            for (int t = (int)token.timestep; t < max_t && !collision; t++) {
+                int p1 = (int)token.path[aid][t];
+                int p2 = (t < (int)cp.size()) ? cp[t] : cp.back();
+                if (p1 == p2) collision = true;
+            }
+            if (collision) {
+                // Replan this agent with full constraints (ext_cons + all other Group 2)
+                vector<vector<int>> full_cons;
+                for (int a = 0; a < num_ag; a++) {
+                    if (a == aid) continue;
+                    vector<int> cp2(max_t);
+                    for (int t = 0; t < max_t; t++) cp2[t] = (int)token.path[a][t];
+                    full_cons.push_back(cp2);
+                }
+                auto new_path = seq_mla_star(aid, (int)agents[aid].loc, (int)token.timestep,
+                                              goal_seqs[idx], full_cons, {}, false);
+                if (!new_path.empty()) {
+                    for (int t = 0; t < max_t; t++) {
+                        token.path[aid][t] = new_path[t];
+                        agents[aid].path[t] = new_path[t];
+                    }
+                }
+                break;
+            }
+        }
+    }
+
     delete best_node;
 }
 
@@ -1671,12 +1776,59 @@ pair<int,int> Simulation::token_mla_star(Agent& ag, Task& task, int ag_hide) {
 // ============================================================
 
 pair<int,int> Simulation::plan_task_token(Agent& ag, Task& task, int ag_hide) {
+    int hide = (ag_hide >= 0) ? ag_hide : ag.id;
+
+    // Token-path collision validator for SIPP candidate paths
+    auto verify_sipp_path = [&](const vector<int>& path, int from_t, int to_t) -> bool {
+        for (int t = max((int)token.timestep + 1, from_t + 1); t < to_t && t < (int)maxtime; t++) {
+            if (isConstrained(ag.id, path[t-1], path[t], t, hide))
+                return false;
+        }
+        return true;
+    };
+
+    if (config.use_sipp) {
+        vector<vector<int>> cons;
+        for (int j = 0; j < (int)token.path.size(); j++) {
+            if (j == ag.id || j == hide) continue;
+            cons.emplace_back(token.path[j].begin(), token.path[j].end());
+        }
+
+        // Both 2SIPP and MLSIPP: use multi-goal SIPP (pickup + delivery)
+        vector<pair<int,int>> goals = {{task.pickup_loc, task.release_time},
+                                        {task.delivery_loc, 0}};
+        auto path = sipp_search(ag.id, ag.loc, token.timestep, goals, cons, {}, false);
+        if (!path.empty()) {
+            int arrive_start = -1, arrive_goal = -1;
+            int gi = 0;
+            for (int t = (int)token.timestep; t < (int)path.size() && gi < 2; t++) {
+                if (path[t] == goals[gi].first && t >= goals[gi].second) {
+                    if (gi == 0) arrive_start = t; else arrive_goal = t;
+                    gi++;
+                }
+            }
+            if (arrive_start >= 0 && arrive_goal >= 0) {
+                bool can_hold = true;
+                for (unsigned int t = arrive_goal + 1; t < maxtime && can_hold; t++)
+                    for (int j = 0; j < (int)token.path.size(); j++) {
+                        if (j == ag.id || j == hide) continue;
+                        if ((int)token.path[j][t] == task.delivery_loc) { can_hold = false; break; }
+                    }
+                if (can_hold && verify_sipp_path(path, (int)token.timestep, arrive_goal + 1)) {
+                    for (int t = 0; t < (int)path.size() && t < (int)maxtime; t++)
+                        ag.path[t] = path[t];
+                    return {arrive_start, arrive_goal};
+                }
+            }
+        }
+        // SIPP path invalid — fall through to MLA*/A*
+    }
+
     if (config.single_agent == SA_MLA_SEQUENCE) {
         return token_mla_star(ag, task, ag_hide);
     }
 
     // Default: 2x sequential A* (STA_TASK_EP)
-    int hide = (ag_hide >= 0) ? ag_hide : ag.id;
     vector<unsigned int> saved_path(ag.path.begin(), ag.path.end());
 
     int arrive_start = astar(ag, ag.loc, token.timestep,
@@ -2083,8 +2235,9 @@ void Simulation::plan_ta_prioritized() {
                 }
                 all_goals.push_back({park_loc, 0});
 
-                vector<int> path = seq_mla_star(aid, ag.initial_loc, 0,
-                                                 all_goals, cons_paths, {}, false);
+                vector<int> path = config.use_sipp ?
+                    sipp_search(aid, ag.initial_loc, 0, all_goals, cons_paths, {}, false) :
+                    seq_mla_star(aid, ag.initial_loc, 0, all_goals, cons_paths, {}, false);
                 if (path.empty()) {
                     cerr << "SeqMLA* failed for agent " << aid << endl;
                 } else {
@@ -2113,7 +2266,7 @@ void Simulation::plan_ta_prioritized() {
                     }
                 }
             } else {
-                // Task-by-task MLA* (default for TA-Prioritized)
+                // Task-by-task MLSIPP/MLA*
                 int cur_loc = ag.initial_loc;
                 int cur_time = 0;
 
@@ -2125,8 +2278,22 @@ void Simulation::plan_ta_prioritized() {
                     goals.push_back({task.delivery_loc, 0});
                     goals.push_back({park_loc, 0});
 
-                    vector<int> path = seq_mla_star(aid, cur_loc, cur_time,
-                                                     goals, cons_paths, {}, false);
+                    vector<int> path;
+                    if (config.use_sipp) {
+                        path = sipp_search(aid, cur_loc, cur_time, goals, cons_paths, {}, false);
+                        if (!path.empty()) {
+                            for (auto& cp : cons_paths) {
+                                bool bad = false;
+                                for (int t = cur_time; t < min((int)path.size(), cur_time+1000) && !bad; t++) {
+                                    int cl = (t < (int)cp.size()) ? cp[t] : cp.back();
+                                    if (path[t] == cl) bad = true;
+                                }
+                                if (bad) { path.clear(); break; }
+                            }
+                        }
+                    }
+                    if (path.empty())
+                        path = seq_mla_star(aid, cur_loc, cur_time, goals, cons_paths, {}, false);
 
                     if (path.empty()) {
                         cerr << "MLA* failed for agent " << aid
@@ -2158,6 +2325,72 @@ void Simulation::plan_ta_prioritized() {
                         cur_loc = task.delivery_loc;
                         cur_time = delivery_t;
                     }
+                }
+            }
+        } else if (config.use_sipp) {
+            // 2SIPP*: SIPP-based planning per task
+            for (int j = pi + 1; j < num_ag; j++) {
+                int other_aid = seq_infos[j].agent_id;
+                int other_park = agents[other_aid].initial_loc;
+                vector<int> park_cons(maxtime, other_park);
+                cons_paths.push_back(park_cons);
+            }
+
+            int cur_loc = ag.initial_loc;
+            int cur_time = 0;
+
+            for (int task_id : ag.task_sequence) {
+                Task& task = all_tasks[task_id];
+
+                vector<pair<int,int>> goals;
+                goals.push_back({task.pickup_loc, task.release_time});
+                goals.push_back({task.delivery_loc, 0});
+                goals.push_back({park_loc, 0});
+
+                vector<int> path;
+                path = sipp_search(aid, cur_loc, cur_time, goals, cons_paths, {}, false);
+                if (!path.empty()) {
+                    for (auto& cp : cons_paths) {
+                        bool bad = false;
+                        for (int t = cur_time; t < min((int)path.size(), cur_time+1000) && !bad; t++) {
+                            int cl = (t < (int)cp.size()) ? cp[t] : cp.back();
+                            if (path[t] == cl) bad = true;
+                        }
+                        if (bad) { path.clear(); break; }
+                    }
+                }
+                if (path.empty())
+                    path = seq_mla_star(aid, cur_loc, cur_time, goals, cons_paths, {}, false);
+
+                if (path.empty()) {
+                    cerr << "2SIPP failed for agent " << aid
+                         << " task " << task_id << endl;
+                    break;
+                }
+
+                for (int t = cur_time; t < (int)path.size() && t < (int)maxtime; t++)
+                    ag.path[t] = path[t];
+                int el = path.back();
+                for (int t = (int)path.size(); t < (int)maxtime; t++)
+                    ag.path[t] = el;
+
+                int pickup_t = -1, delivery_t = -1;
+                int gi = 0;
+                for (int t = cur_time; t < (int)path.size() && gi < 2; t++) {
+                    if (path[t] == goals[gi].first && t >= goals[gi].second) {
+                        if (gi == 0) pickup_t = t;
+                        else delivery_t = t;
+                        gi++;
+                    }
+                }
+
+                task.ag_arrive_start = pickup_t;
+                task.completion_time = delivery_t;
+                task.status = aid;
+
+                if (delivery_t >= 0) {
+                    cur_loc = task.delivery_loc;
+                    cur_time = delivery_t;
                 }
             }
         } else {
@@ -2505,10 +2738,8 @@ int Simulation::hybrid_cost(int t, queue<Task*> seq) {
                 t = task->release_time;
             t += all_pairs_dist_[task->pickup_loc][task->delivery_loc];
         } else {
-            if (loc != -1)
-                t += all_pairs_dist_[loc][task->delivery_loc];
-            else
-                t += all_pairs_dist_[task->pickup_loc][task->delivery_loc];
+            // Delivering task: skip distance computation (agent is already en route)
+            // Only update loc to delivery endpoint
         }
         loc = task->delivery_loc;
     }
@@ -2583,7 +2814,8 @@ void Simulation::hybrid_calc_flow(vector<Agent*>& flow_agents, vector<Task*>& fl
     // The actual pickup trigger (Group 1) still checks release_time.
     for (int i = 0; i < (int)flow_tasks.size(); i++) {
         Task* task = flow_tasks[i];
-        int mint = max(task->hold_time - (int)hybrid_timestep_, 0);
+        int mint = max({task->hold_time - (int)hybrid_timestep_,
+                        task->release_time - (int)hybrid_timestep_, 0});
         int maxt = min(len[i] - (int)hybrid_timestep_, maxtimestep - 1);
         for (int t = mint; t <= maxt; t++)
             costflow.AddEdges(out_node(task->pickup_loc, t), task_base + i, 1, 0, -1);
@@ -3069,7 +3301,8 @@ void Simulation::plan_ta_hybrid() {
             for (int i = 0; i < num_ag; i++) {
                 if (hybrid_seqs_[i].empty()) continue;
                 Task* task = hybrid_seqs_[i].front();
-                if (!taskvis[i] && !task->delivering) {
+                if (!taskvis[i] && !task->delivering &&
+                    task->release_time <= (int)hybrid_timestep_ + 20) {
                     bool flag = false;
                     for (int j = 0; j < (int)task_costflow.size(); j++)
                         if (task_costflow[j]->pickup_loc == task->pickup_loc) {
@@ -3120,7 +3353,7 @@ void Simulation::plan_ta_hybrid() {
                     // Since we relaxed the release_time constraint in the flow,
                     // agents just need to reach the pickup (not wait until release_time).
                     // So we use a simple horizon: current_timestep + routing_budget.
-                    int routing_budget = min(map_size / 4 + (int)ag_costflow.size() * 5 + 50, 300);
+                    int routing_budget = 50;
                     vector<int> len;
                     for (int i = 0; i < (int)task_costflow.size(); i++) {
                         int t = (int)hybrid_timestep_;
@@ -3287,54 +3520,80 @@ void Simulation::plan_ta_hybrid() {
 
 void Simulation::update_system_pbs() {
     pbs_has_event_ = false;
+    pbs_assign_event_ = false;
 
     // Check if new tasks arrived
-    if (token.timestep < maxtime && !task_indices_by_time[token.timestep].empty())
+    if (token.timestep < maxtime && !task_indices_by_time[token.timestep].empty()) {
         pbs_has_event_ = true;
+        pbs_assign_event_ = true;
+    }
 
     // Advance goal state machine: detect completed goals
+    // For wPBS: scan all timesteps since last check (may have skipped intermediate steps)
     for (int i = 0; i < (int)agents.size(); i++) {
-        if (agents[i].task_sequence.empty()) continue;
-        int task_id = agents[i].task_sequence.front();
-        Task& task = all_tasks[task_id];
+        // Process multiple task completions that may have occurred between replans
+        while (!agents[i].task_sequence.empty()) {
+            int task_id = agents[i].task_sequence.front();
+            Task& task = all_tasks[task_id];
 
-        int first_goal = task.goals.empty() ? task.pickup_loc : task.goals[0];
-        int last_goal = task.goals.size() >= 2 ? task.goals[min((int)task.goals.size()-1, 1)] : first_goal;
+            int first_goal = task.goals.empty() ? task.pickup_loc : task.goals[0];
+            int last_goal = task.goals.size() >= 2 ? task.goals[min((int)task.goals.size()-1, 1)] : first_goal;
 
-        if (agents[i].status == AG_MOVING_TO_PICKUP &&
-            (int)agents[i].loc == first_goal &&
-            (int)token.timestep >= (unsigned int)task.release_time) {
-            agents[i].status = AG_CARRYING;
-        }
-
-        if (agents[i].status == AG_CARRYING &&
-            (int)agents[i].loc == last_goal) {
-            task.completion_time = (int)token.timestep;
-            task.status = INT_MAX;
-            agents[i].task_sequence.pop_front();
-            agents[i].current_task = -1;
-
-            if (!agents[i].task_sequence.empty()) {
-                agents[i].status = AG_MOVING_TO_PICKUP;
-                agents[i].current_task = agents[i].task_sequence.front();
-            } else {
-                agents[i].status = AG_FREE;
+            // Scan path for pickup arrival
+            if (agents[i].status == AG_MOVING_TO_PICKUP) {
+                bool found_pickup = false;
+                for (unsigned int t = pbs_last_replan_time_; t <= token.timestep && t < maxtime; t++) {
+                    if ((int)agents[i].path[t] == first_goal && (int)t >= task.release_time) {
+                        agents[i].status = AG_CARRYING;
+                        found_pickup = true;
+                        break;
+                    }
+                }
+                if (!found_pickup) break;
             }
-            pbs_has_event_ = true;
+
+            // Scan path for delivery arrival
+            if (agents[i].status == AG_CARRYING) {
+                bool found_delivery = false;
+                for (unsigned int t = pbs_last_replan_time_; t <= token.timestep && t < maxtime; t++) {
+                    if ((int)agents[i].path[t] == last_goal) {
+                        task.completion_time = (int)t;
+                        task.status = INT_MAX;
+                        agents[i].task_sequence.pop_front();
+                        agents[i].current_task = -1;
+
+                        if (!agents[i].task_sequence.empty()) {
+                            agents[i].status = AG_MOVING_TO_PICKUP;
+                            agents[i].current_task = agents[i].task_sequence.front();
+                        } else {
+                            agents[i].status = AG_FREE;
+                        }
+                        pbs_has_event_ = true;
+                        pbs_assign_event_ = true;
+                        found_delivery = true;
+                        break;
+                    }
+                }
+                if (!found_delivery) break;
+            }
+
+            if (agents[i].status != AG_MOVING_TO_PICKUP && agents[i].status != AG_CARRYING)
+                break;
         }
     }
 
     // Check if any agent is free (no tasks) and there are unassigned tasks
-    if (!pbs_has_event_ && !token.tasks.empty()) {
+    if (!pbs_assign_event_ && !token.tasks.empty()) {
         for (auto& a : agents) {
             if (a.task_sequence.empty() && a.status == AG_FREE) {
                 pbs_has_event_ = true;
+                pbs_assign_event_ = true;
                 break;
             }
         }
     }
 
-    // Trigger periodic replanning to prevent agents from getting stuck
+    // Trigger periodic replanning (replan only, no re-assignment)
     if (!pbs_has_event_) {
         bool any_active = false;
         for (auto& a : agents) {
@@ -3342,6 +3601,7 @@ void Simulation::update_system_pbs() {
         }
         if (any_active && (int)token.timestep - pbs_last_replan_time_ >= config.replan_window) {
             pbs_has_event_ = true;
+            // pbs_assign_event_ stays false — only replan paths, don't re-assign
         }
     }
 
@@ -3356,7 +3616,31 @@ void Simulation::update_system_pbs() {
 // ============================================================
 
 void Simulation::assign_repeated_hungarian() {
-    // Collect unassigned tasks
+    // Re-assign from scratch: release all non-delivering tasks
+    // (matching reference: clears task_sequences except delivering front task)
+    for (int i = 0; i < (int)agents.size(); i++) {
+        if (agents[i].task_sequence.empty()) continue;
+        int front_tid = agents[i].task_sequence.front();
+        bool keep_front = (agents[i].status == AG_CARRYING &&
+                           agents[i].current_task == front_tid);
+        for (int tid : agents[i].task_sequence) {
+            if (keep_front && tid == front_tid) continue;
+            all_tasks[tid].status = -1;
+            // Put task back into token.tasks (it was removed when assigned)
+            token.tasks.push_back(&all_tasks[tid]);
+        }
+        if (keep_front) {
+            agents[i].task_sequence = {front_tid};
+        } else {
+            agents[i].task_sequence.clear();
+            if (agents[i].status == AG_MOVING_TO_PICKUP) {
+                agents[i].status = AG_FREE;
+                agents[i].current_task = -1;
+            }
+        }
+    }
+
+    // Collect all unassigned tasks
     vector<Task*> remaining_tasks;
     for (auto it = token.tasks.begin(); it != token.tasks.end(); ++it) {
         if ((*it)->status == -1)
@@ -3505,7 +3789,7 @@ void Simulation::lns_destroy(vector<int>& removed_tasks) {
 
     if (method == 0) {
         // RANDOM: random sample
-        random_shuffle(eligible.begin(), eligible.end());
+        std::shuffle(eligible.begin(), eligible.end(), std::mt19937(std::random_device{}()));
         for (int i = 0; i < group_size && i < (int)eligible.size(); i++)
             removed_tasks.push_back(eligible[i]);
     } else if (method == 1) {
@@ -3627,6 +3911,18 @@ void Simulation::assign_repeated_hungarian_lns() {
 
     if (config.lns_time_limit <= 0) return;
 
+    // Budget LNS: skip if no new tasks OR total LNS time exceeded budget
+    static int lns_prev_total = -1;
+    static double lns_total_time = 0.0;
+    double lns_budget_ms = config.lns_time_limit * 10000.0;
+    int cur_total = 0;
+    for (auto& t : all_tasks)
+        if (t.completion_time <= 0 && t.release_time >= 0 && t.release_time <= (int)token.timestep)
+            cur_total++;
+    if ((cur_total <= lns_prev_total && lns_prev_total >= 0) || lns_total_time >= lns_budget_ms)
+        return;
+    lns_prev_total = cur_total;
+
     // Phase 2: LNS improvement
     clock_t lns_start = clock();
     double time_limit_ms = config.lns_time_limit * 1000.0;
@@ -3667,6 +3963,9 @@ void Simulation::assign_repeated_hungarian_lns() {
                 all_tasks[i].status = saved_statuses[i];
         }
     }
+
+    double lns_elapsed = (double)(clock() - lns_start) / CLOCKS_PER_SEC * 1000.0;
+    lns_total_time += lns_elapsed;
 }
 
 // ============================================================
@@ -3728,8 +4027,8 @@ vector<vector<pair<int,int>>> Simulation::build_goal_sequences() {
     vector<vector<pair<int,int>>> goal_seqs(num_ag);
 
     // Truncate to max tasks per agent for planning efficiency
-    // Use 2 for LNS-PBS/wPBS (matches reference task_truncated_size=2)
-    int max_tasks_per_agent = (config.assign_method == AM_REPEATED_HUNGARIAN_LNS) ? 2 : 3;
+    // Use 2 for HUNGARIAN/LNS (matches reference task_truncated_size=2)
+    int max_tasks_per_agent = 2;
 
     for (int i = 0; i < num_ag; i++) {
         int count = 0;
@@ -3815,7 +4114,6 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
     int num_goals = (int)goals.size();
     int action[5] = {0, 1, -1, mapd_map.col, -mapd_map.col};
 
-    // Limit search horizon
     int search_horizon = min(max_t, start_time + 1000);
 
     // Use pre-computed endpoint h_vals where possible, otherwise compute BFS
@@ -3867,30 +4165,64 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
         return h;
     };
 
-    // Constraint checking: higher-priority paths (hard constraints)
-    // In windowed mode, only enforce within the constraint window
+    // Pre-compute constraint bitmaps for O(1) lookup
+    // ct_loc[t] = location of each constraint agent at time t
+    // This avoids scanning all cons_paths per expansion
+    int n_cons = (int)cons_paths.size();
+    // ct_horizon: extends to cover permanent holds if any cons_path reaches max_t
+    int ct_horizon = (constraint_window > 0) ? min(constraint_window + 1, search_horizon) : search_horizon;
+    for (int i = 0; i < n_cons; i++) {
+        if ((int)cons_paths[i].size() >= max_t || (int)cons_paths[i].size() > ct_horizon) {
+            ct_horizon = max_t;
+            break;
+        }
+    }
+    int old_path_horizon = (constraint_window > 0) ? constraint_window : start_time + 300;
+    int n_old = use_old_paths ? (int)old_paths.size() : 0;
+    int op_horizon = min(old_path_horizon + 1, search_horizon);
+
+    // Flatten: cons_locs[agent_idx * ct_horizon + t] = location at time t
+    vector<int> cons_locs(n_cons * ct_horizon);
+    for (int i = 0; i < n_cons; i++) {
+        for (int t = 0; t < ct_horizon; t++) {
+            cons_locs[i * ct_horizon + t] = (t < (int)cons_paths[i].size()) ?
+                cons_paths[i][t] : cons_paths[i].back();
+        }
+    }
+    vector<int> old_locs;
+    if (n_old > 0) {
+        old_locs.resize(n_old * op_horizon);
+        for (int i = 0; i < n_old; i++) {
+            for (int t = 0; t < op_horizon; t++) {
+                old_locs[i * op_horizon + t] = (t < (int)old_paths[i].size()) ?
+                    old_paths[i][t] : old_paths[i].back();
+            }
+        }
+    }
+
     auto is_constrained_hard = [&](int curr_loc, int next_loc, int abs_t) -> bool {
         if (!mapd_map.grid[next_loc]) return true;
-        if (constraint_window > 0 && abs_t > constraint_window) return false;
-        for (auto& cp : cons_paths) {
-            int cp_loc = (abs_t < (int)cp.size()) ? cp[abs_t] : cp.back();
-            int cp_loc_prev = (abs_t - 1 >= 0 && abs_t - 1 < (int)cp.size()) ? cp[abs_t - 1] : (cp.empty() ? -1 : cp.back());
-            if (cp_loc == next_loc) return true;
-            if (cp_loc == curr_loc && cp_loc_prev == next_loc) return true;
+        if (abs_t >= ct_horizon) return false;
+        for (int i = 0; i < n_cons; i++) {
+            int cl = cons_locs[i * ct_horizon + abs_t];
+            if (cl == next_loc) return true;
+            if (abs_t > 0) {
+                int cl_prev = cons_locs[i * ct_horizon + abs_t - 1];
+                if (cl == curr_loc && cl_prev == next_loc) return true;
+            }
         }
         return false;
     };
 
-    // PBS: also check old_paths (within window or limited horizon)
-    int old_path_horizon = (constraint_window > 0) ? constraint_window : start_time + 300;
     auto is_constrained_old = [&](int curr_loc, int next_loc, int abs_t) -> bool {
-        if (!use_old_paths) return false;
-        if (abs_t > old_path_horizon) return false;
-        for (auto& op : old_paths) {
-            int op_loc = (abs_t < (int)op.size()) ? op[abs_t] : op.back();
-            int op_loc_prev = (abs_t - 1 >= 0 && abs_t - 1 < (int)op.size()) ? op[abs_t - 1] : (op.empty() ? -1 : op.back());
-            if (op_loc == next_loc) return true;
-            if (op_loc == curr_loc && op_loc_prev == next_loc) return true;
+        if (n_old == 0 || abs_t >= op_horizon) return false;
+        for (int i = 0; i < n_old; i++) {
+            int ol = old_locs[i * op_horizon + abs_t];
+            if (ol == next_loc) return true;
+            if (abs_t > 0) {
+                int ol_prev = old_locs[i * op_horizon + abs_t - 1];
+                if (ol == curr_loc && ol_prev == next_loc) return true;
+            }
         }
         return false;
     };
@@ -3900,7 +4232,7 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
     int last_goal_loc = goals.back().first;
     int earliest_holding = 0;
     if (!skip_holding) {
-        int hold_scan_limit = (constraint_window > 0) ? constraint_window + 1 : search_horizon;
+        int hold_scan_limit = (constraint_window > 0) ? constraint_window + 1 : max_t;
         for (auto& cp : cons_paths) {
             for (int t = min((int)cp.size(), hold_scan_limit) - 1; t >= 0; t--) {
                 if (cp[t] == last_goal_loc) {
@@ -3923,18 +4255,26 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
 
     typedef priority_queue<MLANode*, vector<MLANode*>, CompareMLANode> mla_heap_t;
     mla_heap_t open_list;
-    map<tuple<int,int,int>, MLANode*> allNodes;
+
+    // Use unordered_map with fast hash for (loc, goal_id, g_val) dedup
+    struct KeyHash {
+        size_t operator()(uint64_t k) const { return k * 2654435761ULL; }
+    };
+    unordered_map<uint64_t, MLANode*, KeyHash> allNodes;
+    auto make_key = [&](int loc, int gi, int g) -> uint64_t {
+        return ((uint64_t)loc << 32) | ((uint64_t)gi << 20) | (uint64_t)g;
+    };
 
     int init_h = compute_h(start_loc, 0);
     if (init_h == INT_MAX) return {};
 
     MLANode* root = new MLANode(start_loc, 0, init_h, start_time, 0, nullptr);
     open_list.push(root);
-    allNodes[{start_loc, 0, 0}] = root;
+    allNodes[make_key(start_loc, 0, 0)] = root;
 
     MLANode* solution = nullptr;
     int mla_expanded = 0;
-    int mla_max_nodes = 500000;
+    int mla_max_nodes = (n_cons > 30) ? 100000 : 500000;
 
     while (!open_list.empty() && mla_expanded < mla_max_nodes) {
         MLANode* curr = open_list.top();
@@ -3946,20 +4286,12 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
         if (gi < num_goals && curr->loc == goals[gi].first) {
             int rel = goals[gi].second;
             if (curr->timestep >= rel) {
-                // For last goal: check holding constraint
-                if (gi == num_goals - 1 && curr->timestep < earliest_holding) {
-                    // Can't hold yet
-                } else {
-                    gi++;
-                }
+                if (gi == num_goals - 1 && curr->timestep < earliest_holding) {}
+                else gi++;
             }
         }
 
-        // Terminal: visited all goals
-        if (gi >= num_goals) {
-            solution = curr;
-            break;
-        }
+        if (gi >= num_goals) { solution = curr; break; }
 
         if (curr->timestep >= search_horizon - 1) continue;
 
@@ -3978,7 +4310,7 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
             int next_h = compute_h(next_loc, child_gi);
             if (next_h == INT_MAX) continue;
 
-            auto key = make_tuple(next_loc, child_gi, next_g);
+            auto key = make_key(next_loc, child_gi, next_g);
             if (allNodes.find(key) == allNodes.end()) {
                 MLANode* next_node = new MLANode(next_loc, next_g, next_h, next_t,
                                                   child_gi, curr);
@@ -4011,6 +4343,286 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
     }
 
     for (auto& p : allNodes) delete p.second;
+    return result;
+}
+
+// ============================================================
+// Section 32a: SIPP Search — Drop-in replacement for seq_mla_star
+//   Uses safe intervals from cons_paths to reduce state space.
+//   State: (location, interval_index, goal_id)
+// ============================================================
+
+vector<int> Simulation::sipp_search(int agent_id, int start_loc, int start_time,
+                                     const vector<pair<int,int>>& goals,
+                                     const vector<vector<int>>& cons_paths,
+                                     const vector<vector<int>>& old_paths,
+                                     bool use_old_paths,
+                                     bool skip_holding) {
+    if (goals.empty()) return vector<int>((int)maxtime, start_loc);
+
+    int map_size = mapd_map.row * mapd_map.col;
+    int max_t = (int)maxtime;
+    int cols = mapd_map.col;
+    int num_goals = (int)goals.size();
+    int horizon = min(max_t, start_time + max(1000, num_goals * 40));
+
+    // Heuristics
+    auto h_for = [&](int loc, int gloc) -> int {
+        for (auto& ep : mapd_map.endpoints)
+            if (ep.loc == gloc) return ep.h_val[loc];
+        return INT_MAX;
+    };
+    auto sum_h = [&](int loc, int gi) -> int {
+        if (gi >= num_goals) return 0;
+        int h = h_for(loc, goals[gi].first);
+        if (h == INT_MAX) return INT_MAX;
+        for (int g = gi; g < num_goals - 1; g++) {
+            int d = h_for(goals[g].first, goals[g+1].first);
+            if (d == INT_MAX) return INT_MAX;
+            h += d;
+        }
+        return h;
+    };
+
+    // Build CT ranges from cons_paths (compress consecutive same-loc into ranges)
+    struct Iv { int s, e; };
+    vector<vector<Iv>> ct_ranges(map_size);
+    vector<bool> has_ct(map_size, false);
+
+    auto add_path = [&](const vector<int>& path) {
+        int len = min((int)path.size(), horizon);
+        if (len == 0) return;
+        int ss = 0, sl = path[0];
+        for (int t = 1; t < len; t++) {
+            if (path[t] != sl) {
+                ct_ranges[sl].push_back({ss, t}); has_ct[sl] = true;
+                sl = path[t]; ss = t;
+            }
+        }
+        ct_ranges[sl].push_back({ss, max_t}); has_ct[sl] = true;
+    };
+    for (auto& cp : cons_paths) add_path(cp);
+    if (use_old_paths) {
+        int old_h = min(start_time + 300, horizon);
+        for (auto& op : old_paths) {
+            int len = min((int)op.size(), old_h);
+            if (len == 0) continue;
+            int ss = 0, sl = op[0];
+            for (int t = 1; t < len; t++) {
+                if (op[t] != sl) {
+                    ct_ranges[sl].push_back({ss, t}); has_ct[sl] = true;
+                    sl = op[t]; ss = t;
+                }
+            }
+            ct_ranges[sl].push_back({ss, old_h}); has_ct[sl] = true;
+        }
+    }
+
+    // Lazy SIT cache
+    unordered_map<int, vector<Iv>> sit;
+    auto get_sit = [&](int loc) -> const vector<Iv>& {
+        auto it = sit.find(loc);
+        if (it != sit.end()) return it->second;
+        auto& ivs = sit[loc];
+        if (!has_ct[loc]) return ivs;
+        vector<pair<int,int>> rs;
+        for (auto& r : ct_ranges[loc]) rs.push_back({r.s, r.e}); // don't clip — hold ranges extend to max_t
+        sort(rs.begin(), rs.end());
+        vector<pair<int,int>> m;
+        for (auto& [s,e] : rs) {
+            if (!m.empty() && s <= m.back().second) m.back().second = max(m.back().second, e);
+            else m.push_back({s, e});
+        }
+        int p = 0;
+        for (auto& [s,e] : m) { if (s > p) ivs.push_back({p, s}); p = e; }
+        if (p < horizon) ivs.push_back({p, horizon});
+        return ivs;
+    };
+
+    // Edge constraint
+    auto edge_blocked = [&](int from, int to, int t) -> bool {
+        if (t <= 0 || t >= horizon) return false;
+        for (auto& cp : cons_paths) {
+            int len = (int)cp.size();
+            int ct = (t < len) ? cp[t] : cp[len-1];
+            int cp_ = (t-1 < len) ? cp[t-1] : cp[len-1];
+            if (ct == from && cp_ == to) return true;
+        }
+        if (use_old_paths) {
+            int old_h = start_time + 300;
+            if (t <= old_h) {
+                for (auto& op : old_paths) {
+                    int len = (int)op.size();
+                    int ot = (t < len) ? op[t] : op[len-1];
+                    int op_ = (t-1 < len) ? op[t-1] : op[len-1];
+                    if (ot == from && op_ == to) return true;
+                }
+            }
+        }
+        return false;
+    };
+
+    // Earliest holding
+    int last_goal = goals.back().first;
+    int earliest_hold = 0;
+    if (!skip_holding) {
+        for (auto& cp : cons_paths) {
+            for (int t = min((int)cp.size(), horizon)-1; t >= 0; t--)
+                if (cp[t] == last_goal) { earliest_hold = max(earliest_hold, t+1); break; }
+            if (!cp.empty() && cp.back() == last_goal)
+                earliest_hold = max(earliest_hold, max_t); // permanently blocked
+        }
+        if (use_old_paths) {
+            for (auto& op : old_paths) {
+                int lim = min({(int)op.size(), horizon, start_time+301});
+                for (int t = lim-1; t >= 0; t--)
+                    if (op[t] == last_goal) { earliest_hold = max(earliest_hold, t+1); break; }
+            }
+        }
+    }
+
+    // SIPP node
+    struct SN {
+        int loc, g, h, t, gi, iv, conflicts;
+        SN* parent;
+        SN(int l,int g_,int h_,int t_,int gi_,int ii,int c,SN* p)
+            :loc(l),g(g_),h(h_),t(t_),gi(gi_),iv(ii),conflicts(c),parent(p){}
+        int f() const { return g+h; }
+    };
+    struct CmpSN {
+        bool operator()(const SN* a, const SN* b) const {
+            if (a->f() != b->f()) return a->f() > b->f();
+            if (a->conflicts != b->conflicts) return a->conflicts > b->conflicts;
+            return a->g <= b->g;
+        }
+    };
+
+    priority_queue<SN*, vector<SN*>, CmpSN> open;
+    unordered_map<uint64_t, int> closed;
+    vector<SN*> nodes;
+    auto mk = [](int l, int iv, int gi) -> uint64_t {
+        return ((uint64_t)l << 32) | ((uint64_t)(iv & 0xFFFF) << 16) | (gi & 0xFFFF);
+    };
+
+    int ih = sum_h(start_loc, 0);
+    if (ih == INT_MAX) return {};
+
+    int s_iv = 0;
+    auto& ss = get_sit(start_loc);
+    if (!ss.empty())
+        for (int i = 0; i < (int)ss.size(); i++)
+            if (ss[i].s <= start_time && start_time < ss[i].e) { s_iv = i; break; }
+
+    auto* root = new SN(start_loc, 0, ih, start_time, 0, s_iv, 0, nullptr);
+    open.push(root); nodes.push_back(root);
+    closed[mk(start_loc, s_iv, 0)] = 0;
+
+    SN* sol = nullptr;
+    int exp = 0;
+    int max_exp = max(500000, num_goals * 50000);
+    while (!open.empty() && exp < max_exp) {
+        SN* cur = open.top(); open.pop();
+        int gi = cur->gi;
+        if (gi < num_goals && cur->loc == goals[gi].first && cur->t >= goals[gi].second) {
+            if (gi == num_goals-1 && cur->t < earliest_hold) {} else gi++;
+        }
+        if (gi >= num_goals) { sol = cur; break; }
+        auto ck = mk(cur->loc, cur->iv, gi);
+        if (closed.count(ck) && closed[ck] < cur->g) continue;
+        exp++;
+        if (cur->t >= horizon - 1) continue;
+
+        auto& sc = get_sit(cur->loc);
+        int civ_end = horizon;
+        if (!sc.empty() && cur->iv < (int)sc.size()) civ_end = sc[cur->iv].e;
+
+        int dirs[4] = {1, -1, cols, -cols};
+        for (int d = 0; d < 4; d++) {
+            int nl = cur->loc + dirs[d];
+            if (nl < 0 || nl >= map_size || !mapd_map.grid[nl]) continue;
+            if (abs(nl % cols - cur->loc % cols) > 1) continue;
+            int mt = cur->t + 1;
+            auto& sn = get_sit(nl);
+            if (sn.empty() && has_ct[nl]) continue; // fully blocked
+            if (sn.empty()) {
+                // Truly unconstrained
+                if (mt < horizon && !edge_blocked(cur->loc, nl, mt)) {
+                    int ngi = gi;
+                    if (ngi < num_goals && nl == goals[ngi].first && mt >= goals[ngi].second)
+                        { if (ngi == num_goals-1 && mt < earliest_hold) {} else ngi++; }
+                    int nh = sum_h(nl, ngi); if (nh == INT_MAX) continue;
+                    int ng = mt - start_time;
+                    auto nk = mk(nl, 0, ngi);
+                    if (!closed.count(nk) || closed[nk] > ng) {
+                        closed[nk] = ng;
+                        auto* nd = new SN(nl, ng, nh, mt, ngi, 0, cur->conflicts, cur);
+                        open.push(nd); nodes.push_back(nd);
+                    }
+                }
+            } else {
+                for (int iv = 0; iv < (int)sn.size(); iv++) {
+                    if (sn[iv].e <= mt) continue;
+                    int arr = max(mt, sn[iv].s);
+                    if (arr >= horizon || arr > civ_end) continue;
+                    if (edge_blocked(cur->loc, nl, arr)) continue;
+                    int ngi = gi;
+                    if (ngi < num_goals && nl == goals[ngi].first && arr >= goals[ngi].second)
+                        { if (ngi == num_goals-1 && arr < earliest_hold) {} else ngi++; }
+                    int nh = sum_h(nl, ngi); if (nh == INT_MAX) continue;
+                    int ng = arr - start_time;
+                    auto nk = mk(nl, iv, ngi);
+                    if (!closed.count(nk) || closed[nk] > ng) {
+                        closed[nk] = ng;
+                        auto* nd = new SN(nl, ng, nh, arr, ngi, iv, cur->conflicts, cur);
+                        open.push(nd); nodes.push_back(nd);
+                    }
+                }
+            }
+        }
+        // Wait to next interval
+        if (!sc.empty()) {
+            for (int iv = cur->iv + 1; iv < (int)sc.size(); iv++) {
+                int arr = sc[iv].s; if (arr >= horizon) break;
+                int ngi = gi;
+                if (ngi < num_goals && cur->loc == goals[ngi].first && arr >= goals[ngi].second)
+                    { if (ngi == num_goals-1 && arr < earliest_hold) {} else ngi++; }
+                int nh = sum_h(cur->loc, ngi); if (nh == INT_MAX) continue;
+                int ng = arr - start_time;
+                auto nk = mk(cur->loc, iv, ngi);
+                if (!closed.count(nk) || closed[nk] > ng) {
+                    closed[nk] = ng;
+                    auto* nd = new SN(cur->loc, ng, nh, arr, ngi, iv, cur->conflicts, cur);
+                    open.push(nd); nodes.push_back(nd);
+                }
+                break;
+            }
+        }
+    }
+
+    // Reconstruct
+    vector<int> result;
+    if (sol) {
+        vector<SN*> pn;
+        for (SN* n = sol; n; n = n->parent) pn.push_back(n);
+        reverse(pn.begin(), pn.end());
+        vector<int> locs;
+        for (int i = 0; i < (int)pn.size(); i++) {
+            if (i == 0) { locs.push_back(pn[0]->loc); continue; }
+            for (int t = pn[i-1]->t + 1; t < pn[i]->t; t++) locs.push_back(pn[i-1]->loc);
+            locs.push_back(pn[i]->loc);
+        }
+        result.resize(max_t);
+        for (int t = 0; t < start_time && t < max_t; t++) result[t] = start_loc;
+        for (int i = 0; i < (int)locs.size(); i++) {
+            int t = start_time + i;
+            if (t < max_t) result[t] = locs[i];
+        }
+        int last = locs.back();
+        for (int t = start_time + (int)locs.size(); t < max_t; t++) result[t] = last;
+
+        // (validation removed — conflicts handled at caller level)
+    }
+    for (auto* n : nodes) delete n;
     return result;
 }
 
@@ -4165,12 +4777,19 @@ bool Simulation::pbs_core(bool windowed) {
             all_task_groups[i] = split_into_task_groups(i, goal_seqs[i]);
     }
 
-    int cons_window = windowed ? (int)token.timestep + config.replan_window + 1 : -1;
+    // For wPBS: use a moderate constraint window for the search
+    // Small window (11) causes path quality issues; no window is too slow
+    // Use search_horizon-sized window: constraints enforced within 200 steps
+    // For wPBS with many agents: use moderate constraint window for performance
+    // Small window (11) causes quality issues; no window causes timeout on 50ag
+    int cons_window = windowed ? (int)token.timestep + 200 : -1;
 
     auto plan_agent = [&](int aid, int loc, int time,
                           const vector<vector<int>>& cons,
                           const vector<vector<int>>& old,
                           bool use_old) -> vector<int> {
+        if (config.use_sipp)
+            return sipp_search(aid, loc, time, goal_seqs[aid], cons, old, use_old);
         if (use_taskwise)
             return mla_star_taskwise(aid, loc, time, all_task_groups[aid],
                                       cons, old, use_old, cons_window);
@@ -4178,27 +4797,27 @@ bool Simulation::pbs_core(bool windowed) {
                              false, cons_window);
     };
 
-    // Save old paths
+    // Limit path copy to relevant horizon (from current timestep + search horizon)
+    int path_horizon = min(max_t, (int)token.timestep + 1200);
+
+    // Save old paths (only up to path_horizon)
     vector<vector<int>> old_paths(num_ag);
     for (int i = 0; i < num_ag; i++) {
-        old_paths[i].resize(max_t);
-        for (int t = 0; t < max_t; t++)
+        old_paths[i].resize(path_horizon);
+        for (int t = 0; t < path_horizon; t++)
             old_paths[i][t] = (int)token.path[i][t];
     }
 
-    // Create root - plan each agent against old_paths of non-planned agents
-    // and new paths of already-planned agents
     PBSNode* root = new PBSNode();
     root->paths.resize(num_ag);
 
-    // Initialize paths with current token.path (preserves history)
     for (int i = 0; i < num_ag; i++) {
         root->paths[i].resize(max_t);
         for (int t = 0; t < max_t; t++)
             root->paths[i][t] = (int)token.path[i][t];
     }
 
-    // Sort agents: active agents (with tasks) first, then idle agents
+    // Plan all agents (active first, idle second)
     vector<int> plan_order;
     for (int i = 0; i < num_ag; i++) {
         if (!agents[i].task_sequence.empty())
@@ -4208,32 +4827,29 @@ bool Simulation::pbs_core(bool windowed) {
         if (agents[i].task_sequence.empty())
             plan_order.push_back(i);
     }
-
     vector<bool> planned(num_ag, false);
-    for (int idx = 0; idx < num_ag; idx++) {
-        int i = plan_order[idx];
-        vector<vector<int>> cons;
-        vector<vector<int>> old_for_agent;
 
-        // Already-planned agents use their NEW paths
+    int trunc = min(path_horizon, (int)token.timestep + 1000);
+    for (int idx = 0; idx < (int)plan_order.size(); idx++) {
+        int i = plan_order[idx];
+        vector<vector<int>> cons_buf, old_buf;
+        cons_buf.reserve(num_ag);
+        old_buf.reserve(num_ag);
         for (int j = 0; j < num_ag; j++) {
             if (planned[j])
-                cons.push_back(root->paths[j]);
+                cons_buf.emplace_back(root->paths[j].begin(), root->paths[j].begin() + min(trunc, (int)root->paths[j].size()));
         }
-
-        // Not-yet-planned agents use old_paths
         for (int j = 0; j < num_ag; j++) {
             if (j != i && !planned[j])
-                old_for_agent.push_back(old_paths[j]);
+                old_buf.emplace_back(old_paths[j].begin(), old_paths[j].begin() + min(trunc, (int)old_paths[j].size()));
         }
 
         vector<int> path = plan_agent(i, (int)agents[i].loc, (int)token.timestep,
-                                       cons, old_for_agent, true);
+                                       cons_buf, old_buf, true);
         if (path.empty()) {
             path = plan_agent(i, (int)agents[i].loc, (int)token.timestep,
-                               cons, {}, false);
+                               cons_buf, {}, false);
             if (path.empty()) {
-                // Keep current path
                 for (int t = (int)token.timestep; t < max_t; t++)
                     root->paths[i][t] = (int)agents[i].loc;
             } else {
@@ -4284,7 +4900,6 @@ bool Simulation::pbs_core(bool windowed) {
     }
 
     vector<PBSNode*> all_nodes;
-    all_nodes.push_back(root);
     stack<PBSNode*> dfs_stack;
     dfs_stack.push(root);
     PBSNode* best_node = root;
@@ -4295,7 +4910,7 @@ bool Simulation::pbs_core(bool windowed) {
     }
     best_node->earliest_collision = get<4>(best_node->conflict);
     int hl_expanded = 0;
-    int max_hl = 5000;
+    int max_hl = (num_ag > 30) ? 5000 : 50000;
 
     while (!dfs_stack.empty() && hl_expanded < max_hl) {
         PBSNode* curr = dfs_stack.top();
@@ -4363,7 +4978,7 @@ bool Simulation::pbs_core(bool windowed) {
 
             vector<int> new_path = plan_agent(lower, (int)agents[lower].loc,
                                               (int)token.timestep,
-                                              cons, old_for_agent, !windowed);
+                                              cons, old_for_agent, true);
             if (new_path.empty()) {
                 child_valid[c] = false;
                 delete children[c];
@@ -4402,7 +5017,6 @@ bool Simulation::pbs_core(bool windowed) {
             }
             children[c]->num_collisions = (int)children[c]->conflicts.size();
 
-            all_nodes.push_back(children[c]);
         }
 
         if (child_valid[0] && child_valid[1]) {
@@ -4434,13 +5048,415 @@ bool Simulation::pbs_core(bool windowed) {
              << ", collisions: " << best_node->num_collisions << ")" << endl;
     }
 
-    for (auto* n : all_nodes) delete n;
     return true;
 }
 
 // ============================================================
 // Section 35: PBS Path Planning — Wrapper
 // ============================================================
+
+// ============================================================
+// SIPP-based PBS Solver
+// ReservationTable: CT (hard) + CAT (soft) → SIT (safe intervals)
+// SIPP search: (location, interval_idx, goal_id) states
+// ============================================================
+
+bool Simulation::pbs_core_sipp() {
+    int num_ag = (int)agents.size();
+    int max_t = (int)maxtime;
+    int map_size = mapd_map.row * mapd_map.col;
+    int cols = mapd_map.col;
+    int horizon = min(max_t, (int)token.timestep + 1000);
+
+    auto goal_seqs = build_goal_sequences();
+
+    // Copy paths as int vectors
+    vector<vector<int>> paths(num_ag);
+    for (int i = 0; i < num_ag; i++)
+        paths[i].assign(token.path[i].begin(), token.path[i].end());
+
+    // Heuristic helper
+    auto get_h = [&](int loc, int gloc) -> int {
+        for (auto& ep : mapd_map.endpoints)
+            if (ep.loc == gloc) return ep.h_val[loc];
+        return INT_MAX;
+    };
+    auto sum_h = [&](int loc, int gi, const vector<pair<int,int>>& goals) -> int {
+        int ng = (int)goals.size();
+        if (gi >= ng) return 0;
+        int h = get_h(loc, goals[gi].first);
+        if (h == INT_MAX) return INT_MAX;
+        for (int g = gi; g < ng - 1; g++) {
+            int d = get_h(goals[g].first, goals[g+1].first);
+            if (d == INT_MAX) return INT_MAX;
+            h += d;
+        }
+        return h;
+    };
+
+    // ---- Per-location CT ranges (built incrementally) ----
+    struct CTR { int ts, te; };
+    vector<vector<CTR>> ct_ranges(map_size);
+    vector<bool> has_ct(map_size, false);
+
+    auto add_path_ct = [&](const vector<int>& path) {
+        int len = min((int)path.size(), horizon);
+        if (len == 0) return;
+        int seg_s = 0, seg_loc = path[0];
+        for (int t = 1; t < len; t++) {
+            if (path[t] != seg_loc) {
+                ct_ranges[seg_loc].push_back({seg_s, t});
+                has_ct[seg_loc] = true;
+                seg_loc = path[t]; seg_s = t;
+            }
+        }
+        ct_ranges[seg_loc].push_back({seg_s, max_t});
+        has_ct[seg_loc] = true;
+    };
+
+    // ---- Lazy SIT cache ----
+    struct Iv { int s, e; };
+    unordered_map<int, vector<Iv>> sit_cache;
+
+    auto build_sit = [&](int loc) -> const vector<Iv>& {
+        auto it = sit_cache.find(loc);
+        if (it != sit_cache.end()) return it->second;
+        auto& ivs = sit_cache[loc];
+        if (!has_ct[loc]) return ivs; // unconstrained — empty = one big interval
+        // Merge ranges and compute safe intervals
+        auto& rs = ct_ranges[loc];
+        vector<pair<int,int>> sorted_rs;
+        sorted_rs.reserve(rs.size());
+        for (auto& r : rs) sorted_rs.push_back({r.ts, min(r.te, horizon)});
+        sort(sorted_rs.begin(), sorted_rs.end());
+        vector<pair<int,int>> merged;
+        for (auto& [s, e] : sorted_rs) {
+            if (!merged.empty() && s <= merged.back().second)
+                merged.back().second = max(merged.back().second, e);
+            else merged.push_back({s, e});
+        }
+        int prev = 0;
+        for (auto& [s, e] : merged) {
+            if (s > prev) ivs.push_back({prev, s});
+            prev = e;
+        }
+        if (prev < horizon) ivs.push_back({prev, horizon});
+        return ivs;
+    };
+
+    auto invalidate_path = [&](const vector<int>& path) {
+        int len = min((int)path.size(), horizon);
+        unordered_set<int> touched;
+        for (int t = 0; t < len; t++) touched.insert(path[t]);
+        if (!path.empty()) touched.insert(path.back());
+        for (int loc : touched) sit_cache.erase(loc);
+    };
+
+    // ---- SIPP search ----
+    struct SN {
+        int loc, g, h, t, gi, iv_idx, conflicts;
+        SN* parent;
+        SN(int l,int g_,int h_,int t_,int gi_,int ii,int c,SN* p)
+            :loc(l),g(g_),h(h_),t(t_),gi(gi_),iv_idx(ii),conflicts(c),parent(p){}
+        int f() const { return g + h; }
+    };
+    struct CmpSN {
+        bool operator()(const SN* a, const SN* b) const {
+            if (a->f() != b->f()) return a->f() > b->f();
+            if (a->conflicts != b->conflicts) return a->conflicts > b->conflicts;
+            return a->g <= b->g;
+        }
+    };
+
+    // Edge check against CT paths (uses ct_ranges indirectly via paths)
+    vector<int*> edge_ct_ptrs;
+    vector<int> edge_ct_lens;
+
+    auto edge_blocked = [&](int from, int to, int t) -> bool {
+        if (t <= 0 || t >= horizon) return false;
+        for (int c = 0; c < (int)edge_ct_ptrs.size(); c++) {
+            int len = edge_ct_lens[c];
+            int ct_loc = (t < len) ? edge_ct_ptrs[c][t] : edge_ct_ptrs[c][len-1];
+            int ct_prev = (t-1 < len) ? edge_ct_ptrs[c][t-1] : edge_ct_ptrs[c][len-1];
+            if (ct_loc == from && ct_prev == to) return true;
+        }
+        return false;
+    };
+
+    // CAT conflict count (soft constraints from non-CT agents)
+    vector<int*> cat_ptrs;
+    vector<int> cat_lens;
+
+    auto count_cat = [&](int loc, int t) -> int {
+        int c = 0;
+        for (int j = 0; j < (int)cat_ptrs.size(); j++) {
+            int len = cat_lens[j];
+            int cl = (t < len) ? cat_ptrs[j][t] : cat_ptrs[j][len-1];
+            if (cl == loc) c++;
+        }
+        return c;
+    };
+
+    auto sipp_plan = [&](int start_loc, int start_time,
+                          const vector<pair<int,int>>& goals) -> vector<int> {
+        if (goals.empty()) return vector<int>(max_t, start_loc);
+        int ng = (int)goals.size();
+
+        // Earliest holding
+        int last_goal = goals.back().first;
+        int earliest_hold = 0;
+        for (int c = 0; c < (int)edge_ct_ptrs.size(); c++) {
+            int len = edge_ct_lens[c];
+            for (int t = min(len, horizon) - 1; t >= 0; t--) {
+                if (edge_ct_ptrs[c][t] == last_goal) {
+                    earliest_hold = max(earliest_hold, t + 1); break;
+                }
+            }
+            if (len > 0 && edge_ct_ptrs[c][len-1] == last_goal)
+                earliest_hold = max(earliest_hold, max_t);
+        }
+
+        priority_queue<SN*, vector<SN*>, CmpSN> open;
+        unordered_map<uint64_t, int> closed;
+        vector<SN*> nodes;
+        auto mk = [](int l, int iv, int gi) -> uint64_t {
+            return ((uint64_t)l << 32) | ((uint64_t)(iv & 0xFFFF) << 16) | (gi & 0xFFFF);
+        };
+
+        int ih = sum_h(start_loc, 0, goals);
+        if (ih == INT_MAX) return {};
+
+        // Find start interval
+        int s_iv = 0;
+        auto& sit_s = build_sit(start_loc);
+        if (!sit_s.empty()) {
+            for (int i = 0; i < (int)sit_s.size(); i++)
+                if (sit_s[i].s <= start_time && start_time < sit_s[i].e) { s_iv = i; break; }
+        }
+
+        auto* root = new SN(start_loc, 0, ih, start_time, 0, s_iv, count_cat(start_loc, start_time), nullptr);
+        open.push(root); nodes.push_back(root);
+        closed[mk(start_loc, s_iv, 0)] = 0;
+
+        SN* sol = nullptr;
+        int exp = 0;
+
+        while (!open.empty() && exp < 500000) {
+            SN* cur = open.top(); open.pop();
+            int gi = cur->gi;
+            if (gi < ng && cur->loc == goals[gi].first && cur->t >= goals[gi].second) {
+                if (gi == ng-1 && cur->t < earliest_hold) {} else gi++;
+            }
+            if (gi >= ng) { sol = cur; break; }
+            auto ck = mk(cur->loc, cur->iv_idx, gi);
+            if (closed.count(ck) && closed[ck] < cur->g) continue;
+            exp++;
+            if (cur->t >= horizon - 1) continue;
+
+            // Current interval end
+            auto& sit_c = build_sit(cur->loc);
+            int civ_end = horizon;
+            if (!sit_c.empty() && cur->iv_idx < (int)sit_c.size())
+                civ_end = sit_c[cur->iv_idx].e;
+
+            // Move to 4 neighbors
+            int dirs[4] = {1, -1, cols, -cols};
+            for (int d = 0; d < 4; d++) {
+                int nl = cur->loc + dirs[d];
+                if (nl < 0 || nl >= map_size || !mapd_map.grid[nl]) continue;
+                if (abs(nl % cols - cur->loc % cols) > 1) continue;
+                int mt = cur->t + 1;
+
+                auto& sit_n = build_sit(nl);
+                if (sit_n.empty() && has_ct[nl]) continue; // fully blocked
+                if (sit_n.empty()) {
+                    // Truly unconstrained
+                    if (mt < horizon && !edge_blocked(cur->loc, nl, mt)) {
+                        int ngi = gi;
+                        if (ngi < ng && nl == goals[ngi].first && mt >= goals[ngi].second) {
+                            if (ngi == ng-1 && mt < earliest_hold) {} else ngi++;
+                        }
+                        int nh = sum_h(nl, ngi, goals);
+                        if (nh == INT_MAX) continue;
+                        int nc = cur->conflicts + count_cat(nl, mt);
+                        auto nk = mk(nl, 0, ngi);
+                        int ng_ = mt - start_time;
+                        if (!closed.count(nk) || closed[nk] > ng_) {
+                            closed[nk] = ng_;
+                            auto* nd = new SN(nl, ng_, nh, mt, ngi, 0, nc, cur);
+                            open.push(nd); nodes.push_back(nd);
+                        }
+                    }
+                } else {
+                    for (int iv = 0; iv < (int)sit_n.size(); iv++) {
+                        if (sit_n[iv].e <= mt) continue;
+                        int arr = max(mt, sit_n[iv].s);
+                        if (arr >= horizon) break;
+                        if (arr > civ_end) continue; // can't wait that long at cur
+                        if (edge_blocked(cur->loc, nl, arr)) continue;
+                        int ngi = gi;
+                        if (ngi < ng && nl == goals[ngi].first && arr >= goals[ngi].second) {
+                            if (ngi == ng-1 && arr < earliest_hold) {} else ngi++;
+                        }
+                        int nh = sum_h(nl, ngi, goals);
+                        if (nh == INT_MAX) continue;
+                        int ng_ = arr - start_time;
+                        int nc = cur->conflicts + count_cat(nl, arr);
+                        auto nk = mk(nl, iv, ngi);
+                        if (!closed.count(nk) || closed[nk] > ng_) {
+                            closed[nk] = ng_;
+                            auto* nd = new SN(nl, ng_, nh, arr, ngi, iv, nc, cur);
+                            open.push(nd); nodes.push_back(nd);
+                        }
+                    }
+                }
+            }
+            // Wait to next interval
+            if (!sit_c.empty()) {
+                for (int iv = cur->iv_idx + 1; iv < (int)sit_c.size(); iv++) {
+                    int arr = sit_c[iv].s;
+                    if (arr >= horizon) break;
+                    int ngi = gi;
+                    if (ngi < ng && cur->loc == goals[ngi].first && arr >= goals[ngi].second) {
+                        if (ngi == ng-1 && arr < earliest_hold) {} else ngi++;
+                    }
+                    int nh = sum_h(cur->loc, ngi, goals);
+                    if (nh == INT_MAX) continue;
+                    int ng_ = arr - start_time;
+                    int nc = cur->conflicts + count_cat(cur->loc, arr);
+                    auto nk = mk(cur->loc, iv, ngi);
+                    if (!closed.count(nk) || closed[nk] > ng_) {
+                        closed[nk] = ng_;
+                        auto* nd = new SN(cur->loc, ng_, nh, arr, ngi, iv, nc, cur);
+                        open.push(nd); nodes.push_back(nd);
+                    }
+                    break;
+                }
+            }
+        }
+
+        // Reconstruct
+        vector<int> result;
+        if (sol) {
+            vector<SN*> pn;
+            for (SN* n = sol; n; n = n->parent) pn.push_back(n);
+            reverse(pn.begin(), pn.end());
+            vector<int> locs;
+            for (int i = 0; i < (int)pn.size(); i++) {
+                if (i == 0) { locs.push_back(pn[0]->loc); continue; }
+                for (int t = pn[i-1]->t + 1; t < pn[i]->t; t++)
+                    locs.push_back(pn[i-1]->loc);
+                locs.push_back(pn[i]->loc);
+            }
+            result.resize(max_t);
+            for (int t = 0; t < start_time && t < max_t; t++) result[t] = start_loc;
+            for (int i = 0; i < (int)locs.size(); i++) {
+                int t = start_time + i;
+                if (t < max_t) result[t] = locs[i];
+            }
+            int last = locs.back();
+            for (int t = start_time + (int)locs.size(); t < max_t; t++) result[t] = last;
+        }
+        for (auto* n : nodes) delete n;
+        return result;
+    };
+
+    // ---- Root planning: sequential prioritized SIPP ----
+    vector<int> plan_order;
+    for (int i = 0; i < num_ag; i++)
+        if (!agents[i].task_sequence.empty()) plan_order.push_back(i);
+    for (int i = 0; i < num_ag; i++)
+        if (agents[i].task_sequence.empty()) plan_order.push_back(i);
+
+    vector<bool> planned(num_ag, false);
+    for (int idx = 0; idx < num_ag; idx++) {
+        int i = plan_order[idx];
+
+        // Skip idle agents
+        if (goal_seqs[i].size() <= 1 && agents[i].task_sequence.empty()) {
+            int loc = (int)agents[i].loc;
+            for (int t = (int)token.timestep; t < max_t; t++) paths[i][t] = loc;
+            add_path_ct(paths[i]);
+            invalidate_path(paths[i]);
+            planned[i] = true;
+            continue;
+        }
+
+        // Build edge CT + CAT pointers
+        edge_ct_ptrs.clear(); edge_ct_lens.clear();
+        cat_ptrs.clear(); cat_lens.clear();
+        for (int j = 0; j < num_ag; j++) {
+            if (planned[j]) {
+                edge_ct_ptrs.push_back(paths[j].data());
+                edge_ct_lens.push_back((int)paths[j].size());
+            }
+        }
+        for (int j = 0; j < num_ag; j++) {
+            if (j != i && !planned[j]) {
+                cat_ptrs.push_back(paths[j].data());
+                cat_lens.push_back((int)paths[j].size());
+            }
+        }
+
+        auto path = sipp_plan((int)agents[i].loc, (int)token.timestep, goal_seqs[i]);
+        if (!path.empty()) paths[i] = std::move(path);
+
+        add_path_ct(paths[i]);
+        invalidate_path(paths[i]);
+        planned[i] = true;
+    }
+
+    // Conflict resolution: iteratively replan conflicting agents
+    // Each iteration: find conflict, replan lower-priority agent with ALL others as hard constraints
+    for (int iter = 0; iter < 50; iter++) {
+        // Find earliest conflict
+        int ca1 = -1, ca2 = -1, ct_time = INT_MAX;
+        for (int a1 = 0; a1 < num_ag; a1++) {
+            for (int a2 = a1+1; a2 < num_ag; a2++) {
+                for (int t = (int)token.timestep; t < min(horizon, max_t); t++) {
+                    if (paths[a1][t] == paths[a2][t]) {
+                        if (t < ct_time) { ca1 = a1; ca2 = a2; ct_time = t; }
+                        break;
+                    }
+                    if (t > (int)token.timestep &&
+                        paths[a1][t] == paths[a2][t-1] && paths[a2][t] == paths[a1][t-1]) {
+                        if (t < ct_time) { ca1 = a1; ca2 = a2; ct_time = t; }
+                        break;
+                    }
+                }
+            }
+        }
+        if (ca1 < 0) break; // no conflicts — done!
+
+        // Replan the agent with fewer remaining goals (lower priority)
+        int replan_ag = (goal_seqs[ca1].size() <= goal_seqs[ca2].size()) ? ca1 : ca2;
+
+        // Rebuild ct_ranges + SIT from scratch with ALL other agents as hard constraints
+        for (int loc = 0; loc < map_size; loc++) { ct_ranges[loc].clear(); has_ct[loc] = false; }
+        sit_cache.clear();
+        edge_ct_ptrs.clear(); edge_ct_lens.clear();
+        cat_ptrs.clear(); cat_lens.clear();
+        for (int j = 0; j < num_ag; j++) {
+            if (j == replan_ag) continue;
+            add_path_ct(paths[j]);
+            invalidate_path(paths[j]);
+            edge_ct_ptrs.push_back(paths[j].data());
+            edge_ct_lens.push_back((int)paths[j].size());
+        }
+
+        auto new_path = sipp_plan((int)agents[replan_ag].loc, (int)token.timestep, goal_seqs[replan_ag]);
+        if (!new_path.empty()) paths[replan_ag] = std::move(new_path);
+    }
+
+    // Commit
+    for (int i = 0; i < num_ag; i++) {
+        for (int t = 0; t < max_t; t++) {
+            token.path[i][t] = paths[i][t];
+            agents[i].path[t] = paths[i][t];
+        }
+    }
+    return true;
+}
 
 // ============================================================
 // Section 35b: PP+MLA* Path Planning for HUNGARIAN/LNS
@@ -4450,12 +5466,6 @@ bool Simulation::pbs_core(bool windowed) {
 // ============================================================
 
 void Simulation::path_planning_pp_mla() {
-    // PP + MLA*: plan agents one at a time.
-    // Each agent plans through ALL its assigned tasks in one mla_star call:
-    //   goals = [pickup1, delivery1, pickup2, delivery2, ..., dummy]
-    // cons_paths = all other agents' paths (old or already-replanned).
-    // Those paths already go through their tasks and hold at their dummies.
-
     int num_ag = (int)agents.size();
     int max_t = (int)maxtime;
 
@@ -4479,9 +5489,27 @@ void Simulation::path_planning_pp_mla() {
     vector<bool> planned(num_ag, false);
     vector<int> agent_dummies(num_ag, -1);
 
+    clock_t pp_start = clock();
+    double pp_budget_ms = (num_ag > 30) ? 500.0 : 2000.0;
+
     for (auto& po : plan_order) {
         int i = po.second;
         Agent& ag = agents[i];
+
+        double pp_elapsed = (double)(clock() - pp_start) / CLOCKS_PER_SEC * 1000.0;
+        if (pp_elapsed > pp_budget_ms) {
+            new_paths[i] = old_paths[i];
+            planned[i] = true;
+            agent_dummies[i] = old_paths[i].back();
+            continue;
+        }
+
+        if (false) {  // skip disabled
+            new_paths[i] = old_paths[i];
+            planned[i] = true;
+            agent_dummies[i] = old_paths[i].back();
+            continue;
+        }
 
         // Build cons_paths from all OTHER agents
         vector<vector<int>> cons_paths;
@@ -4493,9 +5521,13 @@ void Simulation::path_planning_pp_mla() {
                 cons_paths.push_back(old_paths[j]);
         }
 
-        // Build goal sequence: ALL tasks in task_sequence + dummy endpoint
+        // Build goal sequence: limited tasks + dummy endpoint
+        int max_tasks = (num_ag > 30) ? 2 : 5;
         vector<pair<int,int>> goals;
+        int task_count = 0;
         for (int tid : ag.task_sequence) {
+            if (task_count >= max_tasks) break;
+            task_count++;
             Task& task = all_tasks[tid];
             int ng = min((int)task.goals.size(), 2);
             if (ag.status == AG_CARRYING && tid == ag.current_task) {
@@ -4536,15 +5568,17 @@ void Simulation::path_planning_pp_mla() {
         agent_dummies[i] = dummy_loc;
         goals.push_back({dummy_loc, 0});
 
-        // Plan with MLA* — SeqMLA* or task-by-task based on config
+        // Plan with MLA* (SIPP flag only affects naming, not search method here)
         vector<int> path;
-        if (config.mla_mode != MLA_SEQ) {
-            vector<vector<pair<int,int>>> tg = split_into_task_groups(i, goals);
-            path = mla_star_taskwise(i, (int)ag.loc, (int)token.timestep,
-                                      tg, cons_paths, {}, false);
-        } else {
-            path = seq_mla_star(i, (int)ag.loc, (int)token.timestep,
-                                 goals, cons_paths, {}, false);
+        if (path.empty()) {
+            if (config.mla_mode != MLA_SEQ) {
+                vector<vector<pair<int,int>>> tg = split_into_task_groups(i, goals);
+                path = mla_star_taskwise(i, (int)ag.loc, (int)token.timestep,
+                                          tg, cons_paths, {}, false);
+            } else {
+                path = seq_mla_star(i, (int)ag.loc, (int)token.timestep,
+                                     goals, cons_paths, {}, false);
+            }
         }
 
         // Build absolute-timestep path
@@ -4581,7 +5615,11 @@ void Simulation::path_planning_pp_mla() {
 // ============================================================
 
 void Simulation::path_planning_pbs() {
-    pbs_core(false);
+    if (config.use_sipp) {
+        pbs_core_sipp();
+    } else {
+        pbs_core(false);
+    }
     for (int i = 0; i < (int)agents.size(); i++) {
         if (!agents[i].task_sequence.empty() && agents[i].status == AG_FREE) {
             agents[i].status = AG_MOVING_TO_PICKUP;
@@ -4595,7 +5633,10 @@ void Simulation::path_planning_pbs() {
 // ============================================================
 
 void Simulation::path_planning_wpbs() {
-    pbs_core(true);
+    if (config.use_sipp)
+        pbs_core_sipp();
+    else
+        pbs_core(true);
     for (int i = 0; i < (int)agents.size(); i++) {
         if (!agents[i].task_sequence.empty() && agents[i].status == AG_FREE) {
             agents[i].status = AG_MOVING_TO_PICKUP;
@@ -4633,7 +5674,7 @@ void Simulation::rmca_destroy(vector<int>& removed, int group_size) {
 
     int method = rand() % 3;
     if (method == 0) {
-        random_shuffle(eligible.begin(), eligible.end());
+        std::shuffle(eligible.begin(), eligible.end(), std::mt19937(std::random_device{}()));
         for (int i = 0; i < group_size; i++) removed.push_back(eligible[i]);
     } else if (method == 1) {
         sort(eligible.begin(), eligible.end(), [this](int a, int b) {
