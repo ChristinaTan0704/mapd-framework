@@ -3911,17 +3911,18 @@ void Simulation::assign_repeated_hungarian_lns() {
 
     if (config.lns_time_limit <= 0) return;
 
-    // Budget LNS: skip if no new tasks OR total LNS time exceeded budget
-    static int lns_prev_total = -1;
+    // Only run LNS when a meaningful batch of new tasks appeared
+    static int lns_last_released = 0;
     static double lns_total_time = 0.0;
-    double lns_budget_ms = config.lns_time_limit * 10000.0;
-    int cur_total = 0;
+    int released = 0;
     for (auto& t : all_tasks)
-        if (t.completion_time <= 0 && t.release_time >= 0 && t.release_time <= (int)token.timestep)
-            cur_total++;
-    if ((cur_total <= lns_prev_total && lns_prev_total >= 0) || lns_total_time >= lns_budget_ms)
+        if (t.release_time >= 0 && t.release_time <= (int)token.timestep)
+            released++;
+    int new_tasks = released - lns_last_released;
+    int batch_threshold = max(1, (int)all_tasks.size() / 20);
+    if (new_tasks < batch_threshold && lns_last_released > 0)
         return;
-    lns_prev_total = cur_total;
+    lns_last_released = released;
 
     // Phase 2: LNS improvement
     clock_t lns_start = clock();
@@ -4782,7 +4783,7 @@ bool Simulation::pbs_core(bool windowed) {
     // Use search_horizon-sized window: constraints enforced within 200 steps
     // For wPBS with many agents: use moderate constraint window for performance
     // Small window (11) causes quality issues; no window causes timeout on 50ag
-    int cons_window = windowed ? (int)token.timestep + 200 : -1;
+    int cons_window = -1;  // MLA* always uses full constraints; only PBS conflict detection is windowed
 
     auto plan_agent = [&](int aid, int loc, int time,
                           const vector<vector<int>>& cons,
