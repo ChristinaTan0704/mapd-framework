@@ -1,7 +1,5 @@
 output/
 
-# Large directories
-reference_code/
 
 # PDF files
 *.pdf
@@ -15,6 +13,55 @@ reference_code/
 *.so
 MAPD_framework_imp/mapd
 MAPD_framework_imp/exp_mg_wpbs/
+MAPD_framework_imp/exp_mg_wpbs\\*
+
+# Large dependencies in reference_code (boost, dlib, sparsehash)
+reference_code/local_boost/boost_1_82_0/
+reference_code/local_boost/boost.tar.gz
+reference_code/local_boost/dlib-19.0/
+reference_code/local_boost/dlib.tar.gz
+reference_code/CENTRAL-fixed/deps/
+reference_code/CENTRAL-fixed-build/deps/
+reference_code/CENTRAL-TP-TPTS/dlib-19.0/
+reference_code/CENTRAL-TP-TPTS/sparsehash/
+reference_code/CENTRAL-TP-TPTS/sparsehash-master/
+
+# Executables in reference_code
+reference_code/CENTRAL-fixed/driver
+reference_code/CENTRAL-fixed-build/driver
+reference_code/CENTRAL-new-imp/central_batch
+reference_code/CENTRAL-new-imp/central_ref
+reference_code/CENTRAL-new-imp/central_single
+reference_code/CENTRAL-TP-TPTS/Centralized - ECBS/central
+reference_code/CENTRAL-TP-TPTS/Centralized - ECBS/main
+reference_code/MGMAPD/LNS-PBS/lifelong
+reference_code/MGMAPD/LNS-PBS/lifelong_local
+reference_code/MGMAPD/LNS-PBS/lifelong_new
+reference_code/MGMAPD/LNS-PBS/lifelong_pbs
+reference_code/MGMAPD/LNS-PBS/lifelong_simple
+reference_code/MGMAPD/LNS-PBS/mg_pbs
+reference_code/MGMAPD/LNS-wPBS/lifelong
+reference_code/MGMAPD/LNS-wPBS/lifelong_new
+reference_code/MGMAPD/LNS-wPBS/lifelong_simple
+reference_code/MGMAPD/LNS-wPBS/lifelong_wpbs
+reference_code/MGMAPD/LNS-wPBS/mg_wpbs
+reference_code/TA-Hybrid/driver_exp
+reference_code/TA-Hybrid/driver_scale
+reference_code/TA-Hybrid/LKH3/LKH
+reference_code/TA-Hybrid-build/driver_exp
+reference_code/TA-Hybrid-build/driver_new
+reference_code/TA-Hybrid-build/driver_scale
+reference_code/TA-Hybrid-build/LKH3/LKH
+reference_code/TA-ICBS/driver_exp_500
+reference_code/TA-ICBS/LKH3/LKH
+reference_code/TA-Prioritized/driver
+reference_code/TA-Prioritized/driver_exp
+reference_code/TA-Prioritized/driver_exp_02
+reference_code/TA-Prioritized/driver_scale
+reference_code/TA-Prioritized/LKH3/LKH
+
+# CMake build artifacts in reference_code
+reference_code/**/CMakeFiles/
 
 # macOS
 .DS_Store
