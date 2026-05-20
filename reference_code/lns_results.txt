@@ -1,0 +1,34 @@
+Algorithm             Ag   Freq   Makespan        SWT   AvgService      Runtime
+---------             --   ----   --------        ---   ----------      -------
+
+=== 10 Agents ===
+LNS-PBS               10    0.2  TO(>600s)          -            -        >600s
+LNS-wPBS              10    0.2  TO(>600s)          -            -        >600s
+LNS-PBS               10    0.5  TO(>600s)          -            -        >600s
+LNS-wPBS              10    0.5  TO(>600s)          -            -        >600s
+LNS-wPBS              10      1         TO          -            -       600.2s
+LNS-PBS               10      1         TO          -            -       600.1s
+LNS-PBS               10      2       1168     164773        329.5       538.0s
+LNS-wPBS              10      1         TO          -            -       600.1s
+LNS-wPBS              10      2       1221     168366        336.7       540.2s
+LNS-PBS               10      2       1166     166552        333.1       548.3s
+LNS-PBS               10      5       1158     194963        389.9       467.6s
+LNS-wPBS              10      2       1218     167775        335.6       542.1s
+LNS-wPBS              10      5       1201     196968        393.9       449.2s
+LNS-PBS               10      5       1167     194990        390.0       475.1s
+LNS-PBS               10     10       1143     203682        407.4       457.8s
+LNS-wPBS              10      5       1198     196062        392.1       473.0s
+LNS-wPBS              10     10       1155     202889        405.8       438.7s
+LNS-PBS               10     10       1140     204292        408.6       437.8s
+LNS-PBS               10    500       1145     211973        423.9       444.7s
+LNS-wPBS              10     10       1189     201467        402.9       448.6s
+LNS-wPBS              10    500         TO          -            -       387.7s
+LNS-PBS               10    500         TO          -            -       198.1s
+
+=== 50 Agents ===
+LNS-PBS               50    0.2         TO          -            -         6.0s
+LNS-wPBS              10    500         TO          -            -         6.0s
+
+=== 50 Agents ===
+LNS-wPBS              50    0.2         TO          -            -         8.5s
+LNS-PBS               50    0.2         TO          -            -         8.5s

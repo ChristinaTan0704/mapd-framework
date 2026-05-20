@@ -1,0 +1,116 @@
+========================================================================
+MAPD Reference Code Experiment Results
+Date: Sun May 17 22:04:14 PDT 2026
+========================================================================
+
+Algorithm          Agents   Freq   Makespan        SWT   AvgService    Runtime
+---------          ------   ----   --------        ---   ----------    -------
+
+=== 10 Agents ===
+TP-REF                10    0.2       2532      19270         38.5        N/A
+TPTS-REF              10    0.2       2532      14666         29.3        N/A
+CENTRAL-REF           10    0.2       2516     29.774          0.1           
+HUNGARIAN_PBS         10    0.2       FAIL       FAIL         FAIL       FAIL
+HUNGARIAN_wPBS        10    0.2       FAIL       FAIL         FAIL       FAIL
+LNS-PBS               10    0.2       FAIL       FAIL         FAIL       FAIL
+LNS-wPBS              10    0.2       FAIL       FAIL         FAIL       FAIL
+TP-REF                10    0.5       1309      66393        132.8        N/A
+TPTS-REF              10    0.5       1274      65574        131.1        N/A
+CENTRAL-REF           10    0.5       1230    109.712          0.2           
+HUNGARIAN_PBS         10    0.5       FAIL       FAIL         FAIL       FAIL
+HUNGARIAN_wPBS        10    0.5       FAIL       FAIL         FAIL       FAIL
+LNS-PBS               10    0.5       FAIL       FAIL         FAIL       FAIL
+LNS-wPBS              10    0.5       FAIL       FAIL         FAIL       FAIL
+TP-REF                10      1       1198     155890        311.8        N/A
+TPTS-REF              10      1       1182     150514        301.0        N/A
+CENTRAL-REF           10      1       1155     285.75          0.6           
+HUNGARIAN_PBS         10      1       FAIL       FAIL         FAIL       FAIL
+HUNGARIAN_wPBS        10      1       FAIL       FAIL         FAIL       FAIL
+LNS-PBS               10      1       FAIL       FAIL         FAIL       FAIL
+LNS-wPBS              10      1       FAIL       FAIL         FAIL       FAIL
+TP-REF                10      2       1167     203809        407.6        N/A
+TPTS-REF              10      2       1168     203618        407.2        N/A
+CENTRAL-REF           10      2       1129    388.218          0.8           
+HUNGARIAN_PBS         10      2       FAIL       FAIL         FAIL       FAIL
+HUNGARIAN_wPBS        10      2       FAIL       FAIL         FAIL       FAIL
+LNS-PBS               10      2       FAIL       FAIL         FAIL       FAIL
+LNS-wPBS              10      2       FAIL       FAIL         FAIL       FAIL
+TP-REF                10      5       1162     236892        473.8        N/A
+TPTS-REF              10      5       1165     236590        473.2        N/A
+CENTRAL-REF           10      5       1117    455.168          0.9           
+HUNGARIAN_PBS         10      5       FAIL       FAIL         FAIL       FAIL
+HUNGARIAN_wPBS        10      5       FAIL       FAIL         FAIL       FAIL
+LNS-PBS               10      5       FAIL       FAIL         FAIL       FAIL
+LNS-wPBS              10      5       FAIL       FAIL         FAIL       FAIL
+TP-REF                10     10       1163     247964        495.9        N/A
+TPTS-REF              10     10       1172     252631        505.3        N/A
+CENTRAL-REF           10     10       1130    478.176          1.0           
+HUNGARIAN_PBS         10     10       FAIL       FAIL         FAIL       FAIL
+HUNGARIAN_wPBS        10     10       FAIL       FAIL         FAIL       FAIL
+LNS-PBS               10     10       FAIL       FAIL         FAIL       FAIL
+LNS-wPBS              10     10       FAIL       FAIL         FAIL       FAIL
+TP-REF                10    500       1136     256428        512.9        N/A
+TPTS-REF              10    500       1105     254750        509.5        N/A
+CENTRAL-REF           10    500       1101     501.11          1.0           
+HUNGARIAN_PBS         10    500       FAIL       FAIL         FAIL       FAIL
+HUNGARIAN_wPBS        10    500       FAIL       FAIL         FAIL       FAIL
+LNS-PBS               10    500       FAIL       FAIL         FAIL       FAIL
+LNS-wPBS              10    500       FAIL       FAIL         FAIL       FAIL
+TA-PRIO-REF           10    500       FAIL       FAIL         FAIL       FAIL
+TA-HYBRID-REF         10    500       FAIL       FAIL         FAIL       FAIL
+
+=== 50 Agents ===
+TP-REF                50    0.2       2540      20016         40.0        N/A
+TPTS-REF              50    0.2       2524      11553         23.1        N/A
+CENTRAL-REF           50    0.2       2524     25.056          0.1           
+HUNGARIAN_PBS         50    0.2       FAIL       FAIL         FAIL       FAIL
+HUNGARIAN_wPBS        50    0.2       FAIL       FAIL         FAIL       FAIL
+LNS-PBS               50    0.2       FAIL       FAIL         FAIL       FAIL
+LNS-wPBS              50    0.2       FAIL       FAIL         FAIL       FAIL
+TP-REF                50    0.5       1083      21832         43.7        N/A
+TPTS-REF              50    0.5       1036      12609         25.2        N/A
+CENTRAL-REF           50    0.5       1035     24.942          0.0           
+HUNGARIAN_PBS         50    0.5       FAIL       FAIL         FAIL       FAIL
+HUNGARIAN_wPBS        50    0.5       FAIL       FAIL         FAIL       FAIL
+LNS-PBS               50    0.5       FAIL       FAIL         FAIL       FAIL
+LNS-wPBS              50    0.5       FAIL       FAIL         FAIL       FAIL
+TP-REF                50      1        597      24570         49.1        N/A
+TPTS-REF              50      1        554      15134         30.3        N/A
+CENTRAL-REF           50      1        553     27.384          0.1           
+HUNGARIAN_PBS         50      1       FAIL       FAIL         FAIL       FAIL
+HUNGARIAN_wPBS        50      1       FAIL       FAIL         FAIL       FAIL
+LNS-PBS               50      1       FAIL       FAIL         FAIL       FAIL
+LNS-wPBS              50      1       FAIL       FAIL         FAIL       FAIL
+TP-REF                50      2        432      37817         75.6        N/A
+TPTS-REF              50      2        383      29030         58.1        N/A
+CENTRAL-REF           50      2        335     41.436          0.1           
+HUNGARIAN_PBS         50      2       FAIL       FAIL         FAIL       FAIL
+HUNGARIAN_wPBS        50      2       FAIL       FAIL         FAIL       FAIL
+LNS-PBS               50      2       FAIL       FAIL         FAIL       FAIL
+LNS-wPBS              50      2       FAIL       FAIL         FAIL       FAIL
+TP-REF                50      5        395      62294        124.6        N/A
+TPTS-REF              50      5        343      52428        104.9        N/A
+CENTRAL-REF           50      5        313     86.904          0.2           
+HUNGARIAN_PBS         50      5       FAIL       FAIL         FAIL       FAIL
+HUNGARIAN_wPBS        50      5       FAIL       FAIL         FAIL       FAIL
+LNS-PBS               50      5       FAIL       FAIL         FAIL       FAIL
+LNS-wPBS              50      5       FAIL       FAIL         FAIL       FAIL
+TP-REF                50     10        333      65711        131.4        N/A
+TPTS-REF              50     10        319      63482        127.0        N/A
+CENTRAL-REF           50     10        304    106.702          0.2           
+HUNGARIAN_PBS         50     10       FAIL       FAIL         FAIL       FAIL
+HUNGARIAN_wPBS        50     10       FAIL       FAIL         FAIL       FAIL
+LNS-PBS               50     10       FAIL       FAIL         FAIL       FAIL
+LNS-wPBS              50     10       FAIL       FAIL         FAIL       FAIL
+TP-REF                50    500        336      68302        136.6        N/A
+TPTS-REF              50    500        338      68049        136.1        N/A
+CENTRAL-REF           50    500         TO         TO           TO         TO
+HUNGARIAN_PBS         50    500       FAIL       FAIL         FAIL       FAIL
+HUNGARIAN_wPBS        50    500       FAIL       FAIL         FAIL       FAIL
+LNS-PBS               50    500       FAIL       FAIL         FAIL       FAIL
+LNS-wPBS              50    500       FAIL       FAIL         FAIL       FAIL
+TA-PRIO-REF           50    500       FAIL       FAIL         FAIL       FAIL
+TA-HYBRID-REF         50    500       FAIL       FAIL         FAIL       FAIL
+
+========================================================================
+Done.

@@ -1,0 +1,8 @@
+FIND_PACKAGE( Boost REQUIRED )
+INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
+
+aux_source_directory(. SRC)
+set (CMAKE_CXX_STANDARD 11)
+ADD_EXECUTABLE( main main.cpp ${SRC})
+
+TARGET_LINK_LIBRARIES( main ${Boost_LIBRARIES} )

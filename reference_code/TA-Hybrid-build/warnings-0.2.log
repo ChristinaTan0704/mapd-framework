@@ -1,0 +1,2379 @@
+  Agent 0 seq_id=0 first_task_release=1320 tasks=52
+  Agent 6 seq_id=1 first_task_release=1025 tasks=54
+  Agent 7 seq_id=2 first_task_release=1490 tasks=47
+  Agent 8 seq_id=3 first_task_release=1175 tasks=48
+  Agent 1 seq_id=4 first_task_release=475 tasks=45
+  Agent 4 seq_id=5 first_task_release=305 tasks=50
+  Agent 3 seq_id=6 first_task_release=1155 tasks=50
+  Agent 2 seq_id=7 first_task_release=1475 tasks=47
+  Agent 5 seq_id=8 first_task_release=2385 tasks=54
+  Agent 9 seq_id=9 first_task_release=1600 tasks=53
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=3432
+  CostFlow: agents=1 tasks=1 maxlen=235 global_makespan=3432
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=236 global_makespan=3453
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=237 global_makespan=3474
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=238 global_makespan=3495
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=239 global_makespan=3516
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=240 global_makespan=3537
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=241 global_makespan=3558
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=242 global_makespan=3579
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=243 global_makespan=3600
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=244 global_makespan=3621
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=245 global_makespan=3642
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=246 global_makespan=3663
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=247 global_makespan=3684
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=248 global_makespan=3705
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=249 global_makespan=3726
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=250 global_makespan=3747
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=251 global_makespan=3768
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=252 global_makespan=3789
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=253 global_makespan=3810
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=254 global_makespan=3831
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=255 global_makespan=3852
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=256 global_makespan=3873
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=257 global_makespan=3894
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=258 global_makespan=3915
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=259 global_makespan=3936
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=260 global_makespan=3957
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=261 global_makespan=3978
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=262 global_makespan=3999
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=263 global_makespan=4020
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=264 global_makespan=4041
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=265 global_makespan=4062
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=266 global_makespan=4083
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=267 global_makespan=4104
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=268 global_makespan=4125
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=269 global_makespan=4146
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=270 global_makespan=4167
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=271 global_makespan=4188
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=272 global_makespan=4209
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=273 global_makespan=4230
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=274 global_makespan=4251
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=275 global_makespan=4272
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=276 global_makespan=4293
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=277 global_makespan=4314
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=278 global_makespan=4335
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=279 global_makespan=4356
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=280 global_makespan=4377
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=281 global_makespan=4398
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=282 global_makespan=4419
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=283 global_makespan=4440
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=284 global_makespan=4461
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=285 global_makespan=4482
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=286 global_makespan=4503
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=287 global_makespan=4524
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=288 global_makespan=4545
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=289 global_makespan=4566
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=290 global_makespan=4587
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=291 global_makespan=4608
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=292 global_makespan=4629
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=293 global_makespan=4650
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=294 global_makespan=4671
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=295 global_makespan=4692
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=296 global_makespan=4713
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=297 global_makespan=4734
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=298 global_makespan=4755
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=299 global_makespan=4776
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=300 global_makespan=4797
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=301 global_makespan=4818
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=302 global_makespan=4839
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=303 global_makespan=4860
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=304 global_makespan=4881
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=305 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 230
+Warning: TestConstraints found future collision at timestep 225 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 230
+Warning: TestConstraints found future collision at end of timestep 225
+  CostFlow: agents=1 tasks=1 maxlen=306 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 230
+Warning: TestConstraints found future collision at timestep 226 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 230
+Warning: TestConstraints found future collision at end of timestep 226
+  CostFlow: agents=1 tasks=1 maxlen=307 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 230
+Warning: TestConstraints found future collision at timestep 227 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 230
+Warning: TestConstraints found future collision at end of timestep 227
+  CostFlow: agents=1 tasks=1 maxlen=308 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 230
+Warning: TestConstraints found future collision at timestep 228 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 230
+Warning: TestConstraints found future collision at end of timestep 228
+  CostFlow: agents=1 tasks=1 maxlen=309 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 230
+Warning: TestConstraints found future collision at timestep 229 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 230
+Warning: TestConstraints found future collision at end of timestep 229
+  CostFlow: agents=1 tasks=1 maxlen=310 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 230 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 230
+  CostFlow: agents=1 tasks=1 maxlen=311 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 231 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 231
+  CostFlow: agents=1 tasks=1 maxlen=312 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 232 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 232
+  CostFlow: agents=1 tasks=1 maxlen=313 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 233 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 233
+  CostFlow: agents=1 tasks=1 maxlen=314 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 234 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 234
+  CostFlow: agents=1 tasks=1 maxlen=315 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 235 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 235
+  CostFlow: agents=1 tasks=1 maxlen=316 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 236 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 236
+  CostFlow: agents=1 tasks=1 maxlen=317 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 237 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 237
+  CostFlow: agents=1 tasks=1 maxlen=318 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 238 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 238
+  CostFlow: agents=1 tasks=1 maxlen=319 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 239 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 239
+  CostFlow: agents=1 tasks=1 maxlen=320 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 240 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 240
+  CostFlow: agents=1 tasks=1 maxlen=321 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 241 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 241
+  CostFlow: agents=1 tasks=1 maxlen=322 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 242 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 242
+  CostFlow: agents=1 tasks=1 maxlen=323 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 243 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 243
+  CostFlow: agents=1 tasks=1 maxlen=324 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 244 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 244
+  CostFlow: agents=1 tasks=1 maxlen=325 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 245 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 245
+  CostFlow: agents=1 tasks=1 maxlen=326 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 246 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 246
+  CostFlow: agents=1 tasks=1 maxlen=327 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 247 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 247
+  CostFlow: agents=1 tasks=1 maxlen=328 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 248 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 248
+  CostFlow: agents=1 tasks=1 maxlen=329 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 249 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 249
+  CostFlow: agents=1 tasks=1 maxlen=330 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 250 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 250
+  CostFlow: agents=1 tasks=1 maxlen=331 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 251 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 251
+  CostFlow: agents=1 tasks=1 maxlen=332 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 252 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 252
+  CostFlow: agents=1 tasks=1 maxlen=333 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 253 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 253
+  CostFlow: agents=1 tasks=1 maxlen=334 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 254 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 254
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 255 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 255
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 256 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 256
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 257 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 257
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 258 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 258
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 259 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 259
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 260 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 260
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 261 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 261
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 262 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 262
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 263 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 263
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 264 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 264
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 265 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 265
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 266 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 266
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 267 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 267
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 268 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 268
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 269 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 269
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 270 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 270
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 271 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 271
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 272 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 272
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 273 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 273
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 274 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 274
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 275 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 275
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 276 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 276
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 277 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 277
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 278 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 278
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 279 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 279
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 280 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 280
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 281 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 281
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 282 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 282
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 283 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 283
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 284 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 284
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 285 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 285
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 286 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 286
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 287 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 287
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 288 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 288
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 289 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 289
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 290 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 290
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 291 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 291
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 292 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 292
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 293 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 293
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 294 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 294
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 295 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 295
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 296 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 296
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at timestep 297 (will be re-planned)
+Agent 4 and 7 collide at location 551 at time 298
+Warning: TestConstraints found future collision at end of timestep 297
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+  CostFlow: agents=1 tasks=1 maxlen=335 global_makespan=4902
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=4902
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=4902
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=4902
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=4902
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=4902
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=4902
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=4902
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=4902
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=4902
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=4902
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=4902
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=4902
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=4902
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=4902
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=4902
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=4902
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=4902
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=4902
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=4902
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=4902
+  CostFlow: agents=1 tasks=1 maxlen=405 global_makespan=4902
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=406 global_makespan=4923
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=407 global_makespan=4944
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=408 global_makespan=4965
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=409 global_makespan=4986
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=410 global_makespan=5007
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=411 global_makespan=5028
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=412 global_makespan=5049
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=413 global_makespan=5070
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=414 global_makespan=5091
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=415 global_makespan=5112
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=416 global_makespan=5133
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=417 global_makespan=5154
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=418 global_makespan=5175
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=419 global_makespan=5196
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=420 global_makespan=5217
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=421 global_makespan=5238
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=422 global_makespan=5259
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=423 global_makespan=5280
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=424 global_makespan=5301
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=425 global_makespan=5322
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=426 global_makespan=5343
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=427 global_makespan=5364
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=428 global_makespan=5385
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=429 global_makespan=5406
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=430 global_makespan=5427
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=431 global_makespan=5448
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=432 global_makespan=5469
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=433 global_makespan=5490
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=434 global_makespan=5511
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=435 global_makespan=5532
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=436 global_makespan=5553
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=437 global_makespan=5574
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=438 global_makespan=5595
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=439 global_makespan=5616
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=440 global_makespan=5637
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=441 global_makespan=5658
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=442 global_makespan=5679
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=443 global_makespan=5700
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=444 global_makespan=5721
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=445 global_makespan=5742
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=446 global_makespan=5763
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=447 global_makespan=5784
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=448 global_makespan=5805
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=449 global_makespan=5826
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=450 global_makespan=5847
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=451 global_makespan=5868
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=452 global_makespan=5889
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=453 global_makespan=5910
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=454 global_makespan=5931
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=455 global_makespan=5952
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=456 global_makespan=5973
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=457 global_makespan=5994
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=458 global_makespan=6015
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=459 global_makespan=6036
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=460 global_makespan=6057
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=461 global_makespan=6078
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=462 global_makespan=6099
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=463 global_makespan=6120
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=464 global_makespan=6141
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=465 global_makespan=6162
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=466 global_makespan=6183
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=467 global_makespan=6204
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=468 global_makespan=6225
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=469 global_makespan=6246
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=470 global_makespan=6267
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=471 global_makespan=6288
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=472 global_makespan=6309
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=473 global_makespan=6330
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=474 global_makespan=6351
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=475 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=476 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=477 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=478 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=479 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=480 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=481 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=482 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=483 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=484 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=485 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=486 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=487 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=488 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=489 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=490 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=491 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=492 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=493 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=494 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=495 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=496 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=497 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=498 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=499 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=500 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=501 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=502 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=503 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=504 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=505 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=0 tasks=0 maxlen=0 global_makespan=6372
+  CostFlow: agents=1 tasks=1 maxlen=955 global_makespan=6372
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=956 global_makespan=6393
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=957 global_makespan=6414
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=958 global_makespan=6435
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=959 global_makespan=6456
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=960 global_makespan=6477
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=961 global_makespan=6498
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=962 global_makespan=6519
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=963 global_makespan=6540
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=964 global_makespan=6561
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=965 global_makespan=6582
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=966 global_makespan=6603
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=967 global_makespan=6624
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=968 global_makespan=6645
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=969 global_makespan=6666
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=970 global_makespan=6687
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=971 global_makespan=6708
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=972 global_makespan=6729
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=973 global_makespan=6750
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=974 global_makespan=6771
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=975 global_makespan=6792
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=976 global_makespan=6813
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=977 global_makespan=6834
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=978 global_makespan=6855
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=979 global_makespan=6876
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=980 global_makespan=6897
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=981 global_makespan=6918
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=982 global_makespan=6939
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=983 global_makespan=6960
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=984 global_makespan=6981
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=985 global_makespan=7002
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=986 global_makespan=7023
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=987 global_makespan=7044
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=988 global_makespan=7065
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=989 global_makespan=7086
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=990 global_makespan=7107
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=991 global_makespan=7128
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=992 global_makespan=7149
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=993 global_makespan=7170
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=994 global_makespan=7191
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=995 global_makespan=7212
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=996 global_makespan=7233
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=997 global_makespan=7254
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=998 global_makespan=7275
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=999 global_makespan=7296
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=1000 global_makespan=7317
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=1001 global_makespan=7338
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=1002 global_makespan=7359
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=1003 global_makespan=7380
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=1004 global_makespan=7401
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=1005 global_makespan=7422
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=1006 global_makespan=7443
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=1007 global_makespan=7464
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=1008 global_makespan=7485
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=1 tasks=1 maxlen=1009 global_makespan=7506
+  CostFlow: giving up after 21 iterations (flow=0/1)
+  CostFlow: agents=2 tasks=2 maxlen=1010 global_makespan=7527
+  CostFlow: giving up after 21 iterations (flow=0/2)
+  CostFlow: agents=2 tasks=2 maxlen=1011 global_makespan=7548
+  CostFlow: giving up after 21 iterations (flow=0/2)
+  CostFlow: agents=2 tasks=2 maxlen=1012 global_makespan=7569
+  CostFlow: giving up after 21 iterations (flow=0/2)
+  CostFlow: agents=2 tasks=2 maxlen=1013 global_makespan=7590
+  CostFlow: giving up after 21 iterations (flow=0/2)
+  CostFlow: agents=2 tasks=2 maxlen=1014 global_makespan=7611
+  CostFlow: giving up after 21 iterations (flow=0/2)
+  CostFlow: agents=2 tasks=2 maxlen=1015 global_makespan=7632
+  CostFlow: giving up after 21 iterations (flow=0/2)
+  CostFlow: agents=2 tasks=2 maxlen=1016 global_makespan=7653
+  CostFlow: giving up after 21 iterations (flow=0/2)
+  CostFlow: agents=2 tasks=2 maxlen=1017 global_makespan=7674
+  CostFlow: giving up after 21 iterations (flow=0/2)
+  CostFlow: agents=2 tasks=2 maxlen=1018 global_makespan=7695
+  CostFlow: giving up after 21 iterations (flow=0/2)
+  CostFlow: agents=2 tasks=2 maxlen=1019 global_makespan=7716
+  CostFlow: giving up after 21 iterations (flow=0/2)
+  CostFlow: agents=2 tasks=2 maxlen=1020 global_makespan=7737
+  CostFlow: giving up after 21 iterations (flow=0/2)
+  CostFlow: agents=2 tasks=2 maxlen=1021 global_makespan=7758
+  CostFlow: giving up after 21 iterations (flow=0/2)
+  CostFlow: agents=2 tasks=2 maxlen=1022 global_makespan=7779
+  CostFlow: giving up after 21 iterations (flow=0/2)
+  CostFlow: agents=2 tasks=2 maxlen=1023 global_makespan=7800
+  CostFlow: giving up after 21 iterations (flow=0/2)
+  CostFlow: agents=2 tasks=2 maxlen=1024 global_makespan=7821
+  CostFlow: giving up after 21 iterations (flow=0/2)
+  CostFlow: agents=2 tasks=2 maxlen=1025 global_makespan=7842
+  CostFlow: giving up after 21 iterations (flow=1/2)
+  CostFlow: agents=2 tasks=2 maxlen=1026 global_makespan=7863
+  CostFlow: giving up after 21 iterations (flow=1/2)
+  CostFlow: agents=2 tasks=2 maxlen=1027 global_makespan=7884
+  CostFlow: giving up after 21 iterations (flow=1/2)
+  CostFlow: agents=2 tasks=2 maxlen=1028 global_makespan=7905
+  CostFlow: giving up after 21 iterations (flow=1/2)
+  CostFlow: agents=2 tasks=2 maxlen=1029 global_makespan=7926
+  CostFlow: giving up after 21 iterations (flow=1/2)
+  CostFlow: agents=3 tasks=3 maxlen=1030 global_makespan=7947
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1031 global_makespan=7968
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1032 global_makespan=7989
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1033 global_makespan=8010
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1034 global_makespan=8031
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1035 global_makespan=8052
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1036 global_makespan=8073
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1037 global_makespan=8094
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1038 global_makespan=8115
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1039 global_makespan=8136
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1040 global_makespan=8157
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1041 global_makespan=8178
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1042 global_makespan=8199
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1043 global_makespan=8220
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1044 global_makespan=8241
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1045 global_makespan=8262
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1046 global_makespan=8283
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1047 global_makespan=8304
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1048 global_makespan=8325
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1049 global_makespan=8346
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1050 global_makespan=8367
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1051 global_makespan=8388
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1052 global_makespan=8409
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1053 global_makespan=8430
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1054 global_makespan=8451
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1055 global_makespan=8472
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1056 global_makespan=8493
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1057 global_makespan=8514
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1058 global_makespan=8535
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1059 global_makespan=8556
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1060 global_makespan=8577
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1061 global_makespan=8598
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1062 global_makespan=8619
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1063 global_makespan=8640
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1064 global_makespan=8661
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1065 global_makespan=8682
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1066 global_makespan=8703
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1067 global_makespan=8724
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1068 global_makespan=8745
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1069 global_makespan=8766
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1070 global_makespan=8787
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1071 global_makespan=8808
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1072 global_makespan=8829
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1073 global_makespan=8850
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1074 global_makespan=8871
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1075 global_makespan=8892
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1076 global_makespan=8913
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1077 global_makespan=8934
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1078 global_makespan=8955
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1079 global_makespan=8976
+  CostFlow: giving up after 21 iterations (flow=1/3)
+  CostFlow: agents=3 tasks=3 maxlen=1080 global_makespan=8997
+  CostFlow: giving up after 21 iterations (flow=2/3)
+  CostFlow: agents=3 tasks=3 maxlen=1081 global_makespan=9018
+  CostFlow: giving up after 21 iterations (flow=2/3)
+  CostFlow: agents=3 tasks=3 maxlen=1082 global_makespan=9039
+  CostFlow: giving up after 21 iterations (flow=2/3)
+  CostFlow: agents=3 tasks=3 maxlen=1083 global_makespan=9060
+  CostFlow: giving up after 21 iterations (flow=2/3)
+  CostFlow: agents=3 tasks=3 maxlen=1084 global_makespan=9081
+  CostFlow: giving up after 21 iterations (flow=2/3)
+  CostFlow: agents=4 tasks=4 maxlen=1085 global_makespan=9102
+  CostFlow: giving up after 21 iterations (flow=2/4)
+  CostFlow: agents=4 tasks=4 maxlen=1086 global_makespan=9123
+  CostFlow: giving up after 21 iterations (flow=2/4)
+  CostFlow: agents=4 tasks=4 maxlen=1087 global_makespan=9144
+  CostFlow: giving up after 21 iterations (flow=2/4)
+  CostFlow: agents=4 tasks=4 maxlen=1088 global_makespan=9165
+  CostFlow: giving up after 21 iterations (flow=2/4)
+  CostFlow: agents=4 tasks=4 maxlen=1089 global_makespan=9186
+  CostFlow: giving up after 21 iterations (flow=2/4)
+  CostFlow: agents=4 tasks=4 maxlen=1090 global_makespan=9207
+  CostFlow: giving up after 21 iterations (flow=2/4)
+  CostFlow: agents=4 tasks=4 maxlen=1091 global_makespan=9228
+  CostFlow: giving up after 21 iterations (flow=2/4)
+  CostFlow: agents=4 tasks=4 maxlen=1092 global_makespan=9249
+  CostFlow: giving up after 21 iterations (flow=2/4)
+  CostFlow: agents=4 tasks=4 maxlen=1093 global_makespan=9270
+  CostFlow: giving up after 21 iterations (flow=2/4)
+  CostFlow: agents=4 tasks=4 maxlen=1094 global_makespan=9291
+  CostFlow: giving up after 21 iterations (flow=2/4)
+  CostFlow: agents=4 tasks=4 maxlen=1095 global_makespan=9312
+  CostFlow: giving up after 21 iterations (flow=2/4)
+  CostFlow: agents=4 tasks=4 maxlen=1096 global_makespan=9333
+  CostFlow: giving up after 21 iterations (flow=2/4)
+  CostFlow: agents=4 tasks=4 maxlen=1097 global_makespan=9354
+  CostFlow: giving up after 21 iterations (flow=2/4)
+  CostFlow: agents=4 tasks=4 maxlen=1098 global_makespan=9375
+  CostFlow: giving up after 21 iterations (flow=2/4)
+  CostFlow: agents=4 tasks=4 maxlen=1099 global_makespan=9396
+  CostFlow: giving up after 21 iterations (flow=2/4)
+  CostFlow: agents=4 tasks=4 maxlen=1100 global_makespan=9417
+  CostFlow: giving up after 21 iterations (flow=3/4)
+  CostFlow: agents=4 tasks=4 maxlen=1101 global_makespan=9438
+  CostFlow: giving up after 21 iterations (flow=3/4)
+  CostFlow: agents=4 tasks=4 maxlen=1102 global_makespan=9459
+  CostFlow: giving up after 21 iterations (flow=3/4)
+  CostFlow: agents=4 tasks=4 maxlen=1103 global_makespan=9480
+  CostFlow: giving up after 21 iterations (flow=3/4)
+  CostFlow: agents=4 tasks=4 maxlen=1104 global_makespan=9501
+  CostFlow: giving up after 21 iterations (flow=3/4)
+  CostFlow: agents=5 tasks=5 maxlen=1105 global_makespan=9522
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1106 global_makespan=9543
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1107 global_makespan=9564
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1108 global_makespan=9585
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1109 global_makespan=9606
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1110 global_makespan=9627
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1111 global_makespan=9648
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1112 global_makespan=9669
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1113 global_makespan=9690
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1114 global_makespan=9711
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1115 global_makespan=9732
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1116 global_makespan=9753
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1117 global_makespan=9774
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1118 global_makespan=9795
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1119 global_makespan=9816
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1120 global_makespan=9837
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1121 global_makespan=9858
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1122 global_makespan=9879
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1123 global_makespan=9900
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1124 global_makespan=9921
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1125 global_makespan=9942
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1126 global_makespan=9963
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1127 global_makespan=9984
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1128 global_makespan=10005
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1129 global_makespan=10026
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1130 global_makespan=10047
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1131 global_makespan=10068
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1132 global_makespan=10089
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1133 global_makespan=10110
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1134 global_makespan=10131
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1135 global_makespan=10152
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1136 global_makespan=10173
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1137 global_makespan=10194
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1138 global_makespan=10215
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1139 global_makespan=10236
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1140 global_makespan=10257
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1141 global_makespan=10278
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1142 global_makespan=10299
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1143 global_makespan=10320
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1144 global_makespan=10341
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1145 global_makespan=10362
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1146 global_makespan=10383
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1147 global_makespan=10404
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1148 global_makespan=10425
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1149 global_makespan=10446
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1150 global_makespan=10467
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1151 global_makespan=10488
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1152 global_makespan=10509
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1153 global_makespan=10530
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1154 global_makespan=10551
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1155 global_makespan=10572
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1156 global_makespan=10593
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1157 global_makespan=10614
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1158 global_makespan=10635
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1159 global_makespan=10656
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1160 global_makespan=10677
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1161 global_makespan=10698
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1162 global_makespan=10719
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1163 global_makespan=10740
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1164 global_makespan=10761
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1165 global_makespan=10782
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1166 global_makespan=10803
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1167 global_makespan=10824
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1168 global_makespan=10845
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1169 global_makespan=10866
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1170 global_makespan=10887
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1171 global_makespan=10908
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1172 global_makespan=10929
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1173 global_makespan=10950
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1174 global_makespan=10971
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1175 global_makespan=10992
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1176 global_makespan=11013
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1177 global_makespan=11034
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1178 global_makespan=11055
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1179 global_makespan=11076
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1180 global_makespan=11097
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1181 global_makespan=11118
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1182 global_makespan=11139
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1183 global_makespan=11160
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1184 global_makespan=11181
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1185 global_makespan=11202
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1186 global_makespan=11223
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1187 global_makespan=11244
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1188 global_makespan=11265
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1189 global_makespan=11286
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1190 global_makespan=11307
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1191 global_makespan=11328
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1192 global_makespan=11349
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1193 global_makespan=11370
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1194 global_makespan=11391
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1195 global_makespan=11412
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1196 global_makespan=11433
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1197 global_makespan=11454
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1198 global_makespan=11475
+  CostFlow: giving up after 21 iterations (flow=3/5)
+  CostFlow: agents=5 tasks=5 maxlen=1199 global_makespan=11496
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1200 global_makespan=11517
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1201 global_makespan=11538
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1202 global_makespan=11559
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1203 global_makespan=11580
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1204 global_makespan=11601
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=11622
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=11643
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=11664
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=11685
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=11706
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=11727
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=11748
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=11769
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=11790
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=11811
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=11832
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=11853
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=11874
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=11895
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=11916
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=11937
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=11958
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=11979
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12000
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12021
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12042
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12063
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12084
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12105
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12126
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12147
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12168
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12189
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12210
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12231
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12252
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12273
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12294
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12315
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12336
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12357
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12378
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12399
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12420
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12441
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12462
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12483
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12504
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12525
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=5 tasks=5 maxlen=1205 global_makespan=12546
+  CostFlow: giving up after 21 iterations (flow=2/5)
+  CostFlow: agents=6 tasks=6 maxlen=1250 global_makespan=12567
+  CostFlow: giving up after 21 iterations (flow=2/6)
+  CostFlow: agents=6 tasks=6 maxlen=1251 global_makespan=12588
+  CostFlow: giving up after 21 iterations (flow=2/6)
+  CostFlow: agents=6 tasks=6 maxlen=1252 global_makespan=12609
+  CostFlow: giving up after 21 iterations (flow=2/6)
+  CostFlow: agents=6 tasks=6 maxlen=1253 global_makespan=12630
+  CostFlow: giving up after 21 iterations (flow=2/6)
+  CostFlow: agents=6 tasks=6 maxlen=1254 global_makespan=12651
+  CostFlow: giving up after 21 iterations (flow=2/6)
+  CostFlow: agents=6 tasks=6 maxlen=1255 global_makespan=12672
+  CostFlow: giving up after 21 iterations (flow=2/6)
+  CostFlow: agents=6 tasks=6 maxlen=1256 global_makespan=12693
+  CostFlow: giving up after 21 iterations (flow=2/6)
+  CostFlow: agents=6 tasks=6 maxlen=1257 global_makespan=12714
+  CostFlow: giving up after 21 iterations (flow=2/6)
+  CostFlow: agents=6 tasks=6 maxlen=1258 global_makespan=12735
+  CostFlow: giving up after 21 iterations (flow=2/6)
+  CostFlow: agents=6 tasks=6 maxlen=1259 global_makespan=12756
+  CostFlow: giving up after 21 iterations (flow=2/6)
+  CostFlow: agents=6 tasks=6 maxlen=1260 global_makespan=12777
+  CostFlow: giving up after 21 iterations (flow=2/6)
+  CostFlow: agents=6 tasks=6 maxlen=1261 global_makespan=12798
+  CostFlow: giving up after 21 iterations (flow=2/6)
+  CostFlow: agents=6 tasks=6 maxlen=1262 global_makespan=12819
+  CostFlow: giving up after 21 iterations (flow=2/6)
+  CostFlow: agents=6 tasks=6 maxlen=1263 global_makespan=12840
+  CostFlow: giving up after 21 iterations (flow=2/6)
+  CostFlow: agents=6 tasks=6 maxlen=1264 global_makespan=12861
+  CostFlow: giving up after 21 iterations (flow=2/6)
+  CostFlow: agents=6 tasks=6 maxlen=1265 global_makespan=12882
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1266 global_makespan=12903
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1267 global_makespan=12924
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1268 global_makespan=12945
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1269 global_makespan=12966
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1270 global_makespan=12987
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1271 global_makespan=13008
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1272 global_makespan=13029
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1273 global_makespan=13050
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1274 global_makespan=13071
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1275 global_makespan=13092
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1276 global_makespan=13113
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1277 global_makespan=13134
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1278 global_makespan=13155
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1279 global_makespan=13176
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1280 global_makespan=13197
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1281 global_makespan=13218
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1282 global_makespan=13239
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1283 global_makespan=13260
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1284 global_makespan=13281
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1285 global_makespan=13302
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1286 global_makespan=13323
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1287 global_makespan=13344
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1288 global_makespan=13365
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1289 global_makespan=13386
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1290 global_makespan=13407
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1291 global_makespan=13428
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1292 global_makespan=13449
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1293 global_makespan=13470
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1294 global_makespan=13491
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1295 global_makespan=13512
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1296 global_makespan=13533
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1297 global_makespan=13554
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1298 global_makespan=13575
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1299 global_makespan=13596
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1300 global_makespan=13617
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1301 global_makespan=13638
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1302 global_makespan=13659
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1303 global_makespan=13680
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1304 global_makespan=13701
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1305 global_makespan=13722
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1306 global_makespan=13743
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1307 global_makespan=13764
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1308 global_makespan=13785
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1309 global_makespan=13806
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1310 global_makespan=13827
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1311 global_makespan=13848
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1312 global_makespan=13869
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1313 global_makespan=13890
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1314 global_makespan=13911
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1315 global_makespan=13932
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1316 global_makespan=13953
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1317 global_makespan=13974
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1318 global_makespan=13995
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1319 global_makespan=14016
+  CostFlow: giving up after 21 iterations (flow=0/6)
+  CostFlow: agents=6 tasks=6 maxlen=1320 global_makespan=14037
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1321 global_makespan=14058
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1322 global_makespan=14079
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1323 global_makespan=14100
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1324 global_makespan=14121
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1325 global_makespan=14142
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1326 global_makespan=14163
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1327 global_makespan=14184
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1328 global_makespan=14205
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1329 global_makespan=14226
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1330 global_makespan=14247
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1331 global_makespan=14268
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1332 global_makespan=14289
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1333 global_makespan=14310
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1334 global_makespan=14331
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1335 global_makespan=14352
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1336 global_makespan=14373
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1337 global_makespan=14394
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1338 global_makespan=14415
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1339 global_makespan=14436
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1340 global_makespan=14457
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1341 global_makespan=14478
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1342 global_makespan=14499
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1343 global_makespan=14520
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1344 global_makespan=14541
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1345 global_makespan=14562
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1346 global_makespan=14583
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1347 global_makespan=14604
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1348 global_makespan=14625
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1349 global_makespan=14646
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=14667
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=14688
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=14709
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=14730
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=14751
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=14772
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=14793
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=14814
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=14835
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=14856
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=14877
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=14898
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=14919
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=14940
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=14961
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=14982
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15003
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15024
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15045
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15066
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15087
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15108
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15129
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15150
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15171
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15192
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15213
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15234
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15255
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15276
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15297
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15318
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15339
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15360
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15381
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15402
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15423
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15444
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15465
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15486
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15507
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15528
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15549
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15570
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15591
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15612
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15633
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15654
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15675
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15696
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15717
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15738
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15759
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15780
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=6 tasks=6 maxlen=1350 global_makespan=15801
+  CostFlow: giving up after 21 iterations (flow=1/6)
+  CostFlow: agents=7 tasks=7 maxlen=1405 global_makespan=15822
+  CostFlow: giving up after 21 iterations (flow=1/7)
+  CostFlow: agents=7 tasks=7 maxlen=1406 global_makespan=15843
+  CostFlow: giving up after 21 iterations (flow=1/7)
+  CostFlow: agents=7 tasks=7 maxlen=1407 global_makespan=15864
+  CostFlow: giving up after 21 iterations (flow=1/7)
+  CostFlow: agents=7 tasks=7 maxlen=1408 global_makespan=15885
+  CostFlow: giving up after 21 iterations (flow=1/7)
+  CostFlow: agents=7 tasks=7 maxlen=1409 global_makespan=15906
+  CostFlow: giving up after 21 iterations (flow=1/7)
+  CostFlow: agents=7 tasks=7 maxlen=1410 global_makespan=15927
+  CostFlow: giving up after 21 iterations (flow=1/7)
+  CostFlow: agents=7 tasks=7 maxlen=1411 global_makespan=15948
+  CostFlow: giving up after 21 iterations (flow=1/7)
+  CostFlow: agents=7 tasks=7 maxlen=1412 global_makespan=15969
+  CostFlow: giving up after 21 iterations (flow=1/7)
+  CostFlow: agents=7 tasks=7 maxlen=1413 global_makespan=15990
+  CostFlow: giving up after 21 iterations (flow=1/7)
+  CostFlow: agents=7 tasks=7 maxlen=1414 global_makespan=16011
+  CostFlow: giving up after 21 iterations (flow=1/7)
+  CostFlow: agents=7 tasks=7 maxlen=1415 global_makespan=16032
+  CostFlow: giving up after 21 iterations (flow=1/7)
+  CostFlow: agents=7 tasks=7 maxlen=1416 global_makespan=16053
+  CostFlow: giving up after 21 iterations (flow=1/7)
+  CostFlow: agents=7 tasks=7 maxlen=1417 global_makespan=16074
+  CostFlow: giving up after 21 iterations (flow=1/7)
+  CostFlow: agents=7 tasks=7 maxlen=1418 global_makespan=16095
+  CostFlow: giving up after 21 iterations (flow=1/7)
+  CostFlow: agents=7 tasks=7 maxlen=1419 global_makespan=16116
+  CostFlow: giving up after 21 iterations (flow=1/7)
+  CostFlow: agents=8 tasks=8 maxlen=1420 global_makespan=16137
+  CostFlow: giving up after 21 iterations (flow=1/8)
+  CostFlow: agents=8 tasks=8 maxlen=1421 global_makespan=16158
+  CostFlow: giving up after 21 iterations (flow=1/8)
+  CostFlow: agents=8 tasks=8 maxlen=1422 global_makespan=16179
+  CostFlow: giving up after 21 iterations (flow=1/8)
+  CostFlow: agents=8 tasks=8 maxlen=1423 global_makespan=16200
+  CostFlow: giving up after 21 iterations (flow=1/8)
+  CostFlow: agents=8 tasks=8 maxlen=1424 global_makespan=16221
+  CostFlow: giving up after 21 iterations (flow=1/8)
+  CostFlow: agents=8 tasks=8 maxlen=1425 global_makespan=16242
+  CostFlow: giving up after 21 iterations (flow=1/8)
+  CostFlow: agents=8 tasks=8 maxlen=1426 global_makespan=16263
+  CostFlow: giving up after 21 iterations (flow=1/8)
+  CostFlow: agents=8 tasks=8 maxlen=1427 global_makespan=16284
+  CostFlow: giving up after 21 iterations (flow=1/8)
+  CostFlow: agents=8 tasks=8 maxlen=1428 global_makespan=16305
+  CostFlow: giving up after 21 iterations (flow=1/8)
+  CostFlow: agents=8 tasks=8 maxlen=1429 global_makespan=16326
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1430 global_makespan=16347
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1431 global_makespan=16368
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1432 global_makespan=16389
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1433 global_makespan=16410
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1434 global_makespan=16431
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1435 global_makespan=16452
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1436 global_makespan=16473
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1437 global_makespan=16494
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1438 global_makespan=16515
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1439 global_makespan=16536
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1440 global_makespan=16557
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1441 global_makespan=16578
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1442 global_makespan=16599
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1443 global_makespan=16620
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1444 global_makespan=16641
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1445 global_makespan=16662
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1446 global_makespan=16683
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1447 global_makespan=16704
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1448 global_makespan=16725
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1449 global_makespan=16746
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1450 global_makespan=16767
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1451 global_makespan=16788
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1452 global_makespan=16809
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1453 global_makespan=16830
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1454 global_makespan=16851
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1455 global_makespan=16872
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1456 global_makespan=16893
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1457 global_makespan=16914
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1458 global_makespan=16935
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1459 global_makespan=16956
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1460 global_makespan=16977
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1461 global_makespan=16998
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1462 global_makespan=17019
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1463 global_makespan=17040
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1464 global_makespan=17061
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1465 global_makespan=17082
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1466 global_makespan=17103
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1467 global_makespan=17124
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1468 global_makespan=17145
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1469 global_makespan=17166
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1470 global_makespan=17187
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1471 global_makespan=17208
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1472 global_makespan=17229
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1473 global_makespan=17250
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1474 global_makespan=17271
+  CostFlow: giving up after 21 iterations (flow=0/8)
+  CostFlow: agents=8 tasks=8 maxlen=1475 global_makespan=17292
+  CostFlow: giving up after 21 iterations (flow=1/8)
+  CostFlow: agents=8 tasks=8 maxlen=1476 global_makespan=17313
+  CostFlow: giving up after 21 iterations (flow=1/8)
+  CostFlow: agents=8 tasks=8 maxlen=1477 global_makespan=17334
+  CostFlow: giving up after 21 iterations (flow=1/8)
+  CostFlow: agents=8 tasks=8 maxlen=1478 global_makespan=17355
+  CostFlow: giving up after 21 iterations (flow=1/8)
+  CostFlow: agents=8 tasks=8 maxlen=1479 global_makespan=17376
+  CostFlow: giving up after 21 iterations (flow=1/8)
+  CostFlow: agents=8 tasks=8 maxlen=1480 global_makespan=17397
+  CostFlow: giving up after 21 iterations (flow=1/8)
+  CostFlow: agents=8 tasks=8 maxlen=1481 global_makespan=17418
+  CostFlow: giving up after 21 iterations (flow=1/8)
+  CostFlow: agents=8 tasks=8 maxlen=1482 global_makespan=17439
+  CostFlow: giving up after 21 iterations (flow=1/8)
+  CostFlow: agents=8 tasks=8 maxlen=1483 global_makespan=17460
+  CostFlow: giving up after 21 iterations (flow=1/8)
+  CostFlow: agents=8 tasks=8 maxlen=1484 global_makespan=17481
+  CostFlow: giving up after 21 iterations (flow=1/8)
+  CostFlow: agents=8 tasks=8 maxlen=1485 global_makespan=17502
+  CostFlow: giving up after 21 iterations (flow=1/8)

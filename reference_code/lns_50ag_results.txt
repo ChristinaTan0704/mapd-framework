@@ -1,0 +1,14 @@
+Algorithm             Ag   Freq   Makespan        SWT   AvgService      Runtime
+LNS-PBS               50    0.2         TO          -            -       600.1s
+LNS-wPBS              50    0.2         TO          -            -       600.1s
+LNS-PBS               50    0.5         TO          -            -       600.1s
+LNS-wPBS              50    0.5         TO          -            -       600.1s
+LNS-PBS               50      1        527      11860         23.7       507.9s
+LNS-wPBS              50      1        526      12269         24.5       512.7s
+LNS-PBS               50      2        289      14764         29.5       269.8s
+LNS-wPBS              50      2        296      14324         28.6       258.3s
+LNS-PBS               50      5        262      33788         67.6       216.0s
+LNS-wPBS              50      5        260      33015         66.0       201.9s
+LNS-PBS               50     10        261      42078         84.2       215.8s
+LNS-wPBS              50     10        257      41037         82.1       194.8s
+DONE

@@ -1,0 +1,39 @@
+LNS-(w)PBS
+
+The implementations of LNS-PBS and LNS-wPBS are based on the RHCR codebase https://github.com/Jiaoyang-Li/RHCR. 
+
+Other parameters that are specific to this project:
+- task_truncated_size: the number of tasks that we truncate in the task sequence
+- look_ahead_horizon: 1 implies no look-ahead horizon applied
+
+To reproduce the results in our paper:
+
+* TABLE II
+
+LNS-wPBS
+
+./lifelong -m ../../data/Instances/small/kiva-10-500-5.map -k 10 --scenario=KIVAONLINE --planning_window=10 --solver=PBS --seed=0 --task ../../data/Instances/small/kiva-0.2.task --task_truncated_size 2
+
+LNS-PBS
+
+./lifelong -m ../../data/Instances/small/kiva-10-500-5.map -k 10 --scenario=KIVAONLINE --solver=PBS --seed=0 --task ../../data/Instances/small/kiva-0.2.task --task_truncated_size 2
+
+* TABLE III
+
+LNS-wPBS
+
+./lifelong -m ../../data/Instances/large/kiva-100-1000-50.map -k 100 --scenario=KIVAONLINE --planning_window=10 --solver=PBS --seed=0 --task ../../data/Instances/large/kiva-1000-50.task --task_truncated_size 2
+
+LNS-PBS
+
+./lifelong -m ../../data/Instances/large/kiva-100-1000-50.map -k 100 --scenario=KIVAONLINE --solver=PBS --seed=0 --task ../../data/Instances/large/kiva-1000-50.task --task_truncated_size 2
+
+* TABLE IV
+
+./lifelong -m ../../data/Instances/large/kiva-1000.map -k 1000 --scenario=KIVAONLINE --planning_window=10 --solver=PBS --seed=0 --task ../../data/Instances/large/kiva-1000.task --task_truncated_size 2
+
+* TABLE V
+
+LA1: 
+
+./lifelong -m ../../data/Instances/small/kiva-10-500-5.map -k 10 --scenario=KIVAONLINE --planning_window=10 --solver=PBS --seed=0 --task ../../data/Instances/small/kiva-2.task --look_ahead_horizon 2 --task_truncated_size 2

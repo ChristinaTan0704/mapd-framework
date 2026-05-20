@@ -1,0 +1,100 @@
+========================================================================
+MAPD Reference Code Experiment Results
+Date: Mon May 18 10:46:27 PDT 2026
+========================================================================
+
+Algorithm             Ag   Freq   Makespan        SWT   AvgService      Runtime
+---------             --   ----   --------        ---   ----------      -------
+
+=== 10 Agents ===
+TP                    10    0.2       2532      19270         38.5         0.7s
+TPTS                  10    0.2       2532      14666         29.3         0.7s
+CENTRAL               10    0.2       2516      14887         29.8         2.7s
+HUNGARIAN_PBS         10    0.2       2512      13707         27.4         0.8s
+HUNGARIAN_wPBS        10    0.2       2512      13751         27.5         0.4s
+TP                    10    0.5       1309      66393        132.8         0.2s
+TPTS                  10    0.5       1274      65574        131.1         0.2s
+CENTRAL               10    0.5       1230      54856        109.7         3.0s
+HUNGARIAN_PBS         10    0.5       1294      53758        107.5         1.2s
+HUNGARIAN_wPBS        10    0.5       1319      52438        104.9         0.4s
+TP                    10      1       1198     155890        311.8         0.2s
+TPTS                  10      1       1182     150514        301.0         0.2s
+CENTRAL               10      1       1155     142875        285.8         3.8s
+HUNGARIAN_PBS         10      1       1197     123143        246.3         3.6s
+HUNGARIAN_wPBS        10      1       1213     122441        244.9         4.0s
+TP                    10      2       1167     203809        407.6         0.2s
+TPTS                  10      2       1168     203618        407.2         0.2s
+CENTRAL               10      2       1129     194109        388.2         5.9s
+HUNGARIAN_PBS         10      2       1157     165857        331.7        10.4s
+HUNGARIAN_wPBS        10      2       1199     167477        335.0        10.4s
+TP                    10      5       1162     236892        473.8         0.4s
+TPTS                  10      5       1165     236590        473.2         0.4s
+CENTRAL               10      5       1117     227584        455.2         5.9s
+HUNGARIAN_PBS         10      5       1151     194487        389.0        21.1s
+HUNGARIAN_wPBS        10      5       1214     195327        390.7        22.9s
+TP                    10     10       1163     247964        495.9         0.3s
+TPTS                  10     10       1172     252631        505.3         0.3s
+CENTRAL               10     10       1130     239088        478.2         9.5s
+HUNGARIAN_PBS         10     10       1147     204639        409.3        30.3s
+HUNGARIAN_wPBS        10     10       1180     203401        406.8        26.6s
+TP                    10    500       1136     256428        512.9         0.3s
+TPTS                  10    500       1105     254750        509.5         0.3s
+CENTRAL               10    500       1101     250555        501.1         4.1s
+HUNGARIAN_PBS         10    500       1141     212725        425.4        32.0s
+HUNGARIAN_wPBS        10    500       1171     211201        422.4        34.3s
+LNS-PBS               10    500       1143     212210        424.4       433.8s
+LNS-wPBS              10    500       1177     214254        428.5       433.3s
+TA-PRIORITIZED        10    500       1053      10304         20.6         0.7s
+TA-HYBRID             10    500       1037     262228        524.5           9s
+
+=== 50 Agents ===
+TP                    50    0.2       2540      20016         40.0        25.5s
+TPTS                  50    0.2       2524      11553         23.1        25.5s
+CENTRAL               50    0.2       2524      12528         25.1       102.1s
+HUNGARIAN_PBS         50    0.2       2513      11338         22.7         5.2s
+HUNGARIAN_wPBS        50    0.2       2512      11779         23.6         4.5s
+TP                    50    0.5       1083      21832         43.7        20.6s
+TPTS                  50    0.5       1036      12609         25.2        20.6s
+CENTRAL               50    0.5       1035      12471         24.9        86.1s
+HUNGARIAN_PBS         50    0.5       1027      11690         23.4         4.9s
+HUNGARIAN_wPBS        50    0.5       1037      11909         23.8         2.2s
+TP                    50      1        597      24570         49.1        25.5s
+TPTS                  50      1        554      15134         30.3        25.5s
+CENTRAL               50      1        553      13692         27.4        58.5s
+HUNGARIAN_PBS         50      1        527      11860         23.7         6.6s
+HUNGARIAN_wPBS        50      1        530      12331         24.7         2.3s
+TP                    50      2        432      37817         75.6        20.7s
+TPTS                  50      2        383      29030         58.1        20.7s
+CENTRAL               50      2        335      20718         41.4        30.5s
+HUNGARIAN_PBS         50      2        295      15041         30.1         7.9s
+HUNGARIAN_wPBS        50      2        303      14618         29.2         1.9s
+TP                    50      5        395      62294        124.6         9.0s
+TPTS                  50      5        343      52428        104.9         9.0s
+CENTRAL               50      5        313      43452         86.9        31.8s
+HUNGARIAN_PBS         50      5        266      34363         68.7        10.5s
+HUNGARIAN_wPBS        50      5        262      33165         66.3         1.8s
+TP                    50     10        333      65711        131.4         3.9s
+TPTS                  50     10        319      63482        127.0         3.9s
+CENTRAL               50     10        304      53351        106.7        97.7s
+HUNGARIAN_PBS         50     10        269      42342         84.7        12.0s
+HUNGARIAN_wPBS        50     10        267      41188         82.4         2.0s
+TP                    50    500        336      68302        136.6        11.5s
+TPTS                  50    500        338      68049        136.1        11.5s
+CENTRAL               50    500         TO          -            -       600.1s
+HUNGARIAN_PBS         50    500        250      50491        101.0         9.5s
+HUNGARIAN_wPBS        50    500        256      50638        101.3         3.4s
+LNS-PBS               50    500        258      50836        101.7       205.3s
+LNS-wPBS              50    500        262      50228        100.5       196.8s
+TA-PRIORITIZED        50    500        238      10624         21.2         0.8s
+TA-HYBRID             50    500  N/A(hang)          -            -            -
+
+========================================================================
+Notes:
+  SWT = Sum of (completion_time - release_time) across all tasks
+  AvgService = SWT / num_tasks
+  CENTRAL ref prints AvgService directly (code divides by 500)
+  MGMAPD ref prints AvgService as 'Flowtime'
+  TA-PRIORITIZED SWT = total flowtime from ref (sum of completion times)
+  LNS-PBS/wPBS only run on freq=500 (LNS 1s/call makes online too slow)
+  TA-HYBRID 50ag: reference binary hangs, no results available
+========================================================================

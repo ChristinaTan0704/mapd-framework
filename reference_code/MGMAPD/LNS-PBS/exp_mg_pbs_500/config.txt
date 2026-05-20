@@ -1,0 +1,12 @@
+map: /Users/jiaqit/Desktop/paper/reference_code/data/Instances/small/kiva-10-500-5
+#drives: 10
+seed: 0
+solver: PBS
+time_limit: 120
+simulation_window: 1073741823
+planning_window: 1073741823
+simulation_time: 5000
+robust: 0
+rotate: 0
+use_dummy_paths: 1
+hold_endpoints: 0
