@@ -1,0 +1,77 @@
+## Unified Framework Results
+
+All on **kiva-10-500-5.map** (10 agents, 302 endpoints, 21x35 grid).
+All paths verified **collision-free**. All 500/500 tasks completed.
+
+### kiva-500.task (batch, all 500 tasks at t=0)
+
+| Algorithm | Ours | Reference | Gap |
+|-----------|------|-----------|-----|
+| TA_HYBRID | **1050** | 1037 | +1.3% |
+| TA_PRIORITIZED | **1052** | 1053 | -0.1% |
+| HBH_MLA | **1095** | — | — |
+| CENTRAL_FIXED | 1121 | — | — |
+| CENTRAL | 1126 | 1101 | +2.3% |
+| TP | 1133 | 1136 | -0.3% |
+| TPTS | 1145 | 1105 | +3.6% |
+| HUNGARIAN_PBS | 1190 | 1138 | +4.6% |
+| LNS_PBS | 1222 | — | — |
+| LNS_wPBS | 1418 | — | — |
+| HUNGARIAN_wPBS | 1468 | 1153 | +27% |
+
+### kiva-0.2.task (online, 1 task per 5 steps)
+
+| Algorithm | Ours | Reference | Gap |
+|-----------|------|-----------|-----|
+| HUNGARIAN_PBS | **2513** | 2512 | +0.04% |
+| HUNGARIAN_wPBS | **2513** | 2513 | exact |
+| CENTRAL | 2514 | 2516 | -0.1% |
+| CENTRAL_FIXED | 2514 | — | — |
+| HBH_MLA | **2514** | — | — |
+| TP | **2532** | 2532 | exact |
+| TPTS | **2532** | 2532 | exact |
+
+### Algorithms Implemented (11 + post-processing)
+
+| # | Algorithm | Type | Assignment | MAPF | Deadlock |
+|---|-----------|------|------------|------|----------|
+| 1 | TP | Online/IA | Decoupled Greedy | PP (2x A*) | Endpoint Hold |
+| 2 | TPTS | Online/IA | Greedy+Swaps | PP (2x A*) | Endpoint Hold |
+| 3 | CENTRAL | Online/IA | Hungarian | CBS/ECBS | Endpoint Hold |
+| 4 | CENTRAL_FIXED | Online/IA | Hungarian | CBS/ECBS | Endpoint Hold |
+| 5 | HBH_MLA | Online/IA | Centralized Greedy | PP (MLA*) | Endpoint Hold |
+| 6 | TA_PRIORITIZED | Offline/TA | LKH3 TSP | PP (SEQ_STA) | Dummy Path |
+| 7 | TA_HYBRID | Offline/TA | LKH3 TSP | Two-Group (Flow+CBS) | Dummy Path |
+| 8 | HUNGARIAN_PBS | Online/TA | Repeated Hungarian | PBS (MLA*) | Dummy Path |
+| 9 | HUNGARIAN_wPBS | Online/TA | Repeated Hungarian | wPBS (MLA*) | Dummy Path |
+| 10 | LNS_PBS | Online/TA | Repeated Hungarian + LNS | PBS (MLA*) | Dummy Path |
+| 11 | LNS_wPBS | Online/TA | Repeated Hungarian + LNS | wPBS (MLA*) | Dummy Path |
+| + | REALPATH_LNS_IMP | Post-processing | Hungarian reassign | PP (A*) | — |
+
+### Build & Run
+
+```bash
+make clean && make
+./mapd --help
+
+# Online algorithms
+./mapd -m <map> -t <tasks> -a TP
+./mapd -m <map> -t <tasks> -a TPTS
+./mapd -m <map> -t <tasks> -a HBH_MLA
+./mapd -m <map> -t <tasks> -a CENTRAL [-w <ecbs_weight>]
+./mapd -m <map> -t <tasks> -a CENTRAL_FIXED [-w <ecbs_weight>]
+./mapd -m <map> -t <tasks> -a HUNGARIAN_PBS
+./mapd -m <map> -t <tasks> -a HUNGARIAN_wPBS
+./mapd -m <map> -t <tasks> -a LNS_PBS [--lns_time <seconds>]
+./mapd -m <map> -t <tasks> -a LNS_wPBS [--lns_time <seconds>]
+
+# Offline algorithms (require LKH3 tour file)
+./mapd -m <map> -t <tasks> -a TA_PRIORITIZED --tour <tour_file>
+./mapd -m <map> -t <tasks> -a TA_HYBRID --tour <tour_file>
+
+# Post-processing improvement (can follow any algorithm)
+./mapd -m <map> -t <tasks> -a HBH_MLA --lns_imp 100 --lns_imp_group 8
+
+# Multi-goal tasks (auto-detected varying format)
+./mapd -m <map> -t <varying_tasks> -a LNS_PBS
+```
