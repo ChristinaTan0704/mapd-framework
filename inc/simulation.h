@@ -12,6 +12,7 @@
 #include <set>
 #include <unordered_set>
 #include <stack>
+#include <tuple>
 #include <boost/heap/fibonacci_heap.hpp>
 
 // ============ CostFlow (Min-Cost Max-Flow for TA-Hybrid) ============
@@ -270,7 +271,8 @@ private:
                          const vector<int>& h_goal, const vector<int>& h_park,
                          const vector<vector<int>>& cons_paths,
                          int release_time,
-                         bool goal_optimal = true);
+                         bool goal_optimal = true,
+                         const vector<tuple<int,int,int>>& cbs_cons = {});
 
     // BFS all-pairs distances (only free cells)
     void compute_all_pairs_bfs();

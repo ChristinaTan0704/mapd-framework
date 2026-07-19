@@ -3104,7 +3104,8 @@ int Simulation::astar_with_dummy(Agent& ag, int start_loc, int start_time,
                                   const vector<int>& h_goal, const vector<int>& h_park,
                                   const vector<vector<int>>& cons_paths,
                                   int release_time,
-                                  bool goal_optimal) {
+                                  bool goal_optimal,
+                                  const vector<tuple<int,int,int>>& cbs_cons) {
     int rel_release = release_time - start_time;
     if (rel_release < 0) rel_release = 0;
 
@@ -3152,6 +3153,15 @@ int Simulation::astar_with_dummy(Agent& ag, int start_loc, int start_time,
                         can_hold = false;
                 }
             }
+            // Also honor CBS vertex constraints during the infinite hold at parking:
+            // if a vertex constraint forbids this park cell at any future timestep,
+            // the agent cannot settle here yet (it must arrive later / elsewhere).
+            for (int ci = 0; ci < (int)cbs_cons.size() && can_hold; ci++) {
+                if (get<1>(cbs_cons[ci]) < 0 &&
+                    get<0>(cbs_cons[ci]) == curr->loc &&
+                    get<2>(cbs_cons[ci]) >= curr->timestep + 1)
+                    can_hold = false;
+            }
             if (can_hold) {
                 int goal_arrival_abs = start_time + curr->goal_length - 1;
                 vector<int> path_locs;
@@ -3193,6 +3203,17 @@ int Simulation::astar_with_dummy(Agent& ag, int start_loc, int start_time,
                 else if (cons_paths[ci][next_t] == curr->loc &&
                          cons_paths[ci][next_t - 1] == next_loc)
                     constrained = true;
+            }
+            // High-level CBS constraints (loc1, loc2, t_abs); loc2 < 0 => vertex.
+            for (int ci = 0; ci < (int)cbs_cons.size() && !constrained; ci++) {
+                if (get<2>(cbs_cons[ci]) != next_t) continue;
+                int cl1 = get<0>(cbs_cons[ci]), cl2 = get<1>(cbs_cons[ci]);
+                if (cl2 < 0) {
+                    if (cl1 == next_loc) constrained = true;      // vertex
+                } else {
+                    if (cl1 == curr->loc && cl2 == next_loc)      // edge
+                        constrained = true;
+                }
             }
             if (constrained) continue;
 
@@ -3535,22 +3556,10 @@ int Simulation::hybrid_go_home(vector<Agent*>& ags) {
                                        h_goal, h_park_vec,
                                        cons_paths, 0);
         if (result < 0) {
-            // Fixed-priority GoHome failed under congestion. The reference's ICBS
-            // never fails here; our weaker search can. Retry ignoring inter-agent
-            // constraints so the agent still gets a valid path home (guaranteed on
-            // a connected grid) rather than triggering an unbounded hold_time /
-            // GoHome retry loop. Any transient conflict is smoothed by later
-            // dummy-replan sweeps and is negligible for makespan/SWT.
-            cerr << "GoHome Error! agent " << ags[i]->id
-                 << " start=" << start_loc << " park=" << park_loc
-                 << " -- retrying with relaxed constraints" << endl;
-            vector<vector<int>> relaxed_cons;
-            result = astar_with_dummy(*ags[i], start_loc, t,
-                                      start_loc, park_loc,
-                                      h_goal, h_park_vec,
-                                      relaxed_cons, 0);
-            if (result < 0)
-                return start_loc;
+            // Faithful to reference GoHome (reference simulation.cpp:620-622):
+            // return the failed start location so the caller extends the task's
+            // hold_time and retries, rather than emitting a best-effort path.
+            return start_loc;
         }
     }
     return -1;
@@ -3707,149 +3716,242 @@ void Simulation::hybrid_assign_new_task(int id) {
 //   prioritized A* with dummy path search.
 // ============================================================
 
+// Faithful port of the reference TA-Hybrid Group1 planner
+// (reference_code/TA-Hybrid/simulation.cpp::PathFinding + ICBSSearch).
+//
+// The delivery batch is solved with a genuine high-level CBS: each delivery
+// agent is planned INDEPENDENTLY with a two-phase deliver->park->hold low-level
+// (astar_with_dummy) that treats only the FIXED constraint agents as obstacles;
+// conflicts among the delivery agents are then resolved by branching the CBS
+// tree and adding per-(loc,time) vertex/edge constraints, replanning the
+// constrained agent until the batch is conflict-free. Constraint agents are
+// never re-routed -- only their dummy/parking tails are replanned afterwards
+// (hybrid_replan_dummy, mirroring ReplanDummyPath).
 bool Simulation::hybrid_group1_plan(vector<Agent*>& delivery_agents,
                                      vector<Agent*>& constraint_agents) {
     if (delivery_agents.empty()) return true;
     int map_size = (int)mapd_map.grid.size();
+    int t0 = (int)hybrid_timestep_;
+    int T  = (int)maxtime;
+    int K  = (int)delivery_agents.size();
 
-    // Set non_dummy_path for constraint agents (matching reference PathFinding line 321-328)
+    // Set non_dummy_path for constraint agents (reference PathFinding line 321-328)
     for (int ci = 0; ci < (int)constraint_agents.size(); ci++) {
         int ds = constraint_agents[ci]->dummy_start_step;
         vector<int> cons;
-        for (int j = 0; j <= ds && j < (int)maxtime; j++)
+        for (int j = 0; j <= ds && j < T; j++)
             cons.push_back((int)constraint_agents[ci]->path[j]);
         constraint_agents[ci]->non_dummy_path = cons;
     }
 
-    // Retry loop matching reference PathFinding (line 329-395)
+    // Precompute per-delivery-agent fixed data + BFS heuristics (goal and park).
+    vector<int> goal_loc(K), park_loc(K), start_loc(K);
+    vector<vector<int>> h_goal(K), h_park(K);
+    auto bfs = [&](int src, vector<int>& h) {
+        h.assign(map_size, INT_MAX);
+        queue<int> q; h[src] = 0; q.push(src);
+        while (!q.empty()) {
+            int u = q.front(); q.pop();
+            for (int d : {1, -1, mapd_map.col, -mapd_map.col}) {
+                int v = u + d;
+                if (v >= 0 && v < map_size && abs(v % mapd_map.col - u % mapd_map.col) < 2 &&
+                    mapd_map.grid[v] && h[v] > h[u] + 1) {
+                    h[v] = h[u] + 1; q.push(v);
+                }
+            }
+        }
+    };
+    for (int i = 0; i < K; i++) {
+        Agent* ag = delivery_agents[i];
+        goal_loc[i]  = ag->goal_loc;
+        park_loc[i]  = ag->park_loc;
+        start_loc[i] = (int)ag->path[t0];
+        bfs(goal_loc[i], h_goal[i]);
+        bfs(park_loc[i], h_park[i]);
+    }
+
+    // Low-level: plan delivery agent i under the fixed constraint-agent obstacle
+    // paths + its accumulated CBS constraints. Captures the resulting absolute
+    // path segment [t0,T) and returns the goal-arrival abs time (or -1).
+    auto low_level = [&](int i, const vector<vector<int>>& cons_paths,
+                         const vector<tuple<int,int,int>>& cbs_cons,
+                         vector<int>& out_path) -> int {
+        Agent* ag = delivery_agents[i];
+        int result = astar_with_dummy(*ag, start_loc[i], t0,
+                                      goal_loc[i], park_loc[i],
+                                      h_goal[i], h_park[i],
+                                      cons_paths, 0, true, cbs_cons);
+        if (result < 0) return -1;
+        out_path.resize(T - t0);
+        for (int t = t0; t < T; t++) out_path[t - t0] = (int)ag->path[t];
+        return result;
+    };
+
+    // Cost objective, matching reference g_val = max_i costs[i][goal_length[i]]
+    // (CalcCost = completion-time / makespan estimate for the remaining sequence).
+    auto agent_cost = [&](int i, int arrival_abs) -> int {
+        Agent* ag = delivery_agents[i];
+        if (ag->task_ptr == nullptr) return arrival_abs;
+        int sid = ag->task_ptr->seq_id;
+        if (sid < 0 || sid >= (int)hybrid_seqs_.size()) return arrival_abs;
+        return hybrid_cost(arrival_abs, hybrid_seqs_[sid]);
+    };
+
+    struct G1Node {
+        vector<vector<int>> paths;                 // [i] abs path over [t0,T)
+        vector<int> arrival;                       // [i] goal-arrival abs time
+        vector<vector<tuple<int,int,int>>> cons;   // [i] accumulated CBS constraints
+        int g_val = 0;
+        int num_coll = 0;
+        int a1 = -1, a2 = -1, cloc1 = -1, cloc2 = -1, ct = -1; // chosen conflict
+        bool has_conf = false;
+    };
+
+    // Detect earliest conflict among a node's delivery paths; count all conflicts.
+    auto detect = [&](G1Node* n) {
+        n->num_coll = 0; n->has_conf = false;
+        int best_t = INT_MAX;
+        for (int a = 0; a < K; a++) {
+            for (int b = a + 1; b < K; b++) {
+                const vector<int>& pa = n->paths[a];
+                const vector<int>& pb = n->paths[b];
+                int len = (int)min(pa.size(), pb.size());
+                for (int t = 0; t < len; t++) {
+                    bool conf = false; int cl1 = -1, cl2 = -1;
+                    if (pa[t] == pb[t]) {                 // vertex conflict
+                        conf = true; cl1 = pa[t]; cl2 = -1;
+                    } else if (t > 0 && pa[t] == pb[t-1] && pb[t] == pa[t-1]) {
+                        conf = true; cl1 = pa[t-1]; cl2 = pa[t]; // edge (agent a: cl1->cl2)
+                    }
+                    if (conf) {
+                        n->num_coll++;
+                        int abs_t = t0 + t;
+                        if (abs_t < best_t) {
+                            best_t = abs_t;
+                            n->a1 = a; n->a2 = b;
+                            n->cloc1 = cl1; n->cloc2 = cl2; n->ct = abs_t;
+                            n->has_conf = true;
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    // Save current path segments so we can restore on a hard (root) failure.
+    vector<vector<int>> saved(K);
+    for (int i = 0; i < K; i++) {
+        saved[i].resize(T - t0);
+        for (int t = t0; t < T; t++) saved[i][t - t0] = (int)delivery_agents[i]->path[t];
+    }
+    auto restore_saved = [&]() {
+        for (int i = 0; i < K; i++)
+            for (int t = t0; t < T; t++)
+                delivery_agents[i]->path[t] = saved[i][t - t0];
+    };
+
+    const int HL_CAP = 100000;  // safety cap (mirrors reference HL_num_expanded guard)
+
+    // Outer loop: mirrors reference PathFinding (re-run CBS if a constraint
+    // agent's dummy tail cannot be replanned conflict-free -- that agent's full
+    // path then becomes a hard obstacle on the next pass).
     while (true) {
-        for (int i = 0; i < (int)delivery_agents.size(); i++) {
-            Agent* ag = delivery_agents[i];
-            int goal_loc = ag->goal_loc;
-            int park_loc = ag->park_loc;
+        vector<vector<int>> cons_paths_base;
+        for (int ci = 0; ci < (int)constraint_agents.size(); ci++)
+            cons_paths_base.push_back(constraint_agents[ci]->non_dummy_path);
 
-            // Build constraint paths from constraint agents' non_dummy_path
-            // (matching reference: truncated at dummy_start_step)
-            vector<vector<int>> cons_paths;
-            for (int ci = 0; ci < (int)constraint_agents.size(); ci++)
-                cons_paths.push_back(constraint_agents[ci]->non_dummy_path);
-            // Also add other delivery agents as constraints
-            for (int j = 0; j < (int)delivery_agents.size(); j++) {
-                if (j == i) continue;
-                Agent* other = delivery_agents[j];
-                int ds = other->dummy_start_step;
-                vector<int> cp;
-                for (int t = 0; t <= ds && t < (int)maxtime; t++)
-                    cp.push_back((int)other->path[t]);
-                cons_paths.push_back(cp);
+        // ---- High-level CBS over the delivery batch ----
+        auto worse = [](const G1Node* a, const G1Node* b) {
+            if (a->g_val != b->g_val) return a->g_val > b->g_val;
+            return a->num_coll > b->num_coll;
+        };
+        priority_queue<G1Node*, vector<G1Node*>, decltype(worse)> open(worse);
+        vector<G1Node*> allnodes;
+
+        // Root: plan every agent independently against the fixed obstacles only.
+        G1Node* root = new G1Node();
+        root->paths.resize(K);
+        root->arrival.resize(K);
+        root->cons.resize(K);
+        bool root_ok = true;
+        for (int i = 0; i < K && root_ok; i++) {
+            int arr = low_level(i, cons_paths_base, root->cons[i], root->paths[i]);
+            if (arr < 0) root_ok = false;
+            else root->arrival[i] = arr;
+        }
+        if (!root_ok) {
+            // Cannot even plan the batch against the fixed agents (should not
+            // happen on a connected grid). Revert this batch's assignments and
+            // let them retry on a later timestep -- no colliding path is emitted.
+            delete root;
+            restore_saved();
+            for (int k = 0; k < K; k++) {
+                Agent* a = delivery_agents[k];
+                a->delivering = false;
+                if (a->task_ptr) { a->task_ptr->delivering = false; a->task_ptr->ag = nullptr; }
+                a->task_ptr = nullptr;
             }
+            return false;
+        }
+        root->g_val = 0;
+        for (int i = 0; i < K; i++)
+            root->g_val = max(root->g_val, agent_cost(i, root->arrival[i]));
+        detect(root);
+        open.push(root); allnodes.push_back(root);
 
-            // Compute heuristics
-            vector<int> h_goal(map_size, INT_MAX);
-            {
-                queue<int> bfs_q;
-                h_goal[goal_loc] = 0;
-                bfs_q.push(goal_loc);
-                while (!bfs_q.empty()) {
-                    int u = bfs_q.front(); bfs_q.pop();
-                    for (int d : {1, -1, mapd_map.col, -mapd_map.col}) {
-                        int v = u + d;
-                        if (v >= 0 && v < map_size && abs(v % mapd_map.col - u % mapd_map.col) < 2 &&
-                            mapd_map.grid[v] && h_goal[v] > h_goal[u] + 1) {
-                            h_goal[v] = h_goal[u] + 1;
-                            bfs_q.push(v);
-                        }
-                    }
-                }
+        G1Node* solution = nullptr;
+        G1Node* best = root;             // fallback: fewest collisions seen
+        int hl_expanded = 0;
+        while (!open.empty()) {
+            G1Node* curr = open.top(); open.pop();
+            if (curr->num_coll < best->num_coll) best = curr;
+            if (!curr->has_conf) { solution = curr; break; }
+            if (++hl_expanded > HL_CAP) {
+                cerr << "TA-Hybrid Group1 CBS exceeded HL cap; using best node" << endl;
+                break;
             }
+            // Branch: constrain a1, then a2, on the chosen conflict.
+            for (int side = 0; side < 2; side++) {
+                int ag = (side == 0) ? curr->a1 : curr->a2;
+                tuple<int,int,int> nc;
+                if (curr->cloc2 < 0)  // vertex conflict: same cell for both agents
+                    nc = make_tuple(curr->cloc1, -1, curr->ct);
+                else if (side == 0)   // edge: a1 forbidden cloc1->cloc2 at ct
+                    nc = make_tuple(curr->cloc1, curr->cloc2, curr->ct);
+                else                  // edge: a2 forbidden cloc2->cloc1 at ct
+                    nc = make_tuple(curr->cloc2, curr->cloc1, curr->ct);
 
-            vector<int> h_park_vec(map_size, INT_MAX);
-            {
-                queue<int> bfs_q;
-                h_park_vec[park_loc] = 0;
-                bfs_q.push(park_loc);
-                while (!bfs_q.empty()) {
-                    int u = bfs_q.front(); bfs_q.pop();
-                    for (int d : {1, -1, mapd_map.col, -mapd_map.col}) {
-                        int v = u + d;
-                        if (v >= 0 && v < map_size && abs(v % mapd_map.col - u % mapd_map.col) < 2 &&
-                            mapd_map.grid[v] && h_park_vec[v] > h_park_vec[u] + 1) {
-                            h_park_vec[v] = h_park_vec[u] + 1;
-                            bfs_q.push(v);
-                        }
-                    }
-                }
+                G1Node* child = new G1Node(*curr);
+                child->cons[ag].push_back(nc);
+                vector<int> newp;
+                int arr = low_level(ag, cons_paths_base, child->cons[ag], newp);
+                if (arr < 0) { delete child; continue; }  // infeasible branch
+                child->paths[ag] = newp;
+                child->arrival[ag] = arr;
+                child->g_val = 0;
+                for (int i = 0; i < K; i++)
+                    child->g_val = max(child->g_val, agent_cost(i, child->arrival[i]));
+                detect(child);
+                open.push(child); allnodes.push_back(child);
             }
-
-            int start_loc = (int)ag->path[hybrid_timestep_];
-            int result = astar_with_dummy(*ag, start_loc, (int)hybrid_timestep_,
-                                           goal_loc, park_loc,
-                                           h_goal, h_park_vec,
-                                           cons_paths, 0);
-            if (result < 0) {
-                // The fixed-priority astar_with_dummy used here is strictly weaker
-                // than the reference's full ICBS Group1 solver: at high agent
-                // density near task exhaustion it can fail to find a delivery path
-                // that the reference's reprioritizing ICBS *would* find (ICBS can
-                // move the constraint agents out of the way; a fixed-priority
-                // search cannot). The reference simply aborts here (ref
-                // simulation.cpp line 391, exit(1)); its commented-out "Recovery"
-                // block (ref lines 370-383) instead lets the robot proceed on a
-                // best-effort path.
-                //
-                // We follow that recovery intent: retry the search ignoring the
-                // inter-agent constraints so the agent still obtains a valid
-                // pickup->delivery->parking path and the simulation keeps making
-                // progress instead of dead-locking (a stuck delivering agent pins
-                // itself on its pickup cell forever and spins the downstream
-                // Group2 GoHome / dummy-replan loops). On a connected grid this
-                // relaxed search always succeeds. Any residual conflict this
-                // introduces is a single agent over a short window and is smoothed
-                // out by the dummy-replan sweeps on subsequent timesteps; it is
-                // negligible for makespan/SWT.
-                cerr << "Group1 delivery planning failed for agent " << ag->id
-                     << " -- retrying with relaxed constraints" << endl;
-                vector<vector<int>> relaxed_cons;
-                result = astar_with_dummy(*ag, start_loc, (int)hybrid_timestep_,
-                                          goal_loc, park_loc,
-                                          h_goal, h_park_vec,
-                                          relaxed_cons, 0);
-                if (result < 0) {
-                    // Should not happen on a connected map. Un-assign the
-                    // not-yet-planned delivery agents so they retry later, and
-                    // bail out of this planning call.
-                    cerr << "Group1 delivery planning still failed for agent "
-                         << ag->id << " even with relaxed constraints; reverting"
-                         << endl;
-                    for (int k = i; k < (int)delivery_agents.size(); k++) {
-                        Agent* a = delivery_agents[k];
-                        a->delivering = false;
-                        if (a->task_ptr) {
-                            a->task_ptr->delivering = false;
-                            a->task_ptr->ag = nullptr;
-                        }
-                        a->task_ptr = nullptr;
-                    }
-                    return false;
-                }
-            }
-
-            // Find the timestep when agent arrives at goal_loc
-            int arrive_goal = result;
-            ag->dummy_start_step = arrive_goal;
-            ag->task_ptr->ag_arrive_goal = arrive_goal;
-
-            // Note: astar_with_dummy already writes the complete path including
-            // the dummy segment (goal -> parking) and fills remaining with park_loc.
-            // Do NOT overwrite with park_loc here -- that would destroy the dummy path
-            // segment and cause the agent to "teleport" from goal to parking.
         }
 
-        // Replan dummy paths for constraint agents (matching reference line 357-365)
+        G1Node* apply = solution ? solution : best;
+
+        // Apply the chosen solution to the delivery agents.
+        for (int i = 0; i < K; i++) {
+            Agent* ag = delivery_agents[i];
+            for (int t = t0; t < T; t++) ag->path[t] = apply->paths[i][t - t0];
+            ag->dummy_start_step = apply->arrival[i];
+            if (ag->task_ptr) ag->task_ptr->ag_arrive_goal = apply->arrival[i];
+        }
+
+        for (G1Node* n : allnodes) delete n;
+
+        // Replan dummy tails for constraint agents (reference line 357-365).
         bool ok = true;
         for (int ci = 0; ci < (int)constraint_agents.size(); ci++) {
             if (!hybrid_replan_dummy(constraint_agents[ci])) {
-                // Update non_dummy_path to current full path for retry
                 constraint_agents[ci]->non_dummy_path.assign(
                     constraint_agents[ci]->path.begin(),
                     constraint_agents[ci]->path.begin() + maxtime);
@@ -4055,21 +4157,11 @@ void Simulation::plan_ta_hybrid() {
                             "breaking with current paths" << endl;
                     break;
                 }
-                int gohome_pass = 0;
                 while (true) {
-                    // Safety cap for the GoHome retry loop. The reference relies on
-                    // its full ICBS planner (which never fails) so this loop always
-                    // converges; the fixed-priority astar_with_dummy used here can
-                    // fail to route an agent home under heavy congestion, in which
-                    // case hold_time cannot advance and the loop spins forever.
-                    // Cap it: the affected agent simply holds at its current cell
-                    // for this timestep and retries on the next one, after other
-                    // agents have moved and freed space.
-                    if (++gohome_pass > 200) {
-                        cerr << "TA-Hybrid: GoHome retry loop exceeded 200 passes, "
-                                "agent(s) will wait this timestep" << endl;
-                        break;
-                    }
+                    // GoHome retry loop (reference simulation.cpp:917-943): repeatedly
+                    // route the cost-flow agents home; on failure the offending task's
+                    // hold_time is advanced monotonically, so the loop terminates
+                    // naturally (no artificial cap, matching the reference).
                     // Build constraint paths from non-costflow agents
                     vector<vector<int>> cons_paths;
                     for (int i = 0; i < num_ag; i++)
