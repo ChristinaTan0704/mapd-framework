@@ -24,6 +24,24 @@ void Simulation::init(const string& map_file, const string& task_file, const MAP
     mapd_map.load(map_file);
     maxtime = mapd_map.maxtime;
 
+    // Faithfully reproduce the reference MGMAPD (LNS-wPBS) agent-home shuffle.
+    // Reference KivaGrid::load_Minghua_map() collects home cells in map-scan
+    // order then applies `std::shuffle(agent_home_locations, default_random_engine())`
+    // (default seed 1), and sets starts[k] = agent_home_locations[k]. Our loader
+    // collects the same cells in the same scan order but did NOT shuffle, so
+    // agent k started at a different cell -> different PBS priority/planning order.
+    // Apply the identical shuffle here, gated to the MGMAPD methods only
+    // (Hungarian/LNS over PBS/wPBS). TP/TPTS/CENTRAL/HBH/TA use references that
+    // do NOT shuffle, so they are excluded.
+    bool mgmapd_method =
+        (config.assign_method == AM_HUNGARIAN ||
+         config.assign_method == AM_REPEATED_HUNGARIAN_LNS) &&
+        (config.mapf == MAPF_PBS || config.mapf == MAPF_wPBS);
+    if (mgmapd_method) {
+        std::shuffle(mapd_map.agent_starts.begin(), mapd_map.agent_starts.end(),
+                     std::default_random_engine());
+    }
+
     all_tasks = load_tasks(task_file, mapd_map.endpoints);
 
     task_indices_by_time.resize(maxtime);
