@@ -7772,8 +7772,20 @@ void Simulation::path_planning_wpbs() {
     // VERBATIM reference (MGMAPD/LNS-wPBS) integrated solve (StateTimeAStar +
     // ReservationTable + PBS + reference choose_good_endpoint dispersal).  The
     // DEFAULT binary (no REF_SOLVE) is untouched.
+    // Default ON for Hungarian+wPBS-MLA* ONLY (Hungarian assignment + wPBS + non-SIPP):
+    // the ported reference solve is plain PBS (no SIPP / no LNS), so it is CORRECT only for
+    // that method — it produces wrong results for wPBS-MLSIPP / LNS+wPBS-* (verified), which
+    // stay on the reimpl baseline (pbs_core).  Env REF_SOLVE=1/0 forces on/off for debugging.
     static int use_ref = -1;
-    if (use_ref < 0) use_ref = (std::getenv("REF_SOLVE") != nullptr) ? 1 : 0;
+    if (use_ref < 0) {
+        const char* e = std::getenv("REF_SOLVE");
+        if (e != nullptr) {
+            use_ref = (e[0] == '0' && e[1] == '\0') ? 0 : 1;   // explicit override
+        } else {
+            use_ref = (config.assign_method == AM_HUNGARIAN &&
+                       config.mapf == MAPF_wPBS && !config.use_sipp) ? 1 : 0;
+        }
+    }
     if (use_ref) {
         ref_windowed_solve();
         for (int i = 0; i < (int)agents.size(); i++) {
