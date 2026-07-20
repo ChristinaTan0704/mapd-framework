@@ -7782,7 +7782,11 @@ void Simulation::path_planning_wpbs() {
         if (e != nullptr) {
             use_ref = (e[0] == '0' && e[1] == '\0') ? 0 : 1;   // explicit override
         } else {
-            use_ref = (config.assign_method == AM_HUNGARIAN &&
+            // Default ON for Hungarian+wPBS-MLA* AND LNS(1s)+wPBS-MLA* (both close the gap
+            // via the integrated reference solve; verified). Still excludes SIPP variants
+            // (use_sipp) and non-wPBS methods.
+            use_ref = ((config.assign_method == AM_HUNGARIAN ||
+                        config.assign_method == AM_REPEATED_HUNGARIAN_LNS) &&
                        config.mapf == MAPF_wPBS && !config.use_sipp) ? 1 : 0;
         }
     }
