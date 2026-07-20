@@ -4,7 +4,9 @@
 #include <cstdio>
 #include "simulation.h"
 #include "cbs.h"
+#include "ref_solve.h"
 #include <algorithm>
+#include <cstdlib>
 #include <set>
 
 #include <ctime>
@@ -7766,11 +7768,138 @@ void Simulation::path_planning_pbs() {
 // ============================================================
 
 void Simulation::path_planning_wpbs() {
+    // Env-gated: REF_SOLVE replaces the reimpl's windowed solve WHOLESALE with the
+    // VERBATIM reference (MGMAPD/LNS-wPBS) integrated solve (StateTimeAStar +
+    // ReservationTable + PBS + reference choose_good_endpoint dispersal).  The
+    // DEFAULT binary (no REF_SOLVE) is untouched.
+    static int use_ref = -1;
+    if (use_ref < 0) use_ref = (std::getenv("REF_SOLVE") != nullptr) ? 1 : 0;
+    if (use_ref) {
+        ref_windowed_solve();
+        for (int i = 0; i < (int)agents.size(); i++) {
+            if (!agents[i].task_sequence.empty() && agents[i].status == AG_FREE) {
+                agents[i].status = AG_MOVING_TO_PICKUP;
+                agents[i].current_task = agents[i].task_sequence.front();
+            }
+        }
+        return;
+    }
     pbs_core(true);
     for (int i = 0; i < (int)agents.size(); i++) {
         if (!agents[i].task_sequence.empty() && agents[i].status == AG_FREE) {
             agents[i].status = AG_MOVING_TO_PICKUP;
             agents[i].current_task = agents[i].task_sequence.front();
+        }
+    }
+}
+
+// ============================================================
+// REF_SOLVE: integrated reference windowed solve (env-gated)
+//   Builds the per-solve inputs from the reimpl's live state, runs the ported
+//   reference PBS, and writes committed paths back into token.path / agents.path.
+//   Dispersal uses the reference choose_good_endpoint (task endpoints only, skip
+//   own, home fallback) — the emergent behaviour the isolated tests lacked.
+// ============================================================
+void Simulation::ref_windowed_solve() {
+    int num_ag = (int)agents.size();
+    int max_t = (int)maxtime;
+    int rows = mapd_map.row, cols = mapd_map.col;
+    int map_size = rows * cols;
+
+    // passable grid (1 = free)
+    std::vector<char> passable(map_size, 0);
+    for (int i = 0; i < map_size; i++) passable[i] = mapd_map.grid[i] ? 1 : 0;
+
+    // starts = current agent locations
+    std::vector<int> start_locs(num_ag);
+    for (int i = 0; i < num_ag; i++) start_locs[i] = (int)agents[i].loc;
+
+    // --- Build task-goal part per agent (identical to build_goal_sequences,
+    //     task_truncated_size=1) with ABSOLUTE release times. ---
+    std::vector<std::vector<std::pair<int,int>>> goal_seqs(num_ag);
+    const int task_truncated_size = 1;
+    for (int i = 0; i < num_ag; i++) {
+        int current_task_count = 0;
+        for (int tid : agents[i].task_sequence) {
+            if (current_task_count >= task_truncated_size) break;
+            Task& task = all_tasks[tid];
+            int num_goals = min((int)task.goals.size(), 2);
+            bool carrying = (agents[i].status == AG_CARRYING && tid == agents[i].current_task);
+            if (num_goals <= 1) {
+                if (!carrying)
+                    goal_seqs[i].push_back({task.goals[0], task.release_time});
+            } else {
+                if (carrying) {
+                    goal_seqs[i].push_back({task.goals[1], 0});
+                } else {
+                    goal_seqs[i].push_back({task.goals[0], task.release_time});
+                    goal_seqs[i].push_back({task.goals[1], 0});
+                }
+            }
+            current_task_count++;
+        }
+    }
+
+    // --- Reference choose_good_endpoint dispersal: task endpoints only (skip own,
+    //     skip already-assigned), std::map<dist,loc> min; home endpoints fallback. ---
+    std::set<int> assigned;
+    auto ref_choose_good_endpoint = [&](int last_loc) -> int {
+        std::map<int,int> distance;
+        for (int e = 0; e < (int)mapd_map.endpoints.size(); e++) {
+            const Endpoint& ep = mapd_map.endpoints[e];
+            if (!ep.is_task_endpoint) continue;          // task endpoints ('e') only
+            if (assigned.count(ep.loc)) continue;
+            if (ep.loc == last_loc) continue;            // skip own
+            int d = ep.h_val[last_loc];
+            distance[d] = ep.loc;                        // later equal-dist overwrites
+        }
+        if (!distance.empty()) return distance.begin()->second;
+        // fallback: agent home / non-task endpoints
+        for (int e = 0; e < (int)mapd_map.endpoints.size(); e++) {
+            const Endpoint& ep = mapd_map.endpoints[e];
+            if (ep.is_task_endpoint) continue;
+            if (assigned.count(ep.loc)) continue;
+            if (ep.loc == last_loc) continue;
+            int d = ep.h_val[last_loc];
+            distance[d] = ep.loc;
+        }
+        if (!distance.empty()) return distance.begin()->second;
+        return last_loc; // ultimate fallback (should not happen)
+    };
+
+    // Non-free agents first, then free agents (matches reference ordering).
+    for (int i = 0; i < num_ag; i++) {
+        if (goal_seqs[i].empty()) continue;
+        int last_loc = goal_seqs[i].back().first;
+        int dummy = ref_choose_good_endpoint(last_loc);
+        goal_seqs[i].push_back({dummy, 0});
+        assigned.insert(dummy);
+    }
+    for (int i = 0; i < num_ag; i++) {
+        if (!goal_seqs[i].empty()) continue;
+        int last_loc = start_locs[i];
+        int dummy = ref_choose_good_endpoint(last_loc);
+        goal_seqs[i].push_back({dummy, 0});
+        assigned.insert(dummy);
+    }
+
+    // --- Run the ported reference integrated solve. ---
+    std::vector<std::vector<int>> out_paths;
+    int window = config.replan_window;            // == reference plan_window (10)
+    int time_limit_ms = 30000;                    // generous per-window budget
+    ref_wpbs_solve(rows, cols, passable, start_locs, goal_seqs,
+                   (int)token.timestep, window, time_limit_ms, out_paths);
+
+    // --- Commit: write plan for t >= token.timestep, hold last cell afterwards. ---
+    for (int i = 0; i < num_ag; i++) {
+        const std::vector<int>& p = out_paths[i];
+        int plen = (int)p.size();
+        int hold = plen > 0 ? p[plen - 1] : start_locs[i];
+        for (int t = (int)token.timestep; t < max_t; t++) {
+            int rel = t - (int)token.timestep;
+            int v = (rel < plen) ? p[rel] : hold;
+            token.path[i][t] = (unsigned int)v;
+            agents[i].path[t] = (unsigned int)v;
         }
     }
 }

@@ -10,7 +10,7 @@ INCLUDES = -I$(INCDIR) -I$(BOOST) -I$(DLIB)
 LDFLAGS  = -L$(BOOST_LIB) -lboost_program_options
 
 HEADERS  = $(wildcard $(INCDIR)/*.h)
-LIB_SRCS = $(SRCDIR)/map_loader.cpp $(SRCDIR)/cbs.cpp $(SRCDIR)/simulation.cpp
+LIB_SRCS = $(SRCDIR)/map_loader.cpp $(SRCDIR)/cbs.cpp $(SRCDIR)/simulation.cpp $(SRCDIR)/ref_solve.cpp
 LIB_OBJS = $(LIB_SRCS:.cpp=.o)
 TARGET   = mapd
 
