@@ -31,6 +31,7 @@ void set_parameters(MAPDConfig& config, const po::variables_map& vm)
     else if (mm == "task") config.mla_mode = MLA_TASKWISE;
     else if (mm == "sta") config.mla_mode = MLA_SEQ_STA;
     config.use_sipp = vm["sipp"].as<bool>();
+    config.lns_seed = vm["seed"].as<int>();
 }
 
 string basename_no_ext(const string& path) {
@@ -75,6 +76,7 @@ int main(int argc, char** argv)
         ("mapf",           po::value<string>()->default_value("default"), "MAPF override: CBS, PBS, wPBS, PP")
         ("mla_mode",       po::value<string>()->default_value("default"), "MLA mode: seq (SeqMLA*), task (task-by-task), default")
         ("sipp",           po::bool_switch()->default_value(false),    "use SIPP instead of MLA* for PBS low-level")
+        ("seed",           po::value<int>()->default_value(0),         "LNS RNG seed (>=0 deterministic, <0 = time(NULL))")
         ("tour",           po::value<string>()->default_value(""),     "LKH3 tour file")
         ("save_output",    po::bool_switch()->default_value(false),    "save output to ./output/")
         ("output_dir",     po::value<string>()->default_value("./output"), "output directory")

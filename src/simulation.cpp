@@ -4803,7 +4803,10 @@ void Simulation::assign_repeated_hungarian_lns() {
         if (!any_reassignable) return;
     }
 
-    srand(time(NULL));  // Match reference: seed RNG before LNS loop
+    // RNG seed for the LNS loop. Default is a fixed seed (config.lns_seed, from --seed)
+    // so LNS runs are reproducible; pass --seed <0 to restore the reference's time(NULL).
+    if (config.lns_seed < 0) srand((unsigned)time(NULL));
+    else srand((unsigned)config.lns_seed);
     clock_t lns_start = clock();
     double time_limit_ms = config.lns_time_limit * 1000.0;
 

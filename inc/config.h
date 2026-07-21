@@ -64,12 +64,13 @@ struct MAPDConfig {
     int lns_time_limit;  // LNS improvement time limit in seconds (0 = no LNS)
     MLAMode mla_mode;
     bool use_sipp;  // use SIPP instead of MLA* for PBS low-level search
+    int lns_seed;   // RNG seed for the LNS assignment loop: >=0 deterministic, <0 = time(NULL)
 
     MAPDConfig() : name("Custom"), mode(MODE_ONLINE), assign_type(ASSIGN_IA),
         assign_method(AM_DECOUPLED_GREEDY), assign_trigger(AT_ON_FREE_WAITS),
         mapf(MAPF_DECOUPLED_PP), single_agent(SA_STA_TASK_EP),
         deadlock(DA_HOLDING_ENDPOINT), replan_window(10), ecbs_weight(1.0),
-        lns_time_limit(1), mla_mode(MLA_TASKWISE), use_sipp(false) {}
+        lns_time_limit(1), mla_mode(MLA_TASKWISE), use_sipp(false), lns_seed(0) {}
 };
 
 // ============ Algorithm Presets ============
