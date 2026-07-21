@@ -80,16 +80,16 @@ void Simulation::init(const string& map_file, const string& task_file, const MAP
     lns_agent_finished_ = false;
 
     agents.resize(mapd_map.num_agents);
-    token.path.resize(mapd_map.num_agents);
-    token.my_map = mapd_map.grid;
-    token.my_endpoints = mapd_map.is_endpoint;
-    token.timestep = 0;
+    path_table_.resize(mapd_map.num_agents);
+    passable_map_ = mapd_map.grid;
+    endpoint_mask_ = mapd_map.is_endpoint;
+    cur_time_ = 0;
 
     for (int i = 0; i < mapd_map.num_agents; i++) {
         agents[i].init(i, mapd_map.agent_starts[i], mapd_map.col, mapd_map.row, maxtime);
-        token.path[i].resize(maxtime);
+        path_table_[i].resize(maxtime);
         for (unsigned int k = 0; k < maxtime; k++)
-            token.path[i][k] = mapd_map.agent_starts[i];
+            path_table_[i][k] = mapd_map.agent_starts[i];
     }
 
     // Init loop state
@@ -149,11 +149,11 @@ void Simulation::run() {
         for (int a1 = 0; a1 < num_ag && !fixed; a1++) {
             for (int a2 = a1 + 1; a2 < num_ag && !fixed; a2++) {
                 // Only handle a clash at the final parked position.
-                if (token.path[a1][max_t - 1] != token.path[a2][max_t - 1]) continue;
+                if (path_table_[a1][max_t - 1] != path_table_[a2][max_t - 1]) continue;
                 // Determine when a2 becomes stationary at its tail (its parked-from time).
                 int park_from = max_t - 1;
-                int park_loc = (int)token.path[a2][max_t - 1];
-                while (park_from > 0 && (int)token.path[a2][park_from - 1] == park_loc)
+                int park_loc = (int)path_table_[a2][max_t - 1];
+                while (park_from > 0 && (int)path_table_[a2][park_from - 1] == park_loc)
                     park_from--;
                 // Find an endpoint unused by any other agent across [park_from, max_t).
                 // Mark every cell occupied by another agent in the tail window once
@@ -167,7 +167,7 @@ void Simulation::run() {
                 for (int a3 = 0; a3 < num_ag; a3++) {
                     if (a3 == a2) continue;
                     for (int tt = park_from; tt < max_t; tt++) {
-                        int l = (int)token.path[a3][tt];
+                        int l = (int)path_table_[a3][tt];
                         if (!occ_tail[l]) { occ_tail[l] = 1; touched.push_back(l); }
                     }
                 }
@@ -179,7 +179,7 @@ void Simulation::run() {
                 for (int l : touched) occ_tail[l] = 0;
                 if (new_loc < 0) continue; // no free endpoint; leave as-is
                 for (int tt = park_from; tt < max_t; tt++) {
-                    token.path[a2][tt] = new_loc;
+                    path_table_[a2][tt] = new_loc;
                     agents[a2].path[tt] = new_loc;
                 }
                 fixed = true;
@@ -201,15 +201,15 @@ bool Simulation::end() const {
     if (config.mapf == MAPF_TA_HYBRID_TWO_GROUP)
         return ta_planning_done_;
 
-    if (!token.tasks.empty()) return false;
-    if ((int)token.timestep <= t_task) return false;
+    if (!open_tasks_.empty()) return false;
+    if ((int)cur_time_ <= t_task) return false;
     // For PBS online: also check task_sequences
     if (config.assign_trigger == AT_ON_UNASSIGNED_OR_FREE) {
         for (auto& a : agents)
             if (!a.task_sequence.empty()) return false;
     }
     for (auto& a : agents)
-        if (a.status != AG_FREE && a.finish_time > token.timestep) return false;
+        if (a.status != AG_FREE && a.finish_time > cur_time_) return false;
     return true;
 }
 
@@ -222,26 +222,26 @@ bool Simulation::end() const {
 
 void Simulation::release_tasks() {
     // Pseudocode Section 3 — GetReleasedTasks(t, mode)
-    // Release all tasks from last_released_time_+1 up to current token.timestep.
+    // Release all tasks from last_released_time_+1 up to current cur_time_.
     // This handles both the initial t=0 release and subsequent releases
     // after update_system() advances the timestep.
 
     int from = last_released_time_ + 1;
-    int to = (int)token.timestep;
+    int to = (int)cur_time_;
 
     switch (config.mode) {
     case MODE_ONLINE:
     case MODE_SEMI_ONLINE:
         for (int t = from; t <= to && t < (int)maxtime; t++) {
             for (int idx : task_indices_by_time[t])
-                token.tasks.push_back(&all_tasks[idx]);
+                open_tasks_.push_back(&all_tasks[idx]);
         }
         break;
     case MODE_OFFLINE:
         // All tasks released at t=0
         if (last_released_time_ < 0) {
             for (int i = 0; i < (int)all_tasks.size(); i++)
-                token.tasks.push_back(&all_tasks[i]);
+                open_tasks_.push_back(&all_tasks[i]);
         }
         break;
     }
@@ -278,15 +278,15 @@ void Simulation::update_system() {
                                  (agents[i].status == AG_CARRYING) ? last_goal : -1;
                 int min_time = (agents[i].status == AG_MOVING_TO_PICKUP) ? task.release_time : 0;
                 if (target_loc >= 0)
-                    for (unsigned int t = token.timestep + 1; t < maxtime; t++)
+                    for (unsigned int t = cur_time_ + 1; t < maxtime; t++)
                         if ((int)agents[i].path[t] == target_loc && (int)t >= min_time) {
                             if (t < next_ts) next_ts = t;
                             break;
                         }
             }
-            for (unsigned int t = token.timestep + 1; t < maxtime && t <= next_ts; t++)
+            for (unsigned int t = cur_time_ + 1; t < maxtime && t <= next_ts; t++)
                 if (!task_indices_by_time[t].empty()) { if (t < next_ts) next_ts = t; break; }
-            unsigned int window_cap = token.timestep + config.replan_window;
+            unsigned int window_cap = cur_time_ + config.replan_window;
             if (window_cap < next_ts) next_ts = window_cap;
         } else {
             // PBS: jump to next event
@@ -308,7 +308,7 @@ void Simulation::update_system() {
                 }
 
                 if (target_loc >= 0) {
-                    for (unsigned int t = token.timestep + 1; t < maxtime; t++) {
+                    for (unsigned int t = cur_time_ + 1; t < maxtime; t++) {
                         if ((int)agents[i].path[t] == target_loc && (int)t >= min_time) {
                             if (t < next_ts) next_ts = t;
                             break;
@@ -317,7 +317,7 @@ void Simulation::update_system() {
                 }
             }
 
-            for (unsigned int t = token.timestep + 1; t < maxtime && t <= next_ts; t++) {
+            for (unsigned int t = cur_time_ + 1; t < maxtime && t <= next_ts; t++) {
                 if (!task_indices_by_time[t].empty()) {
                     if (t < next_ts) next_ts = t;
                     break;
@@ -330,22 +330,22 @@ void Simulation::update_system() {
             for (auto& a : agents) {
                 if (!a.task_sequence.empty()) { has_work = true; break; }
             }
-            if (has_work || !token.tasks.empty())
-                next_ts = token.timestep + 1;
+            if (has_work || !open_tasks_.empty())
+                next_ts = cur_time_ + 1;
             else
                 return;  // truly done
         }
-        if (next_ts <= token.timestep) next_ts = token.timestep + 1;
+        if (next_ts <= cur_time_) next_ts = cur_time_ + 1;
 
         if (next_ts >= maxtime) {
             cerr << "PBS: exceeded maxtime=" << maxtime << endl;
             return;
         }
 
-        token.timestep = next_ts;
+        cur_time_ = next_ts;
         for (auto& ag : agents) {
-            if (token.timestep < maxtime)
-                ag.loc = ag.path[token.timestep];
+            if (cur_time_ < maxtime)
+                ag.loc = ag.path[cur_time_];
         }
 
         pbs_has_event_ = false;
@@ -356,13 +356,13 @@ void Simulation::update_system() {
     // --- TP/TPTS mode: check if a free agent needs processing first ---
     if (config.assign_trigger == AT_ON_FREE_WAITS) {
         // For TPTS: remove tasks from token when pickup is reached
-        // (matching reference: tasks stay in token.tasks until ag_arrive_start)
+        // (matching reference: tasks stay in open_tasks_ until ag_arrive_start)
         if (config.assign_method == AM_DECOUPLED_GREEDY_SWAPS) {
-            auto it = token.tasks.begin();
-            while (it != token.tasks.end()) {
+            auto it = open_tasks_.begin();
+            while (it != open_tasks_.end()) {
                 if ((*it)->status >= 0 && (*it)->ag_arrive_start >= 0 &&
-                    (int)token.timestep >= (*it)->ag_arrive_start) {
-                    it = token.tasks.erase(it);
+                    (int)cur_time_ >= (*it)->ag_arrive_start) {
+                    it = open_tasks_.erase(it);
                 } else {
                     ++it;
                 }
@@ -370,17 +370,17 @@ void Simulation::update_system() {
         }
 
         for (auto& ag : agents) {
-            if (ag.finish_time <= token.timestep) {
+            if (ag.finish_time <= cur_time_) {
                 central_has_event_ = false;
                 central_reassign_event_ = false;
 
                 // Detect completed deliveries
                 for (int i = 0; i < (int)agents.size(); i++) {
-                    if (agents[i].status == AG_CARRYING && agents[i].finish_time <= token.timestep) {
+                    if (agents[i].status == AG_CARRYING && agents[i].finish_time <= cur_time_) {
                         Task* task = agent_pending_task[i];
                         if (task) {
                             task->completion_time = agents[i].finish_time;
-                            token.tasks.remove(task);
+                            open_tasks_.remove(task);
                             agent_pending_task[i] = nullptr;
                         }
                         agents[i].status = AG_FREE;
@@ -390,7 +390,7 @@ void Simulation::update_system() {
 
                 // Detect pickup arrivals
                 for (int i = 0; i < (int)agents.size(); i++) {
-                    if (agents[i].status == AG_MOVING_TO_PICKUP && agents[i].finish_time <= token.timestep) {
+                    if (agents[i].status == AG_MOVING_TO_PICKUP && agents[i].finish_time <= cur_time_) {
                         Task* task = agent_pending_task[i];
                         if (task && (int)agents[i].loc == task->pickup_loc) {
                             agents[i].status = AG_CARRYING;
@@ -402,7 +402,7 @@ void Simulation::update_system() {
                     }
                 }
 
-                if (token.timestep < maxtime && !task_indices_by_time[token.timestep].empty()) {
+                if (cur_time_ < maxtime && !task_indices_by_time[cur_time_].empty()) {
                 }
                 tp_timestep_advanced_ = false;
                 return;  // don't advance
@@ -427,19 +427,19 @@ void Simulation::update_system() {
     unsigned int next_ts = maxtime;
     if (config.assign_trigger == AT_EVERY_TIMESTEP) {
         // CENTRAL: advance one timestep at a time (matching reference for-loop)
-        next_ts = token.timestep + 1;
+        next_ts = cur_time_ + 1;
         if (next_ts >= maxtime) {
             bool any_busy = false;
             for (auto& a : agents)
-                if (a.status != AG_FREE && a.finish_time > token.timestep) { any_busy = true; break; }
-            if (!any_busy && token.tasks.empty()) return;
+                if (a.status != AG_FREE && a.finish_time > cur_time_) { any_busy = true; break; }
+            if (!any_busy && open_tasks_.empty()) return;
         }
     } else {
         for (auto& ag : agents) {
-            if (ag.finish_time > token.timestep && ag.finish_time < next_ts)
+            if (ag.finish_time > cur_time_ && ag.finish_time < next_ts)
                 next_ts = ag.finish_time;
         }
-        for (unsigned int t = token.timestep + 1; t < maxtime && t <= next_ts; t++) {
+        for (unsigned int t = cur_time_ + 1; t < maxtime && t <= next_ts; t++) {
             if (!task_indices_by_time[t].empty()) {
                 if (t < next_ts) next_ts = t;
                 break;
@@ -448,18 +448,18 @@ void Simulation::update_system() {
         if (next_ts >= maxtime) {
             bool any_busy = false;
             for (auto& a : agents)
-                if (a.status != AG_FREE && a.finish_time > token.timestep) { any_busy = true; break; }
-            if (!any_busy && token.tasks.empty()) return;
-            next_ts = token.timestep + 1;
+                if (a.status != AG_FREE && a.finish_time > cur_time_) { any_busy = true; break; }
+            if (!any_busy && open_tasks_.empty()) return;
+            next_ts = cur_time_ + 1;
         }
-        if (next_ts <= token.timestep) next_ts = token.timestep + 1;
+        if (next_ts <= cur_time_) next_ts = cur_time_ + 1;
     }
 
     // Step 3: Advance timestep and update agent locations
     // (task release is handled by release_tasks() at the start of next iteration)
-    token.timestep = next_ts;
+    cur_time_ = next_ts;
     for (auto& ag : agents)
-        ag.loc = ag.path[token.timestep];
+        ag.loc = ag.path[cur_time_];
 
     // Step 5: Detect state transitions at the NEW timestep
     //   (sets event flags for the next iteration's task_assignment_and_path_planning)
@@ -468,11 +468,11 @@ void Simulation::update_system() {
 
     // Detect completed deliveries (CARRYING -> FREE)
     for (int i = 0; i < (int)agents.size(); i++) {
-        if (agents[i].status == AG_CARRYING && agents[i].finish_time <= token.timestep) {
+        if (agents[i].status == AG_CARRYING && agents[i].finish_time <= cur_time_) {
             Task* task = agent_pending_task[i];
             if (task) {
                 task->completion_time = agents[i].finish_time;
-                token.tasks.remove(task);
+                open_tasks_.remove(task);
                 agent_pending_task[i] = nullptr;
             }
             agents[i].status = AG_FREE;
@@ -484,7 +484,7 @@ void Simulation::update_system() {
 
     // Detect pickup arrivals (MOVING_TO_PICKUP -> CARRYING)
     for (int i = 0; i < (int)agents.size(); i++) {
-        if (agents[i].status == AG_MOVING_TO_PICKUP && agents[i].finish_time <= token.timestep) {
+        if (agents[i].status == AG_MOVING_TO_PICKUP && agents[i].finish_time <= cur_time_) {
             Task* task = agent_pending_task[i];
             if (task && (int)agents[i].loc == task->pickup_loc) {
                 agents[i].status = AG_CARRYING;
@@ -500,7 +500,7 @@ void Simulation::update_system() {
     }
 
     // Check if new tasks arrived at the new timestep
-    if (token.timestep < maxtime && !task_indices_by_time[token.timestep].empty()) {
+    if (cur_time_ < maxtime && !task_indices_by_time[cur_time_].empty()) {
         // For AT_EVERY_TIMESTEP (CENTRAL-ECBS): do NOT set central_has_event_.
         // The reference only triggers Phase 2 (has_new_agent) when an agent completes
         // delivery (next_ep==NULL) or a free agent is at a task's pickup -- NOT on
@@ -537,18 +537,18 @@ void Simulation::task_assignment_and_path_planning() {
 // ============================================================
 
 bool Simulation::should_assign() const {
-    // For TA methods (Hungarian/LNS), tasks are in agent sequences, not token.tasks.
+    // For TA methods (Hungarian/LNS), tasks are in agent sequences, not open_tasks_.
     // assign_repeated_hungarian() puts them back before re-assigning.
     if (config.assign_trigger != AT_ON_UNASSIGNED_OR_FREE &&
         config.assign_trigger != AT_EVERY_TIMESTEP &&
-        token.tasks.empty())
+        open_tasks_.empty())
         return false;
 
     switch (config.assign_trigger) {
     case AT_ON_FREE_WAITS:
         // TP / TPTS: any free agent at end of path
         for (auto& ag : agents)
-            if (ag.finish_time <= token.timestep) return true;
+            if (ag.finish_time <= cur_time_) return true;
         return false;
 
     case AT_EVERY_TIMESTEP:
@@ -571,7 +571,7 @@ bool Simulation::should_assign() const {
 
     case AT_ONCE:
         // TA-Prioritized: assign once at t=0
-        return token.timestep == 0;
+        return cur_time_ == 0;
 
     default:
         return false;
@@ -647,13 +647,13 @@ void Simulation::task_assignment() {
         for (int i = 0; i < (int)agents.size(); i++) {
             if (agents[i].status != AG_CARRYING)
                 ag_loc[agents[i].loc] = i;
-            hold_count[(int)token.path[i][maxtime - 1]]++;
+            hold_count[(int)path_table_[i][maxtime - 1]]++;
         }
 
         // Iterate tasks first (matching reference line 370-404)
-        // Reference iterates tasks_assign list; we iterate token.tasks
+        // Reference iterates tasks_assign list; we iterate open_tasks_
         vector<int> instant_pickup_agents;
-        for (auto it = token.tasks.begin(); it != token.tasks.end(); ) {
+        for (auto it = open_tasks_.begin(); it != open_tasks_.end(); ) {
             Task* task = *it;
             if (task->status != -1) { ++it; continue; }
             // Check if any free agent is at this task's pickup
@@ -695,7 +695,7 @@ void Simulation::task_assignment() {
             for (int i = 0; i < (int)agents.size(); i++) {
                 if (delivery_set.count(i)) continue;
                 vector<int> cp(maxtime);
-                for (unsigned int t = 0; t < maxtime; t++) cp[t] = (int)token.path[i][t];
+                for (unsigned int t = 0; t < maxtime; t++) cp[t] = (int)path_table_[i][t];
                 p1_cons_paths.push_back(cp);
             }
 
@@ -712,7 +712,7 @@ void Simulation::task_assignment() {
             if (!p1_starts.empty() && p1_starts.size() > 1) {
                 // Multi-agent CBS for coordinated delivery planning
                 CBSSearch p1_cbs(mapd_map.grid, p1_starts, p1_goals, p1_ep_indices,
-                                  p1_cons_paths, token.timestep, mapd_map.col,
+                                  p1_cons_paths, cur_time_, mapd_map.col,
                                   config.ecbs_weight, mapd_map.endpoints, maxtime);
                 if (p1_cbs.run()) {
                     int ci = 0;
@@ -721,26 +721,26 @@ void Simulation::task_assignment() {
                         if (!task) continue;
                         if (ci < (int)p1_cbs.paths.size() && !p1_cbs.paths[ci].empty()) {
                             for (int t = 0; t < (int)p1_cbs.paths[ci].size(); t++) {
-                                if (token.timestep + t < maxtime) {
-                                    token.path[aid][token.timestep + t] = p1_cbs.paths[ci][t];
-                                    agents[aid].path[token.timestep + t] = p1_cbs.paths[ci][t];
+                                if (cur_time_ + t < maxtime) {
+                                    path_table_[aid][cur_time_ + t] = p1_cbs.paths[ci][t];
+                                    agents[aid].path[cur_time_ + t] = p1_cbs.paths[ci][t];
                                 }
                             }
                             int last_loc = p1_cbs.paths[ci].back();
-                            for (unsigned int t = token.timestep + p1_cbs.paths[ci].size(); t < maxtime; t++) {
-                                token.path[aid][t] = last_loc;
+                            for (unsigned int t = cur_time_ + p1_cbs.paths[ci].size(); t < maxtime; t++) {
+                                path_table_[aid][t] = last_loc;
                                 agents[aid].path[t] = last_loc;
                             }
-                            agents[aid].finish_time = token.timestep + p1_cbs.paths[ci].size() - 1
+                            agents[aid].finish_time = cur_time_ + p1_cbs.paths[ci].size() - 1
                                                        + task->goal_wait_time;
                         } else {
                             // CBS failed for this agent — fallback to single-agent A*
                             int arrive = astar(agents[aid], task->pickup_loc,
-                                               token.timestep + task->start_wait_time,
+                                               cur_time_ + task->start_wait_time,
                                                mapd_map.endpoints[task->delivery], aid);
                             if (arrive >= 0) {
-                                for (unsigned int t = token.timestep; t < maxtime; t++)
-                                    token.path[aid][t] = agents[aid].path[t];
+                                for (unsigned int t = cur_time_; t < maxtime; t++)
+                                    path_table_[aid][t] = agents[aid].path[t];
                                 agents[aid].finish_time = arrive + task->goal_wait_time;
                             } else {
                                 agents[aid].status = AG_FREE;
@@ -756,11 +756,11 @@ void Simulation::task_assignment() {
                         Task* task = agent_pending_task[aid];
                         if (!task) continue;
                         int arrive = astar(agents[aid], task->pickup_loc,
-                                           token.timestep + task->start_wait_time,
+                                           cur_time_ + task->start_wait_time,
                                            mapd_map.endpoints[task->delivery], aid);
                         if (arrive >= 0) {
-                            for (unsigned int t = token.timestep; t < maxtime; t++)
-                                token.path[aid][t] = agents[aid].path[t];
+                            for (unsigned int t = cur_time_; t < maxtime; t++)
+                                path_table_[aid][t] = agents[aid].path[t];
                             agents[aid].finish_time = arrive + task->goal_wait_time;
                         } else {
                             agents[aid].status = AG_FREE;
@@ -775,11 +775,11 @@ void Simulation::task_assignment() {
                     Task* task = agent_pending_task[aid];
                     if (!task) continue;
                     int arrive = astar(agents[aid], task->pickup_loc,
-                                       token.timestep + task->start_wait_time,
+                                       cur_time_ + task->start_wait_time,
                                        mapd_map.endpoints[task->delivery], aid);
                     if (arrive >= 0) {
-                        for (unsigned int t = token.timestep; t < maxtime; t++)
-                            token.path[aid][t] = agents[aid].path[t];
+                        for (unsigned int t = cur_time_; t < maxtime; t++)
+                            path_table_[aid][t] = agents[aid].path[t];
                         agents[aid].finish_time = arrive + task->goal_wait_time;
                     } else {
                         agents[aid].status = AG_FREE;
@@ -799,57 +799,57 @@ void Simulation::task_assignment() {
 
     // Guard: only proceed if the trigger condition is met
     if (!should_assign()) {
-        // For TP/TPTS/HBH: when token.tasks is empty but agent is free,
+        // For TP/TPTS/HBH: when open_tasks_ is empty but agent is free,
         // replicate reference TOTP/TPTR "no task found" branch:
         //   check if the agent's location conflicts with other agents' paths
         //   and move to another endpoint if needed.  Otherwise bump ft+1.
         if (config.assign_trigger == AT_ON_FREE_WAITS) {
             Agent* bump_ag = &agents[0];
             for (int i = 1; i < (int)agents.size(); i++) {
-                if (!tp_timestep_advanced_ && agents[i].finish_time == token.timestep) {
+                if (!tp_timestep_advanced_ && agents[i].finish_time == cur_time_) {
                     bump_ag = &agents[i];
                     break;
                 } else if (agents[i].finish_time < bump_ag->finish_time) {
                     bump_ag = &agents[i];
                 }
             }
-            if (bump_ag->finish_time <= token.timestep) {
+            if (bump_ag->finish_time <= cur_time_) {
                 // TPTS (AM_DECOUPLED_GREEDY_SWAPS): match reference TPTR
                 // "no task found" branch which checks path collisions and
                 // calls Move2EP when another agent's path crosses this loc.
                 // TP (AM_DECOUPLED_GREEDY): reference TOTP just bumps ft+1.
                 if (config.assign_method == AM_DECOUPLED_GREEDY_SWAPS) {
-                    bump_ag->loc = bump_ag->path[token.timestep];
-                    if (token.my_endpoints[bump_ag->loc]) {
+                    bump_ag->loc = bump_ag->path[cur_time_];
+                    if (endpoint_mask_[bump_ag->loc]) {
                         bool need_move = false;
-                        for (unsigned int t = token.timestep; t < maxtime && !need_move; t++)
+                        for (unsigned int t = cur_time_; t < maxtime && !need_move; t++)
                             for (int i = 0; i < (int)agents.size() && !need_move; i++)
-                                if (i != bump_ag->id && token.path[i][t] == (unsigned int)bump_ag->loc)
+                                if (i != bump_ag->id && path_table_[i][t] == (unsigned int)bump_ag->loc)
                                     need_move = true;
                         if (need_move) {
                             if (move2EP(*bump_ag)) {
-                                for (unsigned int i = token.timestep; i < token.path[bump_ag->id].size(); i++)
-                                    token.path[bump_ag->id][i] = bump_ag->path[i];
+                                for (unsigned int i = cur_time_; i < path_table_[bump_ag->id].size(); i++)
+                                    path_table_[bump_ag->id][i] = bump_ag->path[i];
                             } else {
-                                bump_ag->finish_time = token.timestep + 1;
+                                bump_ag->finish_time = cur_time_ + 1;
                             }
                         } else {
-                            for (unsigned int i = token.timestep + 1; i < maxtime; i++) {
-                                bump_ag->path[i] = bump_ag->path[token.timestep];
-                                token.path[bump_ag->id][i] = bump_ag->path[token.timestep];
+                            for (unsigned int i = cur_time_ + 1; i < maxtime; i++) {
+                                bump_ag->path[i] = bump_ag->path[cur_time_];
+                                path_table_[bump_ag->id][i] = bump_ag->path[cur_time_];
                             }
-                            bump_ag->finish_time = token.timestep + 1;
+                            bump_ag->finish_time = cur_time_ + 1;
                         }
                     } else {
                         if (move2EP(*bump_ag)) {
-                            for (unsigned int i = token.timestep; i < token.path[bump_ag->id].size(); i++)
-                                token.path[bump_ag->id][i] = bump_ag->path[i];
+                            for (unsigned int i = cur_time_; i < path_table_[bump_ag->id].size(); i++)
+                                path_table_[bump_ag->id][i] = bump_ag->path[i];
                         } else {
-                            bump_ag->finish_time = token.timestep + 1;
+                            bump_ag->finish_time = cur_time_ + 1;
                         }
                     }
                 } else {
-                    bump_ag->finish_time = token.timestep + 1;
+                    bump_ag->finish_time = cur_time_ + 1;
                 }
             }
         }
@@ -864,21 +864,21 @@ void Simulation::task_assignment() {
         // advancing the timestep (so no exact match is possible there).
         Agent* ag = &agents[0];
         for (int i = 1; i < (int)agents.size(); i++) {
-            if (!tp_timestep_advanced_ && agents[i].finish_time == token.timestep) {
+            if (!tp_timestep_advanced_ && agents[i].finish_time == cur_time_) {
                 ag = &agents[i];
                 break;
             } else if (agents[i].finish_time < ag->finish_time) {
                 ag = &agents[i];
             }
         }
-        if (ag->finish_time <= token.timestep) assign_decoupled_greedy(*ag);
+        if (ag->finish_time <= cur_time_) assign_decoupled_greedy(*ag);
         break;
     }
     case AM_DECOUPLED_GREEDY_SWAPS: {
         // Match reference: same agent selection as TP above.
         Agent* ag = &agents[0];
         for (int i = 1; i < (int)agents.size(); i++) {
-            if (!tp_timestep_advanced_ && agents[i].finish_time == token.timestep) {
+            if (!tp_timestep_advanced_ && agents[i].finish_time == cur_time_) {
                 ag = &agents[i];
                 break;
             } else if (agents[i].finish_time < ag->finish_time) {
@@ -889,17 +889,17 @@ void Simulation::task_assignment() {
         // Reference run_TPTR removes tasks with TAKEN state and
         // timestep >= ag_arrive_start right before calling ag->TPTR.
         {
-            auto it = token.tasks.begin();
-            while (it != token.tasks.end()) {
+            auto it = open_tasks_.begin();
+            while (it != open_tasks_.end()) {
                 if ((*it)->status >= 0 && (*it)->ag_arrive_start >= 0 &&
-                    (int)token.timestep >= (*it)->ag_arrive_start) {
-                    it = token.tasks.erase(it);
+                    (int)cur_time_ >= (*it)->ag_arrive_start) {
+                    it = open_tasks_.erase(it);
                 } else {
                     ++it;
                 }
             }
         }
-        if (ag->finish_time <= token.timestep) assign_tpts(*ag);
+        if (ag->finish_time <= cur_time_) assign_tpts(*ag);
         break;
     }
     case AM_CENTRALIZED_GREEDY:
@@ -983,15 +983,15 @@ void Simulation::path_planning() {
 // ============================================================
 
 bool Simulation::assign_decoupled_greedy(Agent& ag) {
-    ag.loc = ag.path[token.timestep];
+    ag.loc = ag.path[cur_time_];
 
     vector<bool> hold(mapd_map.row * mapd_map.col, false);
-    for (int i = 0; i < (int)token.path.size(); i++) {
-        if (i != ag.id) hold[token.path[i][maxtime - 1]] = true;
+    for (int i = 0; i < (int)path_table_.size(); i++) {
+        if (i != ag.id) hold[path_table_[i][maxtime - 1]] = true;
     }
 
     Task* best_task = nullptr;
-    for (auto it = token.tasks.begin(); it != token.tasks.end(); it++) {
+    for (auto it = open_tasks_.begin(); it != open_tasks_.end(); it++) {
         if (hold[(*it)->pickup_loc] || hold[(*it)->delivery_loc]) continue;
         if (best_task == nullptr ||
             mapd_map.endpoints[(*it)->pickup].h_val[ag.loc] <
@@ -1016,34 +1016,34 @@ bool Simulation::assign_decoupled_greedy(Agent& ag) {
         if (result.first < 0) {
             plan_failed = true;
         } else {
-            for (unsigned int i = token.timestep; i < token.path[ag.id].size(); i++)
-                token.path[ag.id][i] = ag.path[i];
+            for (unsigned int i = cur_time_; i < path_table_[ag.id].size(); i++)
+                path_table_[ag.id][i] = ag.path[i];
 
             ag.finish_time = result.second + best_task->goal_wait_time;
             ag.current_task = best_task->id;
             best_task->status = ag.id;
             best_task->ag_arrive_start = result.first;
             best_task->completion_time = result.second;
-            token.tasks.remove(best_task);
+            open_tasks_.remove(best_task);
             return true;
         }
     }
 
     if (best_task == nullptr || plan_failed) {
         bool move = false;
-        for (auto it = token.tasks.begin(); it != token.tasks.end(); it++) {
+        for (auto it = open_tasks_.begin(); it != open_tasks_.end(); it++) {
             if ((*it)->delivery_loc == (int)ag.loc) { move = true; break; }
         }
         if (move) {
             if (move2EP(ag)) {
-                for (unsigned int i = token.timestep; i < token.path[ag.id].size(); i++)
-                    token.path[ag.id][i] = ag.path[i];
+                for (unsigned int i = cur_time_; i < path_table_[ag.id].size(); i++)
+                    path_table_[ag.id][i] = ag.path[i];
                 return true;
             }
         }
         // No task / unplannable task and not blocking a delivery (or Move2EP failed):
         // wait one step so the system advances.
-        ag.finish_time = token.timestep + 1;
+        ag.finish_time = cur_time_ + 1;
         return true;
     }
     return false;
@@ -1056,12 +1056,12 @@ bool Simulation::assign_decoupled_greedy(Agent& ag) {
 
 bool Simulation::assign_tpts(Agent& ag, int depth) {
     if (depth >= (int)agents.size()) return false;
-    vector<vector<unsigned int>> saved_paths(token.path.size());
-    for (int i = 0; i < (int)token.path.size(); i++)
-        saved_paths[i] = token.path[i];
+    vector<vector<unsigned int>> saved_paths(path_table_.size());
+    for (int i = 0; i < (int)path_table_.size(); i++)
+        saved_paths[i] = path_table_[i];
     vector<Agent> saved_agents = agents;
 
-    ag.loc = ag.path[token.timestep];
+    ag.loc = ag.path[cur_time_];
 
     struct HN {
         int loc; Task* task; int h;
@@ -1073,7 +1073,7 @@ bool Simulation::assign_tpts(Agent& ag, int depth) {
         }
     };
     boost::heap::fibonacci_heap<HN, boost::heap::compare<CompareHN>> heuristic;
-    for (auto it = token.tasks.begin(); it != token.tasks.end(); it++)
+    for (auto it = open_tasks_.begin(); it != open_tasks_.end(); it++)
         heuristic.push(HN((*it)->pickup_loc, *it, mapd_map.endpoints[(*it)->pickup].h_val[ag.loc]));
 
     while (!heuristic.empty()) {
@@ -1083,13 +1083,13 @@ bool Simulation::assign_tpts(Agent& ag, int depth) {
 
         if (task->status == -1 ||
             (task->status >= 0 && task->ag_arrive_start >= 0 &&
-             task->ag_arrive_start > (int)token.timestep + hn.h)) {
+             task->ag_arrive_start > (int)cur_time_ + hn.h)) {
             bool occupied = false;
-            for (int i = 0; i < (int)token.path.size(); i++) {
+            for (int i = 0; i < (int)path_table_.size(); i++) {
                 if (i == ag.id) continue;
                 if (task->status >= 0 && i == task->status) continue;
-                if (token.path[i][maxtime - 1] == (unsigned int)task->delivery_loc ||
-                    token.path[i][maxtime - 1] == (unsigned int)task->pickup_loc) {
+                if (path_table_[i][maxtime - 1] == (unsigned int)task->delivery_loc ||
+                    path_table_[i][maxtime - 1] == (unsigned int)task->pickup_loc) {
                     occupied = true; break;
                 }
             }
@@ -1102,15 +1102,15 @@ bool Simulation::assign_tpts(Agent& ag, int depth) {
 
             if (arrive_start >= 0 && (task->status == -1 || arrive_start < task->ag_arrive_start)) {
                 if (arrive_goal >= 0) {
-                    for (unsigned int i = token.timestep; i < token.path[ag.id].size(); i++)
-                        token.path[ag.id][i] = ag.path[i];
+                    for (unsigned int i = cur_time_; i < path_table_[ag.id].size(); i++)
+                        path_table_[ag.id][i] = ag.path[i];
                     ag.finish_time = arrive_goal + task->goal_wait_time;
 
                     if (task->status == -1) {
                         task->status = ag.id;
                         task->ag_arrive_start = arrive_start;
                         task->completion_time = arrive_goal;
-                        // Keep task in token.tasks so other agents can steal it (TPTS)
+                        // Keep task in open_tasks_ so other agents can steal it (TPTS)
                         // Task is removed in update_system when pickup is reached
                         return true;
                     } else {
@@ -1129,44 +1129,44 @@ bool Simulation::assign_tpts(Agent& ag, int depth) {
                 }
             }
 
-            // Match reference: do NOT restore token.path or agents after each
+            // Match reference: do NOT restore path_table_ or agents after each
             // failed task attempt. The reference accumulates state changes across
             // task attempts within the same TPTR call.
         }
     }
 
-    if (token.my_endpoints[ag.loc]) {
+    if (endpoint_mask_[ag.loc]) {
         bool need_move = false;
-        for (auto it = token.tasks.begin(); it != token.tasks.end() && !need_move; it++)
+        for (auto it = open_tasks_.begin(); it != open_tasks_.end() && !need_move; it++)
             if ((*it)->delivery_loc == (int)ag.loc) need_move = true;
-        for (unsigned int t = token.timestep; t < maxtime && !need_move; t++)
+        for (unsigned int t = cur_time_; t < maxtime && !need_move; t++)
             for (int i = 0; i < (int)agents.size() && !need_move; i++)
-                if (i != ag.id && token.path[i][t] == (unsigned int)ag.loc) need_move = true;
+                if (i != ag.id && path_table_[i][t] == (unsigned int)ag.loc) need_move = true;
         if (need_move) {
             if (move2EP(ag)) {
-                for (unsigned int i = token.timestep; i < token.path[ag.id].size(); i++)
-                    token.path[ag.id][i] = ag.path[i];
+                for (unsigned int i = cur_time_; i < path_table_[ag.id].size(); i++)
+                    path_table_[ag.id][i] = ag.path[i];
                 return true;
             } else {
-                for (int i = 0; i < (int)token.path.size(); i++) token.path[i] = saved_paths[i];
+                for (int i = 0; i < (int)path_table_.size(); i++) path_table_[i] = saved_paths[i];
                 agents = saved_agents;
                 return false;
             }
         } else {
-            for (unsigned int i = token.timestep + 1; i < maxtime; i++) {
-                ag.path[i] = ag.path[token.timestep];
-                token.path[ag.id][i] = ag.path[token.timestep];
+            for (unsigned int i = cur_time_ + 1; i < maxtime; i++) {
+                ag.path[i] = ag.path[cur_time_];
+                path_table_[ag.id][i] = ag.path[cur_time_];
             }
-            ag.finish_time = token.timestep + 1;
+            ag.finish_time = cur_time_ + 1;
             return true;
         }
     } else {
         if (move2EP(ag)) {
-            for (unsigned int i = token.timestep; i < token.path[ag.id].size(); i++)
-                token.path[ag.id][i] = ag.path[i];
+            for (unsigned int i = cur_time_; i < path_table_[ag.id].size(); i++)
+                path_table_[ag.id][i] = ag.path[i];
             return true;
         } else {
-            for (int i = 0; i < (int)token.path.size(); i++) token.path[i] = saved_paths[i];
+            for (int i = 0; i < (int)path_table_.size(); i++) path_table_[i] = saved_paths[i];
             agents = saved_agents;
             return false;
         }
@@ -1190,7 +1190,7 @@ void Simulation::assign_centralized_greedy() {
     // Collect free agents
     vector<int> free_ids;
     for (int i = 0; i < (int)agents.size(); i++) {
-        if (agents[i].finish_time <= token.timestep)
+        if (agents[i].finish_time <= cur_time_)
             free_ids.push_back(i);
     }
     if (free_ids.empty()) return;
@@ -1200,12 +1200,12 @@ void Simulation::assign_centralized_greedy() {
     for (int i = 0; i < (int)agents.size(); i++) {
         bool is_free = false;
         for (int fid : free_ids) if (fid == i) { is_free = true; break; }
-        if (!is_free) hold[token.path[i][maxtime - 1]] = true;
+        if (!is_free) hold[path_table_[i][maxtime - 1]] = true;
     }
 
     // Collect available tasks
     vector<Task*> avail_tasks;
-    for (auto it = token.tasks.begin(); it != token.tasks.end(); it++) {
+    for (auto it = open_tasks_.begin(); it != open_tasks_.end(); it++) {
         if ((*it)->status != -1) continue;
         if (hold[(*it)->pickup_loc] || hold[(*it)->delivery_loc]) continue;
         avail_tasks.push_back(*it);
@@ -1245,15 +1245,15 @@ void Simulation::assign_centralized_greedy() {
         int arrive_goal = result.second;
 
         // Feasible — commit path to token
-        for (unsigned int t = token.timestep; t < maxtime; t++)
-            token.path[ag.id][t] = ag.path[t];
+        for (unsigned int t = cur_time_; t < maxtime; t++)
+            path_table_[ag.id][t] = ag.path[t];
 
         task.status = ag.id;
         task.ag_arrive_start = arrive_start;
         task.completion_time = arrive_goal;
         ag.current_task = task.id;
         ag.finish_time = arrive_goal + task.goal_wait_time;
-        token.tasks.remove(p.task);
+        open_tasks_.remove(p.task);
 
         done_agents.insert(p.agent_id);
         done_tasks.insert(p.task->id);
@@ -1264,18 +1264,18 @@ void Simulation::assign_centralized_greedy() {
         if (done_agents.count(aid)) continue;
         Agent& ag = agents[aid];
         bool need_move = false;
-        for (auto it = token.tasks.begin(); it != token.tasks.end(); it++) {
+        for (auto it = open_tasks_.begin(); it != open_tasks_.end(); it++) {
             if ((*it)->delivery_loc == (int)ag.loc) { need_move = true; break; }
         }
         if (need_move) {
             if (move2EP(ag)) {
-                for (unsigned int t = token.timestep; t < token.path[ag.id].size(); t++)
-                    token.path[ag.id][t] = ag.path[t];
+                for (unsigned int t = cur_time_; t < path_table_[ag.id].size(); t++)
+                    path_table_[ag.id][t] = ag.path[t];
             } else {
-                ag.finish_time = token.timestep + 1;
+                ag.finish_time = cur_time_ + 1;
             }
         } else {
-            ag.finish_time = token.timestep + 1;
+            ag.finish_time = cur_time_ + 1;
         }
     }
 }
@@ -1423,7 +1423,7 @@ void Simulation::assign_hungarian() {
             // (matching reference: all non-delivering agents participate)
             if (agent_pending_task[i]) {
                 agent_pending_task[i]->status = -1;
-                token.tasks.push_back(agent_pending_task[i]);
+                open_tasks_.push_back(agent_pending_task[i]);
                 agent_pending_task[i] = nullptr;
             }
             agents[i].status = AG_FREE;
@@ -1445,7 +1445,7 @@ void Simulation::assign_hungarian() {
     // Candidate tasks: filter only by pickup_loc not held (matching reference line 143)
     vector<Task*> candidate_tasks;
     vector<int> candidate_ep_indices;
-    for (auto it = token.tasks.begin(); it != token.tasks.end(); it++) {
+    for (auto it = open_tasks_.begin(); it != open_tasks_.end(); it++) {
         if ((*it)->status != -1) continue;
         if (!hold[(*it)->pickup_loc]) {
             bool dup = false;
@@ -1494,7 +1494,7 @@ void Simulation::assign_hungarian() {
         for (int fid : phase2_free_ids_) if (fid == i) { is_free = true; break; }
         if (!is_free) {
             vector<int> cp(maxtime);
-            for (unsigned int t = 0; t < maxtime; t++) cp[t] = (int)token.path[i][t];
+            for (unsigned int t = 0; t < maxtime; t++) cp[t] = (int)path_table_[i][t];
             cons_paths_assign.push_back(cp);
         }
     }
@@ -1536,7 +1536,7 @@ void Simulation::assign_hungarian() {
                     int ep_idx = candidate_ep_indices[j];
                     int goal_loc = mapd_map.endpoints[ep_idx].loc;
                     int d = astar_cost_only(aid, agents[aid].loc, goal_loc,
-                                            (int)token.timestep, cons_paths_assign,
+                                            (int)cur_time_, cons_paths_assign,
                                             &vres, vres_len, &last_occ);
                     if (d >= mapd_map.col * mapd_map.row) d = 2 * mapd_map.col * mapd_map.row;
                     if (j < num_tasks_available)
@@ -1592,7 +1592,7 @@ void Simulation::path_planning_cbs() {
         vector<int> carry_ids;
         for (int i = 0; i < (int)agents.size(); i++) {
             if (agents[i].status == AG_CARRYING && agent_pending_task[i] &&
-                agents[i].finish_time <= token.timestep) {
+                agents[i].finish_time <= cur_time_) {
                 carry_ids.push_back(i);
             }
         }
@@ -1604,7 +1604,7 @@ void Simulation::path_planning_cbs() {
             for (int i = 0; i < (int)agents.size(); i++) {
                 if (carry_set.count(i)) continue;
                 vector<int> cp(maxtime);
-                for (unsigned int t = 0; t < maxtime; t++) cp[t] = (int)token.path[i][t];
+                for (unsigned int t = 0; t < maxtime; t++) cp[t] = (int)path_table_[i][t];
                 c_cons.push_back(cp);
             }
 
@@ -1617,7 +1617,7 @@ void Simulation::path_planning_cbs() {
             }
 
             CBSSearch c_cbs(mapd_map.grid, c_starts, c_goals, c_eps,
-                            c_cons, token.timestep, mapd_map.col,
+                            c_cons, cur_time_, mapd_map.col,
                             config.ecbs_weight, mapd_map.endpoints, maxtime);
             if (c_cbs.run()) {
                 for (int ci = 0; ci < (int)carry_ids.size(); ci++) {
@@ -1625,26 +1625,26 @@ void Simulation::path_planning_cbs() {
                     Task* task = agent_pending_task[aid];
                     if (ci < (int)c_cbs.paths.size() && !c_cbs.paths[ci].empty()) {
                         for (int t = 0; t < (int)c_cbs.paths[ci].size(); t++) {
-                            if (token.timestep + t < maxtime) {
-                                token.path[aid][token.timestep + t] = c_cbs.paths[ci][t];
-                                agents[aid].path[token.timestep + t] = c_cbs.paths[ci][t];
+                            if (cur_time_ + t < maxtime) {
+                                path_table_[aid][cur_time_ + t] = c_cbs.paths[ci][t];
+                                agents[aid].path[cur_time_ + t] = c_cbs.paths[ci][t];
                             }
                         }
                         int last_loc = c_cbs.paths[ci].back();
-                        for (unsigned int t = token.timestep + c_cbs.paths[ci].size(); t < maxtime; t++) {
-                            token.path[aid][t] = last_loc;
+                        for (unsigned int t = cur_time_ + c_cbs.paths[ci].size(); t < maxtime; t++) {
+                            path_table_[aid][t] = last_loc;
                             agents[aid].path[t] = last_loc;
                         }
-                        agents[aid].finish_time = token.timestep + c_cbs.paths[ci].size() - 1
+                        agents[aid].finish_time = cur_time_ + c_cbs.paths[ci].size() - 1
                                                    + task->goal_wait_time;
                     } else {
                         // Fallback for this agent
                         int arrive = astar(agents[aid], task->pickup_loc,
-                                           token.timestep + task->start_wait_time,
+                                           cur_time_ + task->start_wait_time,
                                            mapd_map.endpoints[task->delivery], aid);
                         if (arrive >= 0) {
-                            for (unsigned int t = token.timestep; t < maxtime; t++)
-                                token.path[aid][t] = agents[aid].path[t];
+                            for (unsigned int t = cur_time_; t < maxtime; t++)
+                                path_table_[aid][t] = agents[aid].path[t];
                             agents[aid].finish_time = arrive + task->goal_wait_time;
                         } else {
                             agents[aid].status = AG_FREE;
@@ -1658,11 +1658,11 @@ void Simulation::path_planning_cbs() {
                 for (int aid : carry_ids) {
                     Task* task = agent_pending_task[aid];
                     int arrive = astar(agents[aid], task->pickup_loc,
-                                       token.timestep + task->start_wait_time,
+                                       cur_time_ + task->start_wait_time,
                                        mapd_map.endpoints[task->delivery], aid);
                     if (arrive >= 0) {
-                        for (unsigned int t = token.timestep; t < maxtime; t++)
-                            token.path[aid][t] = agents[aid].path[t];
+                        for (unsigned int t = cur_time_; t < maxtime; t++)
+                            path_table_[aid][t] = agents[aid].path[t];
                         agents[aid].finish_time = arrive + task->goal_wait_time;
                     } else {
                         agents[aid].status = AG_FREE;
@@ -1675,14 +1675,14 @@ void Simulation::path_planning_cbs() {
             // 0 or 1 carrying agent — use simple A*
             for (int i = 0; i < (int)agents.size(); i++) {
                 if (agents[i].status == AG_CARRYING && agent_pending_task[i] &&
-                    agents[i].finish_time <= token.timestep) {
+                    agents[i].finish_time <= cur_time_) {
                     Task* task = agent_pending_task[i];
-                    int begin = token.timestep + task->start_wait_time;
+                    int begin = cur_time_ + task->start_wait_time;
                     int arrive = astar(agents[i], task->pickup_loc, begin,
                                        mapd_map.endpoints[task->delivery], i);
                     if (arrive >= 0) {
-                        for (unsigned int t = token.timestep; t < maxtime; t++)
-                            token.path[i][t] = agents[i].path[t];
+                        for (unsigned int t = cur_time_; t < maxtime; t++)
+                            path_table_[i][t] = agents[i].path[t];
                         agents[i].finish_time = arrive + task->goal_wait_time;
                     } else {
                         agents[i].status = AG_FREE;
@@ -1704,7 +1704,7 @@ void Simulation::path_planning_cbs() {
         for (int fid : phase2_free_ids_) if (fid == i) { is_free = true; break; }
         if (!is_free) {
             vector<int> cp(maxtime);
-            for (unsigned int t = 0; t < maxtime; t++) cp[t] = (int)token.path[i][t];
+            for (unsigned int t = 0; t < maxtime; t++) cp[t] = (int)path_table_[i][t];
             cons_paths_cbs.push_back(cp);
         }
     }
@@ -1717,33 +1717,33 @@ void Simulation::path_planning_cbs() {
             cbs_goals.push_back(phase2_goal_locs_[i]);
             cbs_ep_indices.push_back(phase2_goal_eps_[i]);
         } else {
-            agents[phase2_free_ids_[i]].finish_time = token.timestep + 1;
+            agents[phase2_free_ids_[i]].finish_time = cur_time_ + 1;
         }
     }
 
     bool used_cbs = false;
     if (!cbs_indices.empty()) {
         CBSSearch cbs(mapd_map.grid, cbs_starts, cbs_goals, cbs_ep_indices,
-                      cons_paths_cbs, token.timestep, mapd_map.col,
+                      cons_paths_cbs, cur_time_, mapd_map.col,
                       config.ecbs_weight, mapd_map.endpoints, maxtime);
         if (cbs.run()) {
             used_cbs = true;
             for (int ci = 0; ci < (int)cbs_indices.size(); ci++) {
                 int i = cbs_indices[ci];
                 int aid = phase2_free_ids_[i];
-                if (cbs.paths[ci].empty()) { agents[aid].finish_time = token.timestep + 1; continue; }
+                if (cbs.paths[ci].empty()) { agents[aid].finish_time = cur_time_ + 1; continue; }
                 for (int t = 0; t < (int)cbs.paths[ci].size(); t++) {
-                    if (token.timestep + t < maxtime) {
-                        token.path[aid][token.timestep + t] = cbs.paths[ci][t];
-                        agents[aid].path[token.timestep + t] = cbs.paths[ci][t];
+                    if (cur_time_ + t < maxtime) {
+                        path_table_[aid][cur_time_ + t] = cbs.paths[ci][t];
+                        agents[aid].path[cur_time_ + t] = cbs.paths[ci][t];
                     }
                 }
                 int last_loc = cbs.paths[ci].back();
-                for (unsigned int t = token.timestep + cbs.paths[ci].size(); t < maxtime; t++) {
-                    token.path[aid][t] = last_loc;
+                for (unsigned int t = cur_time_ + cbs.paths[ci].size(); t < maxtime; t++) {
+                    path_table_[aid][t] = last_loc;
                     agents[aid].path[t] = last_loc;
                 }
-                agents[aid].finish_time = token.timestep + cbs.paths[ci].size() - 1;
+                agents[aid].finish_time = cur_time_ + cbs.paths[ci].size() - 1;
                 if (phase2_tasks_[i] != nullptr) {
                     agents[aid].status = AG_MOVING_TO_PICKUP;
                     agents[aid].current_task = phase2_tasks_[i]->id;
@@ -1770,14 +1770,14 @@ void Simulation::path_planning_cbs_with_pp() {
     // --- GROUP 1: delivery for CARRYING agents (same as path_planning_cbs) ---
     for (int i = 0; i < (int)agents.size(); i++) {
         if (agents[i].status == AG_CARRYING && agent_pending_task[i] &&
-            agents[i].finish_time <= token.timestep) {
+            agents[i].finish_time <= cur_time_) {
             Task* task = agent_pending_task[i];
-            int begin = token.timestep + task->start_wait_time;
+            int begin = cur_time_ + task->start_wait_time;
             int arrive = astar(agents[i], task->pickup_loc, begin,
                                mapd_map.endpoints[task->delivery], i);
             if (arrive >= 0) {
-                for (unsigned int t = token.timestep; t < maxtime; t++)
-                    token.path[i][t] = agents[i].path[t];
+                for (unsigned int t = cur_time_; t < maxtime; t++)
+                    path_table_[i][t] = agents[i].path[t];
                 agents[i].finish_time = arrive + task->goal_wait_time;
             } else {
                 agents[i].status = AG_FREE;
@@ -1801,7 +1801,7 @@ void Simulation::path_planning_cbs_with_pp() {
     // Pre-fill assigned_dummies with non-Group2 agents' final positions
     for (int a = 0; a < num_ag; a++) {
         if (assigned_dummies[a] < 0)
-            assigned_dummies[a] = (int)token.path[a][max_t - 1];
+            assigned_dummies[a] = (int)path_table_[a][max_t - 1];
     }
 
     for (int i = 0; i < (int)phase2_free_ids_.size(); i++) {
@@ -1818,7 +1818,7 @@ void Simulation::path_planning_cbs_with_pp() {
             goals.push_back({dummy, 0});
             goal_seqs.push_back(goals);
         } else {
-            agents[phase2_free_ids_[i]].finish_time = token.timestep + 1;
+            agents[phase2_free_ids_[i]].finish_time = cur_time_ + 1;
         }
     }
 
@@ -1831,7 +1831,7 @@ void Simulation::path_planning_cbs_with_pp() {
     for (int a = 0; a < num_ag; a++) {
         if (pbs_set.count(a)) continue;
         vector<int> cp(max_t);
-        for (int t = 0; t < max_t; t++) cp[t] = (int)token.path[a][t];
+        for (int t = 0; t < max_t; t++) cp[t] = (int)path_table_[a][t];
         ext_cons.push_back(cp);
     }
 
@@ -1849,14 +1849,14 @@ void Simulation::path_planning_cbs_with_pp() {
     auto plan_pbs_agent = [&](int idx, const vector<vector<int>>& cons) -> vector<int> {
         int aid = pbs_ids[idx];
         if (config.use_sipp) {
-            auto p = sipp_search(aid, (int)agents[aid].loc, (int)token.timestep,
+            auto p = sipp_search(aid, (int)agents[aid].loc, (int)cur_time_,
                                   goal_seqs[idx], cons, {}, false);
             if (!p.empty()) return p;
         }
         if (use_taskwise_cbs)
-            return mla_star_taskwise(aid, (int)agents[aid].loc, (int)token.timestep,
+            return mla_star_taskwise(aid, (int)agents[aid].loc, (int)cur_time_,
                                       pbs_task_groups[idx], cons, {}, false);
-        return seq_mla_star(aid, (int)agents[aid].loc, (int)token.timestep,
+        return seq_mla_star(aid, (int)agents[aid].loc, (int)cur_time_,
                              goal_seqs[idx], cons, {}, false);
     };
 
@@ -1878,13 +1878,13 @@ void Simulation::path_planning_cbs_with_pp() {
     // Find conflicts
     for (int a1 = 0; a1 < n; a1++) {
         for (int a2 = a1 + 1; a2 < n; a2++) {
-            for (int t = (int)token.timestep; t < max_t; t++) {
+            for (int t = (int)cur_time_; t < max_t; t++) {
                 if (root->paths[a1][t] == root->paths[a2][t]) {
                     root->conflicts.emplace_back(a1, a2,
                         root->paths[a1][t], -1, t);
                     break;
                 }
-                if (t > (int)token.timestep &&
+                if (t > (int)cur_time_ &&
                     root->paths[a1][t] == root->paths[a2][t-1] &&
                     root->paths[a1][t-1] == root->paths[a2][t]) {
                     root->conflicts.emplace_back(a1, a2,
@@ -1956,13 +1956,13 @@ void Simulation::path_planning_cbs_with_pp() {
                 child->conflicts.clear();
                 for (int i = 0; i < n; i++) {
                     if (i == lower) continue;
-                    for (int t = (int)token.timestep; t < max_t; t++) {
+                    for (int t = (int)cur_time_; t < max_t; t++) {
                         if (child->paths[lower][t] == child->paths[i][t]) {
                             child->conflicts.emplace_back(lower, i,
                                 child->paths[lower][t], -1, t);
                             break;
                         }
-                        if (t > (int)token.timestep &&
+                        if (t > (int)cur_time_ &&
                             child->paths[lower][t] == child->paths[i][t-1] &&
                             child->paths[lower][t-1] == child->paths[i][t]) {
                             child->conflicts.emplace_back(lower, i,
@@ -1982,12 +1982,12 @@ void Simulation::path_planning_cbs_with_pp() {
     for (int idx = 0; idx < n; idx++) {
         int aid = pbs_ids[idx];
         for (int t = 0; t < max_t; t++) {
-            token.path[aid][t] = best_node->paths[idx][t];
+            path_table_[aid][t] = best_node->paths[idx][t];
             agents[aid].path[t] = best_node->paths[idx][t];
         }
         int goal_loc = goal_seqs[idx][0].first;
-        int arrive = (int)token.timestep;
-        for (int t = (int)token.timestep; t < max_t; t++) {
+        int arrive = (int)cur_time_;
+        for (int t = (int)cur_time_; t < max_t; t++) {
             if (best_node->paths[idx][t] == goal_loc) { arrive = t; break; }
         }
         agents[aid].finish_time = arrive;
@@ -2004,8 +2004,8 @@ void Simulation::path_planning_cbs_with_pp() {
         int aid = pbs_ids[idx];
         for (auto& cp : ext_cons) {
             bool collision = false;
-            for (int t = (int)token.timestep; t < max_t && !collision; t++) {
-                int p1 = (int)token.path[aid][t];
+            for (int t = (int)cur_time_; t < max_t && !collision; t++) {
+                int p1 = (int)path_table_[aid][t];
                 int p2 = (t < (int)cp.size()) ? cp[t] : cp.back();
                 if (p1 == p2) collision = true;
             }
@@ -2015,14 +2015,14 @@ void Simulation::path_planning_cbs_with_pp() {
                 for (int a = 0; a < num_ag; a++) {
                     if (a == aid) continue;
                     vector<int> cp2(max_t);
-                    for (int t = 0; t < max_t; t++) cp2[t] = (int)token.path[a][t];
+                    for (int t = 0; t < max_t; t++) cp2[t] = (int)path_table_[a][t];
                     full_cons.push_back(cp2);
                 }
-                auto new_path = seq_mla_star(aid, (int)agents[aid].loc, (int)token.timestep,
+                auto new_path = seq_mla_star(aid, (int)agents[aid].loc, (int)cur_time_,
                                               goal_seqs[idx], full_cons, {}, false);
                 if (!new_path.empty()) {
                     for (int t = 0; t < max_t; t++) {
-                        token.path[aid][t] = new_path[t];
+                        path_table_[aid][t] = new_path[t];
                         agents[aid].path[t] = new_path[t];
                     }
                 }
@@ -2046,13 +2046,13 @@ void Simulation::path_planning_pp() {
     for (int i = 0; i < (int)phase2_free_ids_.size(); i++) {
         int aid = phase2_free_ids_[i];
         int ep_idx = phase2_goal_eps_[i];
-        if (ep_idx < 0) { agents[aid].finish_time = token.timestep + 1; continue; }
+        if (ep_idx < 0) { agents[aid].finish_time = cur_time_ + 1; continue; }
 
-        int arrive = astar(agents[aid], agents[aid].loc, token.timestep,
+        int arrive = astar(agents[aid], agents[aid].loc, cur_time_,
                            mapd_map.endpoints[ep_idx], aid);
         if (arrive >= 0) {
-            for (unsigned int t = token.timestep; t < maxtime; t++)
-                token.path[aid][t] = agents[aid].path[t];
+            for (unsigned int t = cur_time_; t < maxtime; t++)
+                path_table_[aid][t] = agents[aid].path[t];
             agents[aid].finish_time = arrive;
             if (phase2_tasks_[i] != nullptr) {
                 agents[aid].status = AG_MOVING_TO_PICKUP;
@@ -2061,7 +2061,7 @@ void Simulation::path_planning_pp() {
                 agent_pending_task[aid] = phase2_tasks_[i];
             }
         } else {
-            agents[aid].finish_time = token.timestep + 1;
+            agents[aid].finish_time = cur_time_ + 1;
         }
     }
 }
@@ -2081,26 +2081,26 @@ void Simulation::plan_hbh_mla() {
         Agent& ag = agents[i];
 
         // Skip agents that are already busy (not free, not just-assigned)
-        if (ag.finish_time > token.timestep && ag.status != AG_MOVING_TO_PICKUP)
+        if (ag.finish_time > cur_time_ && ag.status != AG_MOVING_TO_PICKUP)
             continue;
 
         if (ag.current_task < 0 || ag.status != AG_MOVING_TO_PICKUP) {
             // Agent has no task — handle free agent
-            if (ag.finish_time <= token.timestep) {
+            if (ag.finish_time <= cur_time_) {
                 // Check if agent needs to move off a delivery endpoint
                 bool need_move = false;
-                for (auto it = token.tasks.begin(); it != token.tasks.end(); it++) {
+                for (auto it = open_tasks_.begin(); it != open_tasks_.end(); it++) {
                     if ((*it)->delivery_loc == (int)ag.loc) { need_move = true; break; }
                 }
                 if (need_move) {
                     if (move2EP(ag)) {
-                        for (unsigned int t = token.timestep; t < token.path[ag.id].size(); t++)
-                            token.path[ag.id][t] = ag.path[t];
+                        for (unsigned int t = cur_time_; t < path_table_[ag.id].size(); t++)
+                            path_table_[ag.id][t] = ag.path[t];
                     } else {
-                        ag.finish_time = token.timestep + 1;
+                        ag.finish_time = cur_time_ + 1;
                     }
                 } else {
-                    ag.finish_time = token.timestep + 1;
+                    ag.finish_time = cur_time_ + 1;
                 }
             }
             continue;
@@ -2115,13 +2115,13 @@ void Simulation::plan_hbh_mla() {
 
         // Use existing TP-style A* for pickup, then delivery
         // This is equivalent to MLA* but uses the proven token constraint system
-        int arrive_start = astar(ag, ag.loc, token.timestep,
+        int arrive_start = astar(ag, ag.loc, cur_time_,
                                  mapd_map.endpoints[task.pickup], ag.id);
         if (arrive_start < 0) {
             ag.status = AG_FREE;
             ag.current_task = -1;
             task.status = -1;
-            ag.finish_time = token.timestep + 1;
+            ag.finish_time = cur_time_ + 1;
             continue;
         }
 
@@ -2131,28 +2131,28 @@ void Simulation::plan_hbh_mla() {
         vector<int> result;
         if (arrive_goal >= 0) {
             // Build result from agent's path
-            for (unsigned int t = token.timestep; t <= (unsigned int)arrive_goal; t++)
+            for (unsigned int t = cur_time_; t <= (unsigned int)arrive_goal; t++)
                 result.push_back(ag.path[t]);
         }
 
         if (arrive_goal >= 0) {
             // Path already written to ag.path by astar() calls
-            // Write to token.path
-            for (unsigned int t = token.timestep; t < maxtime; t++)
-                token.path[ag.id][t] = ag.path[t];
+            // Write to path_table_
+            for (unsigned int t = cur_time_; t < maxtime; t++)
+                path_table_[ag.id][t] = ag.path[t];
 
             task.ag_arrive_start = arrive_start;
             task.status = ag.id;
             task.completion_time = arrive_goal;
 
             ag.finish_time = arrive_goal + task.goal_wait_time;
-            token.tasks.remove(&task);
+            open_tasks_.remove(&task);
         } else {
             // MLA* failed — revert agent state
             ag.status = AG_FREE;
             ag.current_task = -1;
             task.status = -1;
-            ag.finish_time = token.timestep + 1;
+            ag.finish_time = cur_time_ + 1;
         }
     }
 }
@@ -2163,12 +2163,12 @@ void Simulation::plan_hbh_mla() {
 // ============================================================
 
 bool Simulation::isConstrained(int agent_id, int curr_id, int next_id, int next_timestep, int ag_hide) {
-    if (!token.my_map[next_id]) return true;
-    for (int ag = 0; ag < (int)token.path.size(); ag++) {
+    if (!passable_map_[next_id]) return true;
+    for (int ag = 0; ag < (int)path_table_.size(); ag++) {
         if (ag == agent_id || ag == ag_hide) continue;
-        if (token.path[ag][next_timestep] == (unsigned int)next_id) return true;
-        if (token.path[ag][next_timestep - 1] == (unsigned int)next_id &&
-            token.path[ag][next_timestep] == (unsigned int)curr_id) return true;
+        if (path_table_[ag][next_timestep] == (unsigned int)next_id) return true;
+        if (path_table_[ag][next_timestep - 1] == (unsigned int)next_id &&
+            path_table_[ag][next_timestep] == (unsigned int)curr_id) return true;
     }
     return false;
 }
@@ -2203,8 +2203,8 @@ int Simulation::astar(Agent& ag, int start_loc, int begin_time, const Endpoint& 
         if (curr->loc == goal_location) {
             bool can_hold = true;
             for (unsigned int i = curr->timestep + 1; i < maxtime; i++) {
-                for (int j = 0; j < (int)token.path.size(); j++) {
-                    if (j != ag.id && j != ag_hide && (int)token.path[j][i] == curr->loc) {
+                for (int j = 0; j < (int)path_table_.size(); j++) {
+                    if (j != ag.id && j != ag_hide && (int)path_table_[j][i] == curr->loc) {
                         can_hold = false; break;
                     }
                 }
@@ -2256,7 +2256,7 @@ void Simulation::updatePath(Agent& ag, const SearchNode& goal_node) {
 
 // ============================================================
 // Token-based MLA*: plan pickup+delivery in one search
-//   Uses isConstrained() against token.path.
+//   Uses isConstrained() against path_table_.
 //   Returns (arrive_start, arrive_goal) or (-1,-1) on failure.
 //   Writes planned path to ag.path.
 // ============================================================
@@ -2305,12 +2305,12 @@ pair<int,int> Simulation::token_mla_star(Agent& ag, Task& task, int ag_hide) {
     vector<MLATokenNode*> mla_all;
     map<tuple<int,int,int>, MLATokenNode*> mla_closed;
 
-    auto* mla_start = new MLATokenNode(ag.loc, 0, start_h, token.timestep, 0, nullptr);
+    auto* mla_start = new MLATokenNode(ag.loc, 0, start_h, cur_time_, 0, nullptr);
     mla_open.push(mla_start);
     mla_all.push_back(mla_start);
 
     MLATokenNode* mla_solution = nullptr;
-    int mla_max_t = min((int)maxtime, (int)token.timestep + 1000);
+    int mla_max_t = min((int)maxtime, (int)cur_time_ + 1000);
 
     while (!mla_open.empty() && (int)mla_all.size() < 200000) {
         auto* curr = mla_open.top(); mla_open.pop();
@@ -2324,9 +2324,9 @@ pair<int,int> Simulation::token_mla_star(Agent& ag, Task& task, int ag_hide) {
         if (gi >= num_goals) {
             bool can_hold = true;
             for (unsigned int t = curr->timestep + 1; t < maxtime; t++) {
-                for (int j = 0; j < (int)token.path.size(); j++) {
+                for (int j = 0; j < (int)path_table_.size(); j++) {
                     if (j == ag.id || j == ag_hide) continue;
-                    if ((int)token.path[j][t] == curr->loc) {
+                    if ((int)path_table_[j][t] == curr->loc) {
                         can_hold = false; break;
                     }
                 }
@@ -2374,21 +2374,21 @@ pair<int,int> Simulation::token_mla_star(Agent& ag, Task& task, int ag_hide) {
     reverse(result.begin(), result.end());
 
     // Write to ag.path
-    for (int t = 0; t < (int)result.size() && ((int)token.timestep + t) < (int)maxtime; t++)
-        ag.path[token.timestep + t] = result[t];
+    for (int t = 0; t < (int)result.size() && ((int)cur_time_ + t) < (int)maxtime; t++)
+        ag.path[cur_time_ + t] = result[t];
     int end_loc = result.back();
-    for (unsigned int t = token.timestep + result.size(); t < maxtime; t++)
+    for (unsigned int t = cur_time_ + result.size(); t < maxtime; t++)
         ag.path[t] = end_loc;
 
     // Extract arrival times
     int arrive_start = -1;
     for (int t = 0; t < (int)result.size(); t++) {
-        int abs_t = (int)token.timestep + t;
+        int abs_t = (int)cur_time_ + t;
         if (result[t] == task.pickup_loc && abs_t >= task.release_time) {
             arrive_start = abs_t; break;
         }
     }
-    int arrive_goal = (int)token.timestep + (int)result.size() - 1;
+    int arrive_goal = (int)cur_time_ + (int)result.size() - 1;
 
     for (auto* n : mla_all) delete n;
 
@@ -2406,7 +2406,7 @@ pair<int,int> Simulation::plan_task_token(Agent& ag, Task& task, int ag_hide) {
 
     // Token-path collision validator for SIPP candidate paths
     auto verify_sipp_path = [&](const vector<int>& path, int from_t, int to_t) -> bool {
-        for (int t = max((int)token.timestep + 1, from_t + 1); t < to_t && t < (int)maxtime; t++) {
+        for (int t = max((int)cur_time_ + 1, from_t + 1); t < to_t && t < (int)maxtime; t++) {
             if (isConstrained(ag.id, path[t-1], path[t], t, hide))
                 return false;
         }
@@ -2415,19 +2415,19 @@ pair<int,int> Simulation::plan_task_token(Agent& ag, Task& task, int ag_hide) {
 
     if (config.use_sipp) {
         vector<vector<int>> cons;
-        for (int j = 0; j < (int)token.path.size(); j++) {
+        for (int j = 0; j < (int)path_table_.size(); j++) {
             if (j == ag.id || j == hide) continue;
-            cons.emplace_back(token.path[j].begin(), token.path[j].end());
+            cons.emplace_back(path_table_[j].begin(), path_table_[j].end());
         }
 
         // Both 2SIPP and MLSIPP: use multi-goal SIPP (pickup + delivery)
         vector<pair<int,int>> goals = {{task.pickup_loc, task.release_time},
                                         {task.delivery_loc, 0}};
-        auto path = sipp_search(ag.id, ag.loc, token.timestep, goals, cons, {}, false);
+        auto path = sipp_search(ag.id, ag.loc, cur_time_, goals, cons, {}, false);
         if (!path.empty()) {
             int arrive_start = -1, arrive_goal = -1;
             int gi = 0;
-            for (int t = (int)token.timestep; t < (int)path.size() && gi < 2; t++) {
+            for (int t = (int)cur_time_; t < (int)path.size() && gi < 2; t++) {
                 if (path[t] == goals[gi].first && t >= goals[gi].second) {
                     if (gi == 0) arrive_start = t; else arrive_goal = t;
                     gi++;
@@ -2436,11 +2436,11 @@ pair<int,int> Simulation::plan_task_token(Agent& ag, Task& task, int ag_hide) {
             if (arrive_start >= 0 && arrive_goal >= 0) {
                 bool can_hold = true;
                 for (unsigned int t = arrive_goal + 1; t < maxtime && can_hold; t++)
-                    for (int j = 0; j < (int)token.path.size(); j++) {
+                    for (int j = 0; j < (int)path_table_.size(); j++) {
                         if (j == ag.id || j == hide) continue;
-                        if ((int)token.path[j][t] == task.delivery_loc) { can_hold = false; break; }
+                        if ((int)path_table_[j][t] == task.delivery_loc) { can_hold = false; break; }
                     }
-                if (can_hold && verify_sipp_path(path, (int)token.timestep, arrive_goal + 1)) {
+                if (can_hold && verify_sipp_path(path, (int)cur_time_, arrive_goal + 1)) {
                     for (int t = 0; t < (int)path.size() && t < (int)maxtime; t++)
                         ag.path[t] = path[t];
                     return {arrive_start, arrive_goal};
@@ -2461,7 +2461,7 @@ pair<int,int> Simulation::plan_task_token(Agent& ag, Task& task, int ag_hide) {
     // Default: 2x sequential A* (STA_TASK_EP)
     vector<unsigned int> saved_path(ag.path.begin(), ag.path.end());
 
-    int arrive_start = astar(ag, ag.loc, token.timestep,
+    int arrive_start = astar(ag, ag.loc, cur_time_,
                              mapd_map.endpoints[task.pickup], hide);
     if (arrive_start < 0) return {-1, -1};
 
@@ -2486,7 +2486,7 @@ bool Simulation::move2EP(Agent& ag) {
     map<unsigned int, SearchNode*> allNodes;
     int action[5] = {0, 1, -1, mapd_map.col, -mapd_map.col};
 
-    SearchNode* start = new SearchNode(ag.loc, 0, nullptr, token.timestep);
+    SearchNode* start = new SearchNode(ag.loc, 0, nullptr, cur_time_);
     allNodes.insert(make_pair((unsigned int)ag.loc, start));
     Q.push(start);
 
@@ -2494,13 +2494,13 @@ bool Simulation::move2EP(Agent& ag) {
         SearchNode* v = Q.front(); Q.pop();
         if ((unsigned int)v->timestep >= maxtime - 1) continue;
 
-        if (token.my_endpoints[v->loc]) {
+        if (endpoint_mask_[v->loc]) {
             bool occupied = false;
             for (unsigned int t = v->timestep; t < maxtime && !occupied; t++)
                 for (int i = 0; i < (int)agents.size() && !occupied; i++)
-                    if (i != ag.id && token.path[i][t] == (unsigned int)v->loc) occupied = true;
+                    if (i != ag.id && path_table_[i][t] == (unsigned int)v->loc) occupied = true;
             if (!occupied)
-                for (auto it = token.tasks.begin(); it != token.tasks.end() && !occupied; it++)
+                for (auto it = open_tasks_.begin(); it != open_tasks_.end() && !occupied; it++)
                     if ((*it)->delivery_loc == v->loc) occupied = true;
             if (!occupied) {
                 updatePath(ag, *v);
@@ -2540,23 +2540,23 @@ void Simulation::releaseNodes(map<unsigned int, SearchNode*>& table) {
 bool Simulation::fullCollisionCheck(const string& alg_name) const {
     bool ok = true;
     int collision_count = 0;
-    int num_ag = token.path.size();
+    int num_ag = path_table_.size();
     unsigned int T = maxtime;
 
     for (int a1 = 0; a1 < num_ag; a1++) {
         for (int a2 = a1 + 1; a2 < num_ag; a2++) {
             for (unsigned int t = 0; t < T; t++) {
-                if (token.path[a1][t] == token.path[a2][t]) {
+                if (path_table_[a1][t] == path_table_[a2][t]) {
                     if (collision_count < 10)
                         cout << "[" << alg_name << "] VERTEX COLLISION: agents " << a1 << " and " << a2
-                             << " at loc " << token.path[a1][t] << " time " << t << endl;
+                             << " at loc " << path_table_[a1][t] << " time " << t << endl;
                     ok = false; collision_count++;
                 }
-                if (t > 0 && token.path[a1][t] == token.path[a2][t-1] &&
-                    token.path[a1][t-1] == token.path[a2][t]) {
+                if (t > 0 && path_table_[a1][t] == path_table_[a2][t-1] &&
+                    path_table_[a1][t-1] == path_table_[a2][t]) {
                     if (collision_count < 10)
                         cout << "[" << alg_name << "] EDGE COLLISION: agents " << a1 << " and " << a2
-                             << " on edge " << token.path[a1][t-1] << "-" << token.path[a1][t]
+                             << " on edge " << path_table_[a1][t-1] << "-" << path_table_[a1][t]
                              << " time " << t << endl;
                     ok = false; collision_count++;
                 }
@@ -2709,9 +2709,9 @@ void Simulation::assign_ta_tsp() {
         agents[aid].task_sequence = tsp_seqs[s];
     }
 
-    // Mark all tasks as assigned (remove from token.tasks)
+    // Mark all tasks as assigned (remove from open_tasks_)
     // For offline mode, we handle all tasks in planning
-    // token.tasks will be cleared after planning
+    // open_tasks_ will be cleared after planning
 }
 
 // ============================================================
@@ -3071,13 +3071,13 @@ void Simulation::plan_ta_prioritized() {
             }
         }
 
-        // Copy agent's path to token.path
+        // Copy agent's path to path_table_
         for (unsigned int tt = 0; tt < maxtime; tt++)
-            token.path[aid][tt] = ag.path[tt];
+            path_table_[aid][tt] = ag.path[tt];
     }
 
-    // Clear token.tasks since all are processed
-    token.tasks.clear();
+    // Clear open_tasks_ since all are processed
+    open_tasks_.clear();
 }
 
 // ============================================================
@@ -4334,18 +4334,18 @@ void Simulation::plan_ta_hybrid() {
             hybrid_group1_plan(ag_icbs, cons_agents);
         }
 
-        // Update token.path for collision checking
+        // Update path_table_ for collision checking
         for (int i = 0; i < num_ag; i++)
             for (unsigned int t = 0; t < maxtime; t++)
-                token.path[i][t] = agents[i].path[t];
+                path_table_[i][t] = agents[i].path[t];
     }
 
-    // Copy final paths to token.path and set task completion info
+    // Copy final paths to path_table_ and set task completion info
     for (int i = 0; i < num_ag; i++)
         for (unsigned int t = 0; t < maxtime; t++)
-            token.path[i][t] = agents[i].path[t];
+            path_table_[i][t] = agents[i].path[t];
 
-    token.tasks.clear();
+    open_tasks_.clear();
 } // end plan_ta_hybrid
 
 // ============================================================
@@ -4360,7 +4360,7 @@ void Simulation::update_system_pbs() {
     lns_agent_finished_ = false;
 
     // Check if new tasks arrived
-    if (token.timestep < maxtime && !task_indices_by_time[token.timestep].empty()) {
+    if (cur_time_ < maxtime && !task_indices_by_time[cur_time_].empty()) {
         pbs_has_event_ = true;
         pbs_assign_event_ = true;
     }
@@ -4379,7 +4379,7 @@ void Simulation::update_system_pbs() {
             // Scan path for pickup arrival
             if (agents[i].status == AG_MOVING_TO_PICKUP) {
                 bool found_pickup = false;
-                for (unsigned int t = pbs_last_replan_time_; t <= token.timestep && t < maxtime; t++) {
+                for (unsigned int t = pbs_last_replan_time_; t <= cur_time_ && t < maxtime; t++) {
                     if ((int)agents[i].path[t] == first_goal && (int)t >= task.release_time) {
                         agents[i].status = AG_CARRYING;
                         found_pickup = true;
@@ -4392,7 +4392,7 @@ void Simulation::update_system_pbs() {
             // Scan path for delivery arrival
             if (agents[i].status == AG_CARRYING) {
                 bool found_delivery = false;
-                for (unsigned int t = pbs_last_replan_time_; t <= token.timestep && t < maxtime; t++) {
+                for (unsigned int t = pbs_last_replan_time_; t <= cur_time_ && t < maxtime; t++) {
                     if ((int)agents[i].path[t] == last_goal) {
                         task.completion_time = (int)t;
                         task.status = INT_MAX;
@@ -4421,7 +4421,7 @@ void Simulation::update_system_pbs() {
     }
 
     // Check if any agent is free (no tasks) and there are unassigned tasks
-    if (!pbs_assign_event_ && !token.tasks.empty()) {
+    if (!pbs_assign_event_ && !open_tasks_.empty()) {
         for (auto& a : agents) {
             if (a.task_sequence.empty() && a.status == AG_FREE) {
                 pbs_has_event_ = true;
@@ -4440,19 +4440,19 @@ void Simulation::update_system_pbs() {
         for (auto& a : agents) {
             if (!a.task_sequence.empty()) { any_active = true; break; }
         }
-        if (any_active && (int)token.timestep - pbs_last_replan_time_ >= config.replan_window) {
+        if (any_active && (int)cur_time_ - pbs_last_replan_time_ >= config.replan_window) {
             pbs_has_event_ = true;
             // pbs_assign_event_ stays false — only replan paths, don't re-assign
         }
     }
 
     if (pbs_has_event_)
-        pbs_last_replan_time_ = (int)token.timestep;
+        pbs_last_replan_time_ = (int)cur_time_;
 }
 
 // ============================================================
 // Section 29: Repeated Hungarian Assignment
-//   Assign tasks from token.tasks to agents' task_sequences
+//   Assign tasks from open_tasks_ to agents' task_sequences
 //   in rounds. Each round assigns min(num_agents, remaining) tasks.
 // ============================================================
 
@@ -4467,8 +4467,8 @@ void Simulation::assign_repeated_hungarian() {
         for (int tid : agents[i].task_sequence) {
             if (keep_front && tid == front_tid) continue;
             all_tasks[tid].status = -1;
-            // Put task back into token.tasks (it was removed when assigned)
-            token.tasks.push_back(&all_tasks[tid]);
+            // Put task back into open_tasks_ (it was removed when assigned)
+            open_tasks_.push_back(&all_tasks[tid]);
         }
         if (keep_front) {
             agents[i].task_sequence = {front_tid};
@@ -4483,7 +4483,7 @@ void Simulation::assign_repeated_hungarian() {
 
     // Collect all unassigned tasks
     vector<Task*> remaining_tasks;
-    for (auto it = token.tasks.begin(); it != token.tasks.end(); ++it) {
+    for (auto it = open_tasks_.begin(); it != open_tasks_.end(); ++it) {
         if ((*it)->status == -1)
             remaining_tasks.push_back(*it);
     }
@@ -4508,7 +4508,7 @@ void Simulation::assign_repeated_hungarian() {
                     int est_time = 0;
                     if (!ag.task_sequence.empty()) {
                         int loc = (int)ag.loc;
-                        int t = (int)token.timestep;
+                        int t = (int)cur_time_;
                         for (int tid : ag.task_sequence) {
                             Task& tt = all_tasks[tid];
                             int ng = min((int)tt.goals.size(), 2);
@@ -4541,7 +4541,7 @@ void Simulation::assign_repeated_hungarian() {
                         int ep_idx = mapd_map.ep_index(first_goal_loc);
                         int d = (ep_idx >= 0) ? mapd_map.endpoints[ep_idx].h_val[ag.loc] : 0;
                         if (d == INT_MAX) d = 0;
-                        est_time = (int)token.timestep + d;
+                        est_time = (int)cur_time_ + d;
                     }
                     est_time = max(est_time, task->release_time);
                     // Add distance to second goal (capped to first 2 goals)
@@ -4572,12 +4572,12 @@ void Simulation::assign_repeated_hungarian() {
             }
         }
 
-        // Remove assigned tasks from remaining and from token.tasks
+        // Remove assigned tasks from remaining and from open_tasks_
         for (Task* t : assigned) {
             remaining_tasks.erase(
                 remove(remaining_tasks.begin(), remaining_tasks.end(), t),
                 remaining_tasks.end());
-            token.tasks.remove(t);
+            open_tasks_.remove(t);
         }
     }
 }
@@ -4593,7 +4593,7 @@ int Simulation::estimate_sequence_cost(int agent_id) const {
     // for all tasks in the agent's sequence, which is sum_of_delivery_time - sum_of_release_time.
     const Agent& ag = agents[agent_id];
     int loc = (int)ag.loc;
-    int delivery_time = (int)token.timestep;
+    int delivery_time = (int)cur_time_;
     int sum_of_delivery_time = 0;
     int sum_of_release_time = 0;
 
@@ -4616,7 +4616,7 @@ int Simulation::estimate_sequence_cost(int agent_id) const {
             if (d == INT_MAX) d = 0;
 
             if (idx == 0) {
-                delivery_time = (int)token.timestep + d;
+                delivery_time = (int)cur_time_ + d;
             } else {
                 delivery_time += d;
             }
@@ -4679,7 +4679,7 @@ void Simulation::lns_destroy(vector<int>& removed_tasks) {
                 int ep_idx = mapd_map.ep_index(first_goal);
                 int d = (ep_idx >= 0) ? mapd_map.endpoints[ep_idx].h_val[ag.loc] : 0;
                 if (d == INT_MAX) d = 0;
-                pick_up_time = (int)token.timestep + d;
+                pick_up_time = (int)cur_time_ + d;
             }
             int this_pickup = max(pick_up_time, tt.release_time);
             int this_delivery = this_pickup;
@@ -4850,7 +4850,7 @@ void Simulation::assign_repeated_hungarian_lns() {
     // on the events where the reference would also have run only Hungarian, and identical
     // LNS quality on the events where the reference runs LNS).
     bool lns_trigger =
-        ((int)token.timestep % lns_release_period_ == 0) || lns_agent_finished_;
+        ((int)cur_time_ % lns_release_period_ == 0) || lns_agent_finished_;
     if (!lns_trigger) return;
 
     // Quality-neutral runtime guard: LNS destroy/repair can only change anything if there is at
@@ -4933,7 +4933,7 @@ int Simulation::choose_dummy_endpoint(int agent_id, int last_goal_loc,
 
     // In strict mode (PBS), also forbid all task goals in the system
     if (strict) {
-        for (auto it = token.tasks.begin(); it != token.tasks.end(); ++it) {
+        for (auto it = open_tasks_.begin(); it != open_tasks_.end(); ++it) {
             for (int gloc : (*it)->goals) forbidden.insert(gloc);
         }
         for (auto& ag : agents) {
@@ -4950,7 +4950,7 @@ int Simulation::choose_dummy_endpoint(int agent_id, int last_goal_loc,
         // commit a colliding "best-effort" plan.
         for (int i = 0; i < (int)agents.size(); i++) {
             if (i == agent_id) continue;
-            forbidden.insert((int)token.path[i][(int)maxtime - 1]);
+            forbidden.insert((int)path_table_[i][(int)maxtime - 1]);
         }
     }
 
@@ -6482,7 +6482,7 @@ bool Simulation::pbs_core(bool windowed) {
     // Match reference: wPBS constraint window = replan_window (not 3x).
     // Reference: solver.window = planning_window = 10.
     // Constraints are only inserted for timesteps up to window.
-    int cons_window = windowed ? (int)token.timestep + config.replan_window : -1;
+    int cons_window = windowed ? (int)cur_time_ + config.replan_window : -1;
 
     // Sequential single-goal A* (matches reference StateTimeA*):
     // plan to each goal one at a time, concatenate paths
@@ -6539,7 +6539,7 @@ bool Simulation::pbs_core(bool windowed) {
     };
 
     // Limit path copy to relevant horizon (from current timestep + search horizon)
-    int path_horizon = min(max_t, (int)token.timestep + 1200);
+    int path_horizon = min(max_t, (int)cur_time_ + 1200);
 
     // Working path length for PBS bookkeeping.
     //   Windowed wPBS: the low-level search is hard-capped at start+10, so every plan is a
@@ -6555,7 +6555,7 @@ bool Simulation::pbs_core(bool windowed) {
         // ~10 active steps; +4 margin covers the boundary hold (where same-cell rests must
         // still be detected as conflicts).  A tighter work_len shrinks both the per-node path
         // copy and the O(num_ag^2 * work_len) conflict detection.
-        work_len = min(max_t, (int)token.timestep + 14);
+        work_len = min(max_t, (int)cur_time_ + 14);
     } else {
         // Non-windowed PBS: the low-level search horizon is hard-capped at start+512 (see
         // seq_mla_star), so every committed plan is fully active within [timestep, timestep+512]
@@ -6565,7 +6565,7 @@ bool Simulation::pbs_core(bool windowed) {
         // with no effect on the result: commit_node extends every agent's final hold cell out to
         // max_t, and conflict detection is bounded by settle_time <= work_len.  +16 margin covers
         // the boundary hold so same-cell rests at the window edge are still detected as conflicts.
-        work_len = min(max_t, (int)token.timestep + 512 + 16);
+        work_len = min(max_t, (int)cur_time_ + 512 + 16);
     }
 
     // Save old paths (only up to path_horizon).
@@ -6579,7 +6579,7 @@ bool Simulation::pbs_core(bool windowed) {
         for (int i = 0; i < num_ag; i++) {
             old_paths[i].resize(path_horizon);
             for (int t = 0; t < path_horizon; t++)
-                old_paths[i][t] = (int)token.path[i][t];
+                old_paths[i][t] = (int)path_table_[i][t];
         }
     }
     bool use_old_in_pbs = !windowed;
@@ -6593,7 +6593,7 @@ bool Simulation::pbs_core(bool windowed) {
     shared_old_valid_ = false;
     if (use_old_in_pbs) {
         // The per-search horizon cap is start_time + 512 (see seq_mla_star); never need more.
-        int cap = min(path_horizon, (int)token.timestep + 513);
+        int cap = min(path_horizon, (int)cur_time_ + 513);
         int g_active = 1;
         for (int i = 0; i < num_ag; i++) {
             const auto& p = old_paths[i];
@@ -6628,10 +6628,10 @@ bool Simulation::pbs_core(bool windowed) {
             }
         }
         // SIPP analog: precompress each old path into CT ranges once (reused by sipp_search at the
-        // root).  Compress to token.timestep+300, the same old-path window sipp_search uses; the
+        // root).  Compress to cur_time_+300, the same old-path window sipp_search uses; the
         // per-search clamps each range to its own old_h, so this is exactly equivalent.
         if (config.use_sipp) {
-            int sipp_h = min(path_horizon, (int)token.timestep + 300);
+            int sipp_h = min(path_horizon, (int)cur_time_ + 300);
             shared_old_sipp_h_ = sipp_h;
             shared_old_sipp_ranges_.assign(num_ag, {});
             for (int i = 0; i < num_ag; i++) {
@@ -6655,12 +6655,12 @@ bool Simulation::pbs_core(bool windowed) {
     for (int i = 0; i < num_ag; i++) {
         root->paths[i].resize(work_len);
         for (int t = 0; t < work_len; t++)
-            root->paths[i][t] = (int)token.path[i][t];
+            root->paths[i][t] = (int)path_table_[i][t];
     }
 
     // Match reference generate_root_node: plan all agents against old_paths only
     // (no sequential dependencies), then resolve via find_consistent_paths cascade.
-    int trunc = min(path_horizon, (int)token.timestep + 1000);
+    int trunc = min(path_horizon, (int)cur_time_ + 1000);
 
     // --- Windowed (wPBS) root: SEQUENTIAL prioritized planning with a conflict-avoidance table.
     // The reference PBS::generate_root_node plans agents one by one, each avoiding (SOFT) the NEW
@@ -6707,21 +6707,21 @@ bool Simulation::pbs_core(bool windowed) {
         }
 
         shared_old_excl_ = i;
-        vector<int> path = plan_agent(i, (int)agents[i].loc, (int)token.timestep,
+        vector<int> path = plan_agent(i, (int)agents[i].loc, (int)cur_time_,
                                        cons_buf, old_buf, use_old_in_pbs);
         shared_old_excl_ = -1;
         if (path.empty()) {
-            path = plan_agent(i, (int)agents[i].loc, (int)token.timestep,
+            path = plan_agent(i, (int)agents[i].loc, (int)cur_time_,
                                cons_buf, {}, false);
             if (path.empty()) {
-                for (int t = (int)token.timestep; t < work_len; t++)
+                for (int t = (int)cur_time_; t < work_len; t++)
                     root->paths[i][t] = (int)agents[i].loc;
             } else {
-                for (int t = (int)token.timestep; t < work_len; t++)
+                for (int t = (int)cur_time_; t < work_len; t++)
                     root->paths[i][t] = path[t];
             }
         } else {
-            for (int t = (int)token.timestep; t < work_len; t++)
+            for (int t = (int)cur_time_; t < work_len; t++)
                 root->paths[i][t] = path[t];
         }
         // Add agent i's NEW path to the CAT so subsequent root agents avoid it (windowed only).
@@ -6734,7 +6734,7 @@ bool Simulation::pbs_core(bool windowed) {
         int total = 0;
         for (int i = 0; i < num_ag; i++) {
             int lim = min((int)node->paths[i].size(), max_t) - 1;
-            for (int t = (int)token.timestep; t < lim; t++) {
+            for (int t = (int)cur_time_; t < lim; t++) {
                 if (node->paths[i][t] != node->paths[i][t+1])
                     total++;
             }
@@ -6759,19 +6759,19 @@ bool Simulation::pbs_core(bool windowed) {
     // collisions) while shrinking the scan from ~5000 to ~the makespan-window.  Recomputed
     // per node since replanning can shift the settle time.
     auto settle_time = [&](const vector<vector<int>>& P) -> int {
-        int last_move = (int)token.timestep;
+        int last_move = (int)cur_time_;
         for (int i = 0; i < num_ag; i++) {
             int li = (int)P[i].size() - 1;
             // walk back over the trailing hold to find this agent's last actual move
-            while (li > (int)token.timestep && P[i][li] == P[i][li-1]) li--;
+            while (li > (int)cur_time_ && P[i][li] == P[i][li-1]) li--;
             if (li > last_move) last_move = li;
         }
         return last_move;
     };
     // In windowed mode, match the reference PBS (PBS.cpp:134 size=min(window+1,len)): detect
-    // conflicts ONLY within the EXECUTED window [token.timestep, token.timestep+replan_window].
+    // conflicts ONLY within the EXECUTED window [cur_time_, cur_time_+replan_window].
     // The system executes up to and INCLUDING offset==replan_window (update_system window_cap =
-    // token.timestep+replan_window, inclusive), so the horizon is token.timestep+replan_window+1
+    // cur_time_+replan_window, inclusive), so the horizon is cur_time_+replan_window+1
     // (the +1 makes the for-loop t<horizon include offset==replan_window).  Conflicts BEYOND the
     // window (offsets 11..13 between offset-10-held cells) are NOT executed and must not be
     // resolved: scanning them (the old work_len=+14 horizon) created spurious beyond-window
@@ -6780,12 +6780,12 @@ bool Simulation::pbs_core(bool windowed) {
     // conflicts the deconfliction patch had to mask.  In non-windowed mode bound to the settle
     // time (exact, see note above) to skip the long constant-hold tail.
     int conflict_horizon = windowed
-        ? min(max_t, (int)token.timestep + config.replan_window + 1)
+        ? min(max_t, (int)cur_time_ + config.replan_window + 1)
         : min(max_t, settle_time(root->paths) + 1);
     for (int a1 = 0; a1 < num_ag; a1++) {
         for (int a2 = a1 + 1; a2 < num_ag; a2++) {
             // Check conflicts only within horizon
-            for (int t = (int)token.timestep; t < conflict_horizon && t < max_t; t++) {
+            for (int t = (int)cur_time_; t < conflict_horizon && t < max_t; t++) {
                 int loc1 = (t < (int)root->paths[a1].size()) ? root->paths[a1][t] : root->paths[a1].back();
                 int loc2 = (t < (int)root->paths[a2].size()) ? root->paths[a2][t] : root->paths[a2].back();
                 if (loc1 == loc2) {
@@ -6813,7 +6813,7 @@ bool Simulation::pbs_core(bool windowed) {
             int hold = node->paths[i][min(plen, (int)max_t) - 1];
             for (int t = 0; t < max_t; t++) {
                 int v = (t < plen) ? node->paths[i][t] : hold;
-                token.path[i][t] = v;
+                path_table_[i][t] = v;
                 agents[i].path[t] = v;
             }
         }
@@ -6930,7 +6930,7 @@ bool Simulation::pbs_core(bool windowed) {
             }
 
             vector<int> new_path = plan_agent(lower, (int)agents[lower].loc,
-                                              (int)token.timestep,
+                                              (int)cur_time_,
                                               cons, old_for_agent, use_old_in_pbs);
             if (new_path.empty()) {
                 child_valid[c] = false;
@@ -6940,7 +6940,7 @@ bool Simulation::pbs_core(bool windowed) {
             }
 
             // Only update from current timestep onward (bounded to the working window)
-            for (int t = (int)token.timestep; t < work_len; t++)
+            for (int t = (int)cur_time_; t < work_len; t++)
                 children[c]->paths[lower][t] = new_path[t];
 
             // --- find_consistent_paths cascade (matching reference PBS) ---
@@ -6952,13 +6952,13 @@ bool Simulation::pbs_core(bool windowed) {
                 // here because replanning 'lower' (and cascade replans) can extend the active
                 // portion beyond the root's settle time.
                 int child_conf_horizon = windowed
-                    ? min(max_t, (int)token.timestep + config.replan_window + 1)
+                    ? min(max_t, (int)cur_time_ + config.replan_window + 1)
                     : min(max_t, settle_time(children[c]->paths) + 1);
                 // Helper: detect conflicts involving a specific agent
                 auto detect_conflicts_for = [&](int ag_id, list<tuple<int,int,int,int,int>>& out) {
                     for (int j = 0; j < num_ag; j++) {
                         if (j == ag_id) continue;
-                        for (int t = (int)token.timestep; t < child_conf_horizon && t < max_t; t++) {
+                        for (int t = (int)cur_time_; t < child_conf_horizon && t < max_t; t++) {
                             int la = (t < (int)children[c]->paths[ag_id].size()) ? children[c]->paths[ag_id][t] : children[c]->paths[ag_id].back();
                             int lj = (t < (int)children[c]->paths[j].size()) ? children[c]->paths[j][t] : children[c]->paths[j].back();
                             if (la == lj) {
@@ -7046,7 +7046,7 @@ bool Simulation::pbs_core(bool windowed) {
                         }
                     }
 
-                    auto np = plan_agent(a, (int)agents[a].loc, (int)token.timestep,
+                    auto np = plan_agent(a, (int)agents[a].loc, (int)cur_time_,
                                           a_cons, a_old, use_old_in_pbs);
                     if (np.empty()) {
                         child_valid[c] = false;
@@ -7054,7 +7054,7 @@ bool Simulation::pbs_core(bool windowed) {
                         children[c] = nullptr;
                         break;
                     }
-                    for (int t = (int)token.timestep; t < work_len; t++)
+                    for (int t = (int)cur_time_; t < work_len; t++)
                         children[c]->paths[a][t] = np[t];
 
                     // Remove old conflicts involving 'a', add new ones
@@ -7104,10 +7104,10 @@ bool Simulation::pbs_core(bool windowed) {
     // always terminates.  In the common case best_node->conflicts is empty and this is skipped.
     if (!best_node->conflicts.empty()) {
         auto& P = best_node->paths;
-        int t0 = (int)token.timestep;
+        int t0 = (int)cur_time_;
         // Scan bound for the safety net.
         //   Windowed (wPBS): consider ONLY conflicts within the EXECUTED window
-        //   [token.timestep, token.timestep+replan_window] (matching the reference, which never
+        //   [cur_time_, cur_time_+replan_window] (matching the reference, which never
         //   resolves or patches conflicts beyond the executed window).  After the conflict-horizon
         //   fix above, PBS resolves every in-window conflict itself, so this loop finds nothing and
         //   is a never-firing safety net in windowed mode (verified: 0 fires across the full grid).
@@ -7170,14 +7170,14 @@ bool Simulation::pbs_core_sipp() {
     int max_t = (int)maxtime;
     int map_size = mapd_map.row * mapd_map.col;
     int cols = mapd_map.col;
-    int horizon = min(max_t, (int)token.timestep + 1000);
+    int horizon = min(max_t, (int)cur_time_ + 1000);
 
     auto goal_seqs = build_goal_sequences();
 
     // Copy paths as int vectors
     vector<vector<int>> paths(num_ag);
     for (int i = 0; i < num_ag; i++)
-        paths[i].assign(token.path[i].begin(), token.path[i].end());
+        paths[i].assign(path_table_[i].begin(), path_table_[i].end());
 
     // Heuristic helper
     auto get_h = [&](int loc, int gloc) -> int {
@@ -7483,7 +7483,7 @@ bool Simulation::pbs_core_sipp() {
         // Skip idle agents
         if (goal_seqs[i].size() <= 1 && agents[i].task_sequence.empty()) {
             int loc = (int)agents[i].loc;
-            for (int t = (int)token.timestep; t < max_t; t++) paths[i][t] = loc;
+            for (int t = (int)cur_time_; t < max_t; t++) paths[i][t] = loc;
             add_path_ct(paths[i]);
             invalidate_path(paths[i]);
             planned[i] = true;
@@ -7506,7 +7506,7 @@ bool Simulation::pbs_core_sipp() {
             }
         }
 
-        auto path = sipp_plan((int)agents[i].loc, (int)token.timestep, goal_seqs[i]);
+        auto path = sipp_plan((int)agents[i].loc, (int)cur_time_, goal_seqs[i]);
         if (!path.empty()) paths[i] = std::move(path);
 
         add_path_ct(paths[i]);
@@ -7520,11 +7520,11 @@ bool Simulation::pbs_core_sipp() {
         vector<tuple<int,int,int,int,int>> confs;
         for (int a1 = 0; a1 < num_ag; a1++) {
             for (int a2 = a1+1; a2 < num_ag; a2++) {
-                for (int t = (int)token.timestep; t < min(horizon, max_t); t++) {
+                for (int t = (int)cur_time_; t < min(horizon, max_t); t++) {
                     if (ps[a1][t] == ps[a2][t]) {
                         confs.emplace_back(a1, a2, ps[a1][t], -1, t); break;
                     }
-                    if (t > (int)token.timestep &&
+                    if (t > (int)cur_time_ &&
                         ps[a1][t] == ps[a2][t-1] && ps[a2][t] == ps[a1][t-1]) {
                         confs.emplace_back(a1, a2, ps[a1][t], ps[a2][t], t); break;
                     }
@@ -7550,7 +7550,7 @@ bool Simulation::pbs_core_sipp() {
             cat_ptrs.push_back(const_cast<int*>(all_paths[j].data()));
             cat_lens.push_back((int)all_paths[j].size());
         }
-        return sipp_plan((int)agents[agent_id].loc, (int)token.timestep, goal_seqs[agent_id]);
+        return sipp_plan((int)agents[agent_id].loc, (int)cur_time_, goal_seqs[agent_id]);
     };
 
     // Iterative conflict resolution — try both priority orderings, keep better one
@@ -7558,12 +7558,12 @@ bool Simulation::pbs_core_sipp() {
         int ca1 = -1, ca2 = -1, ct_time = INT_MAX;
         for (int a1 = 0; a1 < num_ag; a1++) {
             for (int a2 = a1+1; a2 < num_ag; a2++) {
-                for (int t = (int)token.timestep; t < min(horizon, max_t); t++) {
+                for (int t = (int)cur_time_; t < min(horizon, max_t); t++) {
                     if (paths[a1][t] == paths[a2][t]) {
                         if (t < ct_time) { ca1 = a1; ca2 = a2; ct_time = t; }
                         break;
                     }
-                    if (t > (int)token.timestep &&
+                    if (t > (int)cur_time_ &&
                         paths[a1][t] == paths[a2][t-1] && paths[a2][t] == paths[a1][t-1]) {
                         if (t < ct_time) { ca1 = a1; ca2 = a2; ct_time = t; }
                         break;
@@ -7587,15 +7587,15 @@ bool Simulation::pbs_core_sipp() {
                 edge_ct_ptrs.push_back(paths[j].data());
                 edge_ct_lens.push_back((int)paths[j].size());
             }
-            auto new_path = sipp_plan((int)agents[try_ag].loc, (int)token.timestep, goal_seqs[try_ag]);
+            auto new_path = sipp_plan((int)agents[try_ag].loc, (int)cur_time_, goal_seqs[try_ag]);
             if (new_path.empty()) continue;
             // Count conflicts with new path
             int conf = 0;
             for (int j = 0; j < num_ag; j++) {
                 if (j == try_ag) continue;
-                for (int t = (int)token.timestep; t < min(horizon, max_t); t++) {
+                for (int t = (int)cur_time_; t < min(horizon, max_t); t++) {
                     if (new_path[t] == paths[j][t]) { conf++; break; }
-                    if (t > (int)token.timestep &&
+                    if (t > (int)cur_time_ &&
                         new_path[t] == paths[j][t-1] && paths[j][t] == new_path[t-1]) { conf++; break; }
                 }
             }
@@ -7608,7 +7608,7 @@ bool Simulation::pbs_core_sipp() {
     // Commit
     for (int i = 0; i < num_ag; i++) {
         for (int t = 0; t < max_t; t++) {
-            token.path[i][t] = paths[i][t];
+            path_table_[i][t] = paths[i][t];
             agents[i].path[t] = paths[i][t];
         }
     }
@@ -7631,7 +7631,7 @@ void Simulation::path_planning_pp_mla() {
     for (int i = 0; i < num_ag; i++) {
         old_paths[i].resize(max_t);
         for (int t = 0; t < max_t; t++)
-            old_paths[i][t] = (int)token.path[i][t];
+            old_paths[i][t] = (int)path_table_[i][t];
     }
 
     // Plan order: active agents first, idle second
@@ -7705,16 +7705,16 @@ void Simulation::path_planning_pp_mla() {
         // Plan path: use SIPP when --sipp is set, else MLA*
         vector<int> path;
         if (config.use_sipp) {
-            path = sipp_search(i, (int)ag.loc, (int)token.timestep,
+            path = sipp_search(i, (int)ag.loc, (int)cur_time_,
                                goals, cons_paths, {}, false);
         }
         if (path.empty()) {
             if (config.mla_mode != MLA_SEQ) {
                 vector<vector<pair<int,int>>> tg = split_into_task_groups(i, goals);
-                path = mla_star_taskwise(i, (int)ag.loc, (int)token.timestep,
+                path = mla_star_taskwise(i, (int)ag.loc, (int)cur_time_,
                                           tg, cons_paths, {}, false);
             } else {
-                path = seq_mla_star(i, (int)ag.loc, (int)token.timestep,
+                path = seq_mla_star(i, (int)ag.loc, (int)cur_time_,
                                      goals, cons_paths, {}, false);
             }
         }
@@ -7734,7 +7734,7 @@ void Simulation::path_planning_pp_mla() {
 
         // Commit to token and agent path
         for (int t = 0; t < max_t; t++) {
-            token.path[i][t] = new_paths[i][t];
+            path_table_[i][t] = new_paths[i][t];
             agents[i].path[t] = new_paths[i][t];
         }
     }
@@ -8828,7 +8828,7 @@ void Simulation::path_planning_wpbs() {
 // Native windowed solve orchestrator (framework-native)
 //   Builds the per-solve inputs from the simulator's live state, runs the
 //   framework-native windowed PBS (native_wpbs_solve, backed by mapd_map for the
-//   grid + heuristics), and writes committed paths back into token.path /
+//   grid + heuristics), and writes committed paths back into path_table_ /
 //   agents.path.  Dispersal uses choose_good_endpoint (task endpoints only, skip
 //   own, home fallback), via the framework's endpoint list (mapd_map.endpoints).
 // ============================================================
@@ -8914,17 +8914,17 @@ void Simulation::wpbs_windowed_solve() {
     int window = config.replan_window;            // == reference plan_window
     int time_limit_ms = 30000;                    // generous per-window budget
     native_wpbs_solve(mapd_map, start_locs, goal_seqs,
-                      (int)token.timestep, window, time_limit_ms, out_paths);
+                      (int)cur_time_, window, time_limit_ms, out_paths);
 
-    // --- Commit: write plan for t >= token.timestep, hold last cell afterwards. ---
+    // --- Commit: write plan for t >= cur_time_, hold last cell afterwards. ---
     for (int i = 0; i < num_ag; i++) {
         const std::vector<int>& p = out_paths[i];
         int plen = (int)p.size();
         int hold = plen > 0 ? p[plen - 1] : start_locs[i];
-        for (int t = (int)token.timestep; t < max_t; t++) {
-            int rel = t - (int)token.timestep;
+        for (int t = (int)cur_time_; t < max_t; t++) {
+            int rel = t - (int)cur_time_;
             int v = (rel < plen) ? p[rel] : hold;
-            token.path[i][t] = (unsigned int)v;
+            path_table_[i][t] = (unsigned int)v;
             agents[i].path[t] = (unsigned int)v;
         }
     }
@@ -9088,7 +9088,7 @@ int Simulation::realpath_lns_imp(int num_rounds, int group_size) {
         vector<vector<unsigned int>> saved_token_paths(num_ag);
         for (int i = 0; i < num_ag; i++) {
             saved_agent_paths[i].assign(agents[i].path.begin(), agents[i].path.end());
-            saved_token_paths[i].assign(token.path[i].begin(), token.path[i].end());
+            saved_token_paths[i].assign(path_table_[i].begin(), path_table_[i].end());
         }
         vector<int> saved_task_status(num_tasks);
         vector<int> saved_task_completion(num_tasks);
@@ -9165,7 +9165,7 @@ int Simulation::realpath_lns_imp(int num_rounds, int group_size) {
             // Clear path from replan point
             for (unsigned int t = max(0, rs[a].cur_time); t < maxtime; t++) {
                 agents[a].path[t] = rs[a].cur_loc;
-                token.path[a][t] = rs[a].cur_loc;
+                path_table_[a][t] = rs[a].cur_loc;
             }
         }
 
@@ -9205,7 +9205,7 @@ int Simulation::realpath_lns_imp(int num_rounds, int group_size) {
 
             // Commit this agent's path to token
             for (unsigned int t = 0; t < maxtime; t++)
-                token.path[a][t] = ag.path[t];
+                path_table_[a][t] = ag.path[t];
 
             task.ag_arrive_start = arrive_start;
             task.completion_time = arrive_goal;
@@ -9241,7 +9241,7 @@ int Simulation::realpath_lns_imp(int num_rounds, int group_size) {
             for (int i = 0; i < num_ag; i++) {
                 agents[i].path.assign(saved_agent_paths[i].begin(), saved_agent_paths[i].end());
                 for (unsigned int t = 0; t < maxtime; t++)
-                    token.path[i][t] = saved_token_paths[i][t];
+                    path_table_[i][t] = saved_token_paths[i][t];
             }
             for (int i = 0; i < num_tasks; i++) {
                 all_tasks[i].status = saved_task_status[i];

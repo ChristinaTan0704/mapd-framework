@@ -132,17 +132,6 @@ struct PBSNode {
     PBSNode() : parent(nullptr), num_collisions(0), earliest_collision(INT_MAX), cost(0) {}
 };
 
-// ============ Token (shared path table) ============
-struct Token {
-    vector<vector<unsigned int>> path;
-    vector<bool> my_map;
-    vector<bool> my_endpoints;
-    list<Task*> tasks;
-    unsigned int timestep;
-
-    Token() : timestep(0) {}
-};
-
 // ============ Simulation ============
 class Simulation {
 public:
@@ -161,7 +150,12 @@ private:
     vector<Agent> agents;
     vector<Task> all_tasks;
     vector<vector<int>> task_indices_by_time;
-    Token token;
+    // Shared simulation state (formerly bundled in a `Token` struct):
+    vector<vector<unsigned int>> path_table_;  // path_table_[agent][t] = cell (global path log)
+    vector<bool> passable_map_;                // passable cells (mirror of mapd_map.grid)
+    vector<bool> endpoint_mask_;               // endpoint cells (mirror of mapd_map.is_endpoint)
+    list<Task*> open_tasks_;                    // pool of currently-unassigned tasks
+    unsigned int cur_time_ = 0;                 // current simulation timestep
     unsigned int maxtime;
     int t_task;
 
