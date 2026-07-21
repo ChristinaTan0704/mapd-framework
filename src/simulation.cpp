@@ -115,75 +115,8 @@ void Simulation::run() {
         update_system();                       // Step C
     }
 
-    // Post-simulation cleanup: resolve any residual end-parking (holding-endpoint)
-    // collisions so the final path table is collision-free even for the parked tails.
-    deconflict_end_parking();
-}
-
-// ============================================================
-// Post-simulation: deconflict residual END-PARKING collisions only.
-// With proper PBS, committed paths are already conflict-free for the duration each
-// agent is actively moving; the only residual issue is two agents whose FINAL parked
-// positions coincide (a holding-endpoint clash).  The previous version scanned ALL
-// timesteps and teleported an agent on the first match, which (a) corrupted a valid
-// moving path and (b) never converged — relocating agent a2 to an endpoint that is
-// free at the LAST timestep could still clash mid-path, retriggering a move forever
-// (observed: 139k+ oscillating iterations / effective hang at 30 agents, freq 2).
-// This version only relocates an agent that is genuinely PARKED (stationary at the
-// tail) and verifies the chosen endpoint is unused by any other agent across the whole
-// tail window, and is bounded by a hard iteration cap so it can never hang.
-// NOTE: with the current planners this is a no-op safety net (measured 0 relocations
-// across all methods); kept as a guaranteed-terminating guard against parking regressions.
-// ============================================================
-void Simulation::deconflict_end_parking() {
-    int num_ag = (int)agents.size();
-    int max_t = (int)maxtime;
-    bool fixed = true;
-    int post_iters = 0;
-    const int POST_ITER_CAP = num_ag * num_ag + 8;
-    while (fixed && post_iters < POST_ITER_CAP) {
-        post_iters++;
-        fixed = false;
-        for (int a1 = 0; a1 < num_ag && !fixed; a1++) {
-            for (int a2 = a1 + 1; a2 < num_ag && !fixed; a2++) {
-                // Only handle a clash at the final parked position.
-                if (path_table_[a1][max_t - 1] != path_table_[a2][max_t - 1]) continue;
-                // Determine when a2 becomes stationary at its tail (its parked-from time).
-                int park_from = max_t - 1;
-                int park_loc = (int)path_table_[a2][max_t - 1];
-                while (park_from > 0 && (int)path_table_[a2][park_from - 1] == park_loc)
-                    park_from--;
-                // Find an endpoint unused by any other agent across [park_from, max_t).
-                // Mark every cell occupied by another agent in the tail window once
-                // (O(num_ag * tail)), then pick the first endpoint whose cell is unmarked.
-                // This is identical to the previous O(endpoints * num_ag * tail) scan but
-                // avoids re-scanning all agents for each candidate endpoint.
-                static vector<char> occ_tail;
-                int ms_post = mapd_map.row * mapd_map.col;
-                if ((int)occ_tail.size() < ms_post) occ_tail.assign(ms_post, 0);
-                vector<int> touched;
-                for (int a3 = 0; a3 < num_ag; a3++) {
-                    if (a3 == a2) continue;
-                    for (int tt = park_from; tt < max_t; tt++) {
-                        int l = (int)path_table_[a3][tt];
-                        if (!occ_tail[l]) { occ_tail[l] = 1; touched.push_back(l); }
-                    }
-                }
-                int new_loc = -1;
-                for (int e = 0; e < (int)mapd_map.endpoints.size(); e++) {
-                    int el = mapd_map.endpoints[e].loc;
-                    if (!occ_tail[el]) { new_loc = el; break; }
-                }
-                for (int l : touched) occ_tail[l] = 0;
-                if (new_loc < 0) continue; // no free endpoint; leave as-is
-                for (int tt = park_from; tt < max_t; tt++) {
-                    path_table_[a2][tt] = new_loc;
-                    agents[a2].path[tt] = new_loc;
-                }
-                fixed = true;
-            }
-        }
-    }
+    // Paths (incl. parked tails at unique endpoints) are already collision-free here.
+    // TODO: if the post-run collision check ever FAILS on end-parking, resolve it here.
 }
 
 // ============================================================

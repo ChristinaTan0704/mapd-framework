@@ -422,7 +422,6 @@ private:
     // Post-simulation safety net: relocate any two agents that end parked on the same
     // cell to distinct free endpoints (bounded, guaranteed-terminating). Called at the
     // end of run().
-    void deconflict_end_parking();
 
     // Shared PBS core
     bool pbs_core(bool windowed);
