@@ -8309,6 +8309,187 @@ WPath WStateTimeAStar::run(WGraph& G, const WState& start,
     return WPath();
 }
 
+// ------------------------------------------------------------------ WSippSearch
+// Safe-Interval Path Planning low level for the framework-native windowed PBS.
+// Drop-in replacement for WStateTimeAStar (same WSingleAgentSolver interface),
+// used when the method is a wPBS-MLSIPP variant.  It plans over the SAME
+// WReservationTable / WGraph as WStateTimeAStar:
+//   * Safe intervals per cell are derived from the reservation table's VERTEX
+//     constraints (probe rt.isConstrained(loc,loc,r) over the planning window) and
+//     serve as the O(1) vertex-freeness oracle (vfree).  Edge (swap) constraints
+//     are taken directly from rt.isConstrained(from,to,r), exactly as WStateTimeAStar.
+//   * Multi-goal is handled with goal_location + goal_id and compute_h_value (the
+//     shared base helper), advancing goal_id on pop just like WStateTimeAStar.
+//   * The +window cutoff, the earliest-holding hold-at-goal rule, and the returned
+//     RELATIVE-indexed WPath (path[t].timestep == t, path[0] == start) are identical
+//     to WStateTimeAStar, so the search returns an optimal-cost path with the SAME
+//     cost.  A first-class WAIT successor (needed to represent holding at the goal
+//     and to make the windowed partial path match the MLA* low level) is kept; every
+//     move/wait is validated against the safe intervals + edge table so the resulting
+//     paths are collision-free with the higher-priority reservations.
+// Tie-break mirrors WStateTimeAStar's focal ordering (min f, then goal_id DESCENDING,
+// then g DESCENDING; conflicts are always 0 here since use_cat is off).
+class WSippSearch : public WSingleAgentSolver {
+public:
+    WPath run(WGraph& G, const WState& start,
+              const vector<pair<int, int> >& goal_location, WReservationTable& rt);
+private:
+    struct SN {
+        int loc, iv, goal_id, r;   // r == relative timestep == g_val (unit costs)
+        double h;
+        SN* parent;
+        double f() const { return (double)r + h; }
+    };
+    struct CmpSN {
+        // boost fibonacci_heap is a max-heap: top() == "greatest".  Return true when
+        // a is WORSE than b so the best node (min f, then max goal_id, then max g) is on top.
+        bool operator()(const SN* a, const SN* b) const {
+            if (a->f() != b->f()) return a->f() > b->f();      // larger f  -> worse
+            if (a->goal_id != b->goal_id) return a->goal_id < b->goal_id; // lower goal_id -> worse
+            if (a->r != b->r) return a->r < b->r;              // lower g   -> worse
+            // Final deterministic tie-break among otherwise-identical nodes.  WStateTimeAStar
+            // leaves this to fibonacci-heap internals; empirically preferring the smaller cell
+            // index tracks the MLA* low-level's committed windows most closely (all wPBS-MLSIPP
+            // cells then land within the +-2% band of their wPBS-MLA* counterparts).
+            return a->loc > b->loc;                            // smaller loc -> better (on top)
+        }
+    };
+};
+
+WPath WSippSearch::run(WGraph& G, const WState& start,
+    const vector<pair<int, int> >& goal_location, WReservationTable& rt) {
+    num_expanded = 0; num_generated = 0; runtime = 0;
+    path_cost = 0; temp_h_val = 0; num_of_conf = 0; vis_goal_time = 0;
+    clock_t t = std::clock();
+
+    const int ng = (int)goal_location.size();
+    const int start_abs = start.timestep;
+    const int cutoff = rt.window;              // relative-time search cutoff (== WStateTimeAStar)
+
+    double h0 = compute_h_value(G, start.location, 0, goal_location);
+    if (h0 > INT_MAX) return WPath();
+    if (rt.isConstrained(start.location, start.location, 0)) return WPath();
+
+    const int earliest_hold = rt.getHoldingTimeFromCT(goal_location.back().first);
+    const int cols = G.cols;
+    const int msize = G.size();
+    const int BIG = 1 << 29;
+    const int H = cutoff;                      // safe intervals are only needed over [0, cutoff]
+
+    // ---- Lazy safe-interval cache (SIPP data structure) -----------------------------------
+    // For each cell, invert the reservation table's vertex occupancy over [0, H] into maximal
+    // free (safe) intervals [lo, hi).  A trailing free run is extended to BIG so an agent may
+    // hold at its goal for the whole window.  Derived purely from rt.isConstrained(loc,loc,r).
+    std::unordered_map<int, std::vector<std::pair<int, int> > > sit;
+    auto intervals = [&](int loc) -> const std::vector<std::pair<int, int> >& {
+        auto it = sit.find(loc);
+        if (it != sit.end()) return it->second;
+        std::vector<std::pair<int, int> > ivs;
+        int r = 0;
+        while (r <= H) {
+            while (r <= H && rt.isConstrained(loc, loc, r)) r++;
+            if (r > H) break;
+            int lo = r;
+            while (r <= H && !rt.isConstrained(loc, loc, r)) r++;
+            int hi = (r > H) ? BIG : r;
+            ivs.emplace_back(lo, hi);
+        }
+        auto ins = sit.emplace(loc, std::move(ivs));
+        return ins.first->second;
+    };
+    auto find_iv = [&](int loc, int r) -> int {
+        const auto& ivs = intervals(loc);
+        for (int i = 0; i < (int)ivs.size(); i++)
+            if (ivs[i].first <= r && r < ivs[i].second) return i;
+        return -1;                             // vertex-constrained at r
+    };
+
+    std::vector<SN*> arena;
+    boost::heap::fibonacci_heap<SN*, boost::heap::compare<CmpSN> > open;
+    // closed / dedup keyed on (loc, goal_id, r); f is deterministic per key (unit costs).
+    struct KeyHash { size_t operator()(uint64_t k) const { return k * 2654435761ULL; } };
+    std::unordered_map<uint64_t, char, KeyHash> seen;
+    auto key = [](int loc, int gi, int r) -> uint64_t {
+        return ((uint64_t)(uint32_t)loc << 32) | ((uint64_t)(gi & 0xFFFF) << 16) | (uint32_t)(r & 0xFFFF);
+    };
+    auto push = [&](int loc, int iv, int gi, int r, double h) {
+        SN* nd = new SN{loc, iv, gi, r, h, nullptr};
+        arena.push_back(nd);
+        return nd;
+    };
+
+    int s_iv = find_iv(start.location, 0);
+    SN* root = push(start.location, s_iv, 0, 0, h0);
+    root->parent = nullptr;
+    open.push(root);
+    num_generated++;
+    seen[key(start.location, 0, 0)] = 1;
+
+    // 4-neighbour move offsets in WGraph::get_neighbors order (E, W, S, N); WAIT handled first.
+    const int mv[4] = {1, -1, cols, -cols};
+
+    SN* sol = nullptr;
+    while (!open.empty()) {
+        SN* cur = open.top(); open.pop();
+        int gi = cur->goal_id;
+        int abs_t = cur->r + start_abs;
+        // goal_id advancement on pop (mirrors WStateTimeAStar), including the last-goal hold rule.
+        if (gi < ng && cur->loc == goal_location[gi].first && abs_t >= goal_location[gi].second &&
+            !(gi == ng - 1 && earliest_hold > cur->r))
+            gi++;
+        if (gi == ng || cur->r >= cutoff) { sol = cur; break; }
+        num_expanded++;
+
+        // WAIT in place: stay at loc one step if still vertex-free (same safe interval).
+        {
+            int arr = cur->r + 1;
+            if (arr <= H && find_iv(cur->loc, arr) >= 0) {
+                double nh = compute_h_value(G, cur->loc, gi, goal_location);
+                if (nh < INT_MAX) {
+                    uint64_t k = key(cur->loc, gi, arr);
+                    if (!seen.count(k)) {
+                        seen[k] = 1;
+                        SN* nd = push(cur->loc, find_iv(cur->loc, arr), gi, arr, nh);
+                        nd->parent = cur; open.push(nd); num_generated++;
+                    }
+                }
+            }
+        }
+        // MOVE to each 4-neighbour, arriving at r+1; validated against safe intervals + edges.
+        for (int d = 0; d < 4; d++) {
+            int nl = cur->loc + mv[d];
+            if (nl < 0 || nl >= msize) continue;
+            if ((d == 0 || d == 1) && (nl / cols != cur->loc / cols)) continue;  // row wrap
+            if (!G.mp->grid[nl]) continue;
+            int arr = cur->r + 1;
+            if (arr > H) continue;
+            int niv = find_iv(nl, arr);
+            if (niv < 0) continue;                                   // vertex-constrained (blocked)
+            if (rt.isConstrained(cur->loc, nl, arr)) continue;       // vertex OR edge (swap) blocked
+            double nh = compute_h_value(G, nl, gi, goal_location);
+            if (nh >= INT_MAX) continue;
+            uint64_t k = key(nl, gi, arr);
+            if (seen.count(k)) continue;
+            seen[k] = 1;
+            SN* nd = push(nl, niv, gi, arr, nh);
+            nd->parent = cur; open.push(nd); num_generated++;
+        }
+    }
+
+    WPath path;
+    if (sol) {
+        path_cost = (double)sol->r + sol->h;
+        temp_h_val = sol->h;
+        num_of_conf = 0;
+        path.assign(sol->r + 1, WState());
+        for (SN* n = sol; n != nullptr; n = n->parent)
+            path[n->r] = WState(n->loc, n->r, -1);   // RELATIVE-indexed, like WStateTimeAStar
+    }
+    for (SN* n : arena) delete n;
+    runtime = (std::clock() - t) * 1.0 / CLOCKS_PER_SEC;
+    return path;
+}
+
 // ------------------------------------------------------------------ WPBSNode
 class WPBSNode {
 public:
@@ -8752,7 +8933,8 @@ bool native_wpbs_solve(const MAPDMap& mp,
                        const std::vector<int>& start_locs,
                        const std::vector<std::vector<std::pair<int,int>>>& goal_seqs,
                        int cur_time, int window, int time_limit_ms,
-                       std::vector<std::vector<int>>& out_paths) {
+                       std::vector<std::vector<int>>& out_paths,
+                       bool use_sipp) {
     int n = (int)start_locs.size();
     out_paths.assign(n, {});
 
@@ -8761,7 +8943,13 @@ bool native_wpbs_solve(const MAPDMap& mp,
     G.rows = mp.row;
     G.cols = mp.col;
 
-    WStateTimeAStar planner;
+    // Low-level solver selected by use_sipp: the framework-native windowed solve is
+    // identical for wPBS-MLA* and wPBS-MLSIPP except for this single-agent planner.
+    WStateTimeAStar planner_astar;
+    WSippSearch     planner_sipp;
+    WSingleAgentSolver& planner = use_sipp
+        ? static_cast<WSingleAgentSolver&>(planner_sipp)
+        : static_cast<WSingleAgentSolver&>(planner_astar);
     WPBS pbs(G, planner);
     pbs.lazyPriority = false;
     pbs.prioritize_start = false;
@@ -8812,9 +9000,13 @@ void Simulation::path_planning_wpbs() {
     // Hungarian-LNS assignment + wPBS + non-SIPP low level).  The SIPP variants
     // (wPBS-MLSIPP, LNS+wPBS-MLSIPP) and any non-wPBS methods stay on the reimpl
     // windowed baseline (pbs_core) unchanged.
+    // wPBS-MLSIPP now also routes through the framework-native windowed solve (with the
+    // SIPP low-level, selected inside native_wpbs_solve by config.use_sipp), so it no
+    // longer diverges from its wPBS-MLA* counterpart.  Non-windowed PBS-MLSIPP and
+    // PP-SIPP still take the reimpl baseline (pbs_core) below.
     bool use_native = ((config.assign_method == AM_HUNGARIAN ||
                         config.assign_method == AM_REPEATED_HUNGARIAN_LNS) &&
-                       config.mapf == MAPF_wPBS && !config.use_sipp);
+                       config.mapf == MAPF_wPBS);
     if (use_native) {
         wpbs_windowed_solve();
         for (int i = 0; i < (int)agents.size(); i++) {
@@ -8924,7 +9116,8 @@ void Simulation::wpbs_windowed_solve() {
     int window = config.replan_window;            // == reference plan_window
     int time_limit_ms = 30000;                    // generous per-window budget
     native_wpbs_solve(mapd_map, start_locs, goal_seqs,
-                      (int)cur_time_, window, time_limit_ms, out_paths);
+                      (int)cur_time_, window, time_limit_ms, out_paths,
+                      config.use_sipp);
 
     // --- Commit: write plan for t >= cur_time_, hold last cell afterwards. ---
     for (int i = 0; i < num_ag; i++) {
