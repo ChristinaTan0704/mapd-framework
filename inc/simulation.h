@@ -421,8 +421,9 @@ private:
     // wPBS path planning
     void path_planning_wpbs();
 
-    // REF_SOLVE (env-gated): verbatim reference integrated windowed solve
-    void ref_windowed_solve();
+    // Framework-native windowed PBS solve (mapd_map-backed StateTimeAStar +
+    // ReservationTable + PBS high level); replaces the removed ref_solve module.
+    void wpbs_windowed_solve();
 
     // Shared PBS core
     bool pbs_core(bool windowed);
