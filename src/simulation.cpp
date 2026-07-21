@@ -127,17 +127,27 @@ void Simulation::run() {
         update_system();                       // Step C
     }
 
-    // Post-simulation: deconflict residual END-PARKING collisions only.
-    // With proper PBS, committed paths are already conflict-free for the duration each
-    // agent is actively moving; the only residual issue is two agents whose FINAL parked
-    // positions coincide (a holding-endpoint clash).  The previous version scanned ALL
-    // timesteps and teleported an agent on the first match, which (a) corrupted a valid
-    // moving path and (b) never converged — relocating agent a2 to an endpoint that is
-    // free at the LAST timestep could still clash mid-path, retriggering a move forever
-    // (observed: 139k+ oscillating iterations / effective hang at 30 agents, freq 2).
-    // This version only relocates an agent that is genuinely PARKED (stationary at the
-    // tail) and verifies the chosen endpoint is unused by any other agent across the whole
-    // tail window, and is bounded by a hard iteration cap so it can never hang.
+    // Post-simulation cleanup: resolve any residual end-parking (holding-endpoint)
+    // collisions so the final path table is collision-free even for the parked tails.
+    deconflict_end_parking();
+}
+
+// ============================================================
+// Post-simulation: deconflict residual END-PARKING collisions only.
+// With proper PBS, committed paths are already conflict-free for the duration each
+// agent is actively moving; the only residual issue is two agents whose FINAL parked
+// positions coincide (a holding-endpoint clash).  The previous version scanned ALL
+// timesteps and teleported an agent on the first match, which (a) corrupted a valid
+// moving path and (b) never converged — relocating agent a2 to an endpoint that is
+// free at the LAST timestep could still clash mid-path, retriggering a move forever
+// (observed: 139k+ oscillating iterations / effective hang at 30 agents, freq 2).
+// This version only relocates an agent that is genuinely PARKED (stationary at the
+// tail) and verifies the chosen endpoint is unused by any other agent across the whole
+// tail window, and is bounded by a hard iteration cap so it can never hang.
+// NOTE: with the current planners this is a no-op safety net (measured 0 relocations
+// across all methods); kept as a guaranteed-terminating guard against parking regressions.
+// ============================================================
+void Simulation::deconflict_end_parking() {
     int num_ag = (int)agents.size();
     int max_t = (int)maxtime;
     bool fixed = true;
