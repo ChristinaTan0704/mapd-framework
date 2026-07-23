@@ -4810,9 +4810,22 @@ void Simulation::assign_repeated_hungarian_lns() {
     clock_t lns_start = clock();
     double time_limit_ms = config.lns_time_limit * 1000.0;
 
+    // Convergence-based early termination.  The 1s budget is a *ceiling*, but on most
+    // events (especially low task-frequency / long-makespan instances) the greedy
+    // Hungarian assignment is already locally optimal, so the destroy/repair loop just
+    // burns the whole second finding no improvement.  Since assign() runs once per
+    // release-period boundary, that made total runtime ~ (makespan/period) x 1s, which
+    // is unbounded for low-freq cells (they never returned).  We stop a spin once it has
+    // gone NO_IMPROVE_CAP consecutive iterations without an accepted improvement (i.e.
+    // converged): every accepted improvement resets the counter, so genuinely-improving
+    // spins still use the full second; only wasted, converged spins exit early.  This
+    // guarantees LNS(1s) always produces output while leaving accepted moves unchanged.
+    const int NO_IMPROVE_CAP = 2000;
+    int no_improve = 0, empty_streak = 0;
     while (true) {
         double elapsed = (double)(clock() - lns_start) / CLOCKS_PER_SEC * 1000.0;
         if (elapsed >= time_limit_ms) break;
+        if (no_improve >= NO_IMPROVE_CAP) break;   // converged: no gain to be had
 
         // Save current assignment state
         vector<deque<int>> saved_seqs(agents.size());
@@ -4828,7 +4841,8 @@ void Simulation::assign_repeated_hungarian_lns() {
         // Destroy
         vector<int> removed;
         lns_destroy(removed);
-        if (removed.empty()) continue;
+        if (removed.empty()) { if (++empty_streak > 200) break; continue; }
+        empty_streak = 0;
 
         // Repair
         lns_repair(removed);
@@ -4844,6 +4858,9 @@ void Simulation::assign_repeated_hungarian_lns() {
                 agents[i].task_sequence = saved_seqs[i];
             for (int i = 0; i < (int)all_tasks.size(); i++)
                 all_tasks[i].status = saved_statuses[i];
+            no_improve++;
+        } else {
+            no_improve = 0;   // accepted an improvement: keep going
         }
     }
 }
