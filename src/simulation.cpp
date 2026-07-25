@@ -84,14 +84,12 @@ void Simulation::init(const string& map_file, const string& task_file, const MAP
     last_released_time_ = -1;  // no tasks released yet; release_tasks() will handle t=0
     ta_planning_done_ = false;
     agent_pending_task.assign(agents.size(), nullptr);
-    tp_agent_ = nullptr;
     tp_timestep_advanced_ = false;
 
     // Set event flags so the first iteration's task_assignment runs.
     // release_tasks() will load t=0 tasks before task_assignment runs.
     central_has_event_ = true;
     central_reassign_event_ = true;
-    central_first_iter_ = true;
 
     // Init state for PBS
     pbs_has_event_ = true;

@@ -242,13 +242,11 @@ private:
     // --- Loop state ---
     int last_released_time_;  // tracks up to which timestep tasks have been released
     bool ta_planning_done_;   // for offline algorithms: set after first iteration
-    Agent* tp_agent_;        // the single agent selected per iteration (TP/TPTS)
     bool tp_timestep_advanced_;  // true if update_system just advanced the timestep (TP/TPTS)
 
     // --- Loop state for CENTRAL ---
     bool central_has_event_;       // any event (pickup arrival, delivery done, new tasks)
     bool central_reassign_event_;  // only delivery-done or new-tasks (for CENTRAL_FIXED)
-    bool central_first_iter_;
 
     // --- TA-Prioritized (Section 10.1 + 12.0 + 14.5) ---
     string tour_file_;
