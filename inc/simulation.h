@@ -181,6 +181,22 @@ private:
     void update_system();
     void task_assignment_and_path_planning();
 
+    // --- Per-algorithm initialization (dispatched from init_algorithm_state) ---
+    void init_algorithm_state();   // sets safe defaults, then dispatches on config
+    void init_tp_state();          // TP / TPTS (AT_ON_FREE_WAITS)
+    void init_central_state();     // CENTRAL / CENTRAL_FIXED
+    void init_pbs_state();         // Hungarian PBS / wPBS online
+    void init_lns_state();         // LNS PBS / wPBS online
+
+    // --- Per-algorithm update_system dispatch (from update_system) ---
+    void update_system_online();   // PBS/LNS online (AT_ON_UNASSIGNED_OR_FREE)
+    bool tp_pre_step();            // TP/TPTS pre-step; returns true to return early
+    void update_system_stepwise(); // shared step-advance (CENTRAL/TA/TP-fallthrough)
+
+    // --- Per-algorithm task_assignment dispatch (from task_assignment) ---
+    void central_phase1_instant_pickup();  // CENTRAL/CENTRAL_FIXED Phase-1a/1b
+    void tp_handle_no_assignment();        // TP/TPTS "no task found" bump/vacate
+
     // --- Dispatchers within task_assignment_and_path_planning ---
     bool should_assign() const;        // Section 5 — switches on assign_trigger
     void task_assignment();            // Section 6 — switches on assign_method

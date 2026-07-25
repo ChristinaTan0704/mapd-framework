@@ -46,6 +46,90 @@ void Simulation::init(const string& map_file, const string& task_file, const MAP
         }
     }
 
+    agents.resize(mapd_map.num_agents);
+    path_table_.resize(mapd_map.num_agents);
+    passable_map_ = mapd_map.grid;
+    endpoint_mask_ = mapd_map.is_endpoint;
+    cur_time_ = 0;
+
+    for (int i = 0; i < mapd_map.num_agents; i++) {
+        agents[i].init(i, mapd_map.agent_starts[i], mapd_map.col, mapd_map.row, maxtime);
+        path_table_[i].resize(maxtime);
+        for (unsigned int k = 0; k < maxtime; k++)
+            path_table_[i][k] = mapd_map.agent_starts[i];
+    }
+
+    // Init general/system loop state
+    last_released_time_ = -1;  // no tasks released yet; release_tasks() will handle t=0
+    ta_planning_done_ = false;
+    agent_pending_task.assign(agents.size(), nullptr);
+
+    // Init algorithm-specific state (dispatched on config)
+    init_algorithm_state();
+}
+
+// ============================================================
+// Section 0.1: Algorithm-specific state initialization
+//   General init() dispatches here.  We FIRST set every
+//   algorithm flag to a safe default (the ctor is empty, so
+//   members are otherwise uninitialized), then the dispatched
+//   per-family helper overrides the ones that algorithm reads.
+// ============================================================
+
+void Simulation::init_algorithm_state() {
+    // Safe defaults for ALL algorithm flags (no method ever reads an
+    // uninitialized flag, regardless of which helper the dispatch selects).
+    tp_timestep_advanced_ = false;
+    central_has_event_ = false;
+    central_reassign_event_ = false;
+    pbs_has_event_ = false;
+    pbs_assign_event_ = false;
+    pbs_last_replan_time_ = 0;
+    lns_release_period_ = 1;
+    lns_agent_finished_ = false;
+
+    switch (config.assign_trigger) {
+    case AT_ON_FREE_WAITS:
+        init_tp_state();
+        break;
+    case AT_EVERY_TIMESTEP:
+    case AT_ON_NEW_TASK_OR_FREE:
+        init_central_state();
+        break;
+    case AT_ON_UNASSIGNED_OR_FREE:
+        if (config.assign_method == AM_REPEATED_HUNGARIAN_LNS)
+            init_lns_state();
+        else
+            init_pbs_state();
+        break;
+    default:
+        break;
+    }
+}
+
+void Simulation::init_tp_state() {
+    // TP / TPTS: agent selection consults tp_timestep_advanced_.
+    tp_timestep_advanced_ = false;
+}
+
+void Simulation::init_central_state() {
+    // Set event flags so the first iteration's task_assignment runs.
+    // release_tasks() will load t=0 tasks before task_assignment runs.
+    central_has_event_ = true;
+    central_reassign_event_ = true;
+}
+
+void Simulation::init_pbs_state() {
+    // Online PBS/wPBS (Hungarian): first iteration must assign and replan.
+    pbs_has_event_ = true;
+    pbs_assign_event_ = true;
+    pbs_last_replan_time_ = 0;
+}
+
+void Simulation::init_lns_state() {
+    // LNS shares the online PBS loop, so it needs the PBS event flags too.
+    init_pbs_state();
+
     // Derive the task-release period (gap between the first two distinct release
     // times) — matches the reference task_release_period.  The reference only
     // spends the 1-second LNS budget on release-period boundaries or when an
@@ -66,35 +150,6 @@ void Simulation::init(const string& map_file, const string& task_file, const MAP
         if (lns_release_period_ <= 0) lns_release_period_ = 1;
     }
     lns_agent_finished_ = false;
-
-    agents.resize(mapd_map.num_agents);
-    path_table_.resize(mapd_map.num_agents);
-    passable_map_ = mapd_map.grid;
-    endpoint_mask_ = mapd_map.is_endpoint;
-    cur_time_ = 0;
-
-    for (int i = 0; i < mapd_map.num_agents; i++) {
-        agents[i].init(i, mapd_map.agent_starts[i], mapd_map.col, mapd_map.row, maxtime);
-        path_table_[i].resize(maxtime);
-        for (unsigned int k = 0; k < maxtime; k++)
-            path_table_[i][k] = mapd_map.agent_starts[i];
-    }
-
-    // Init loop state
-    last_released_time_ = -1;  // no tasks released yet; release_tasks() will handle t=0
-    ta_planning_done_ = false;
-    agent_pending_task.assign(agents.size(), nullptr);
-    tp_timestep_advanced_ = false;
-
-    // Set event flags so the first iteration's task_assignment runs.
-    // release_tasks() will load t=0 tasks before task_assignment runs.
-    central_has_event_ = true;
-    central_reassign_event_ = true;
-
-    // Init state for PBS
-    pbs_has_event_ = true;
-    pbs_assign_event_ = true;
-    pbs_last_replan_time_ = 0;
 }
 
 // ============================================================
@@ -189,8 +244,28 @@ void Simulation::release_tasks() {
 // ============================================================
 
 void Simulation::update_system() {
+    // General dispatcher: pick the per-algorithm update path based on trigger.
+    switch (config.assign_trigger) {
+    case AT_ON_UNASSIGNED_OR_FREE:
+        update_system_online();      // PBS/LNS online (block a)
+        return;
+    case AT_ON_FREE_WAITS:
+        if (tp_pre_step()) return;   // TP/TPTS pre-step (block b); may return early
+        break;                       // else fall through to stepwise (block c)
+    default:
+        break;
+    }
+    update_system_stepwise();        // CENTRAL/TA/TP-fallthrough (block c)
+}
+
+// ============================================================
+// Section 1.3a: update_system — HUNGARIAN/LNS online mode
+//   (AT_ON_UNASSIGNED_OR_FREE)
+// ============================================================
+
+void Simulation::update_system_online() {
     // --- HUNGARIAN/LNS online mode ---
-    if (config.assign_trigger == AT_ON_UNASSIGNED_OR_FREE) {
+    {
         // wPBS: advance 1 step at a time (matching reference KivaSystemOnline)
         // PBS: event-driven advancement
         unsigned int next_ts = maxtime;
@@ -281,9 +356,18 @@ void Simulation::update_system() {
         update_system_pbs();
         return;
     }
+}
 
+// ============================================================
+// Section 1.3b: update_system — TP/TPTS pre-step
+//   (AT_ON_FREE_WAITS).  Returns true if update_system should
+//   return early (a free agent was processed without advancing);
+//   false to fall through to the shared stepwise block.
+// ============================================================
+
+bool Simulation::tp_pre_step() {
     // --- TP/TPTS mode: check if a free agent needs processing first ---
-    if (config.assign_trigger == AT_ON_FREE_WAITS) {
+    {
         // For TPTS: remove tasks from token when pickup is reached
         // (matching reference: tasks stay in open_tasks_ until ag_arrive_start)
         if (config.assign_method == AM_DECOUPLED_GREEDY_SWAPS) {
@@ -334,7 +418,7 @@ void Simulation::update_system() {
                 if (cur_time_ < maxtime && !task_indices_by_time[cur_time_].empty()) {
                 }
                 tp_timestep_advanced_ = false;
-                return;  // don't advance
+                return true;  // don't advance
             }
         }
     }
@@ -342,9 +426,17 @@ void Simulation::update_system() {
     // TP/TPTS: timestep is about to advance — set flag so agent selection
     // skips the exact-match branch (matching reference where agent selection
     // happens BEFORE timestep is advanced, so no exact match is possible).
-    if (config.assign_trigger == AT_ON_FREE_WAITS)
-        tp_timestep_advanced_ = true;
+    tp_timestep_advanced_ = true;
+    return false;  // fall through to the shared stepwise block
+}
 
+// ============================================================
+// Section 1.3c: update_system — shared step-advance block
+//   (CENTRAL, CENTRAL_FIXED, TA-Prioritized, TA-Hybrid, and
+//    TP/TPTS after tp_pre_step falls through)
+// ============================================================
+
+void Simulation::update_system_stepwise() {
     // --- Default mode (CENTRAL, CENTRAL_FIXED, TA-Prioritized, TA-Hybrid, TP/TPTS) ---
 
     // Step 1: Detect state transitions at current timestep
@@ -540,19 +632,19 @@ bool Simulation::should_replan() const {
 }
 
 // ============================================================
-// Section 5: Task Assignment — Dispatcher
-//   (Pseudocode Section 6)
+// Section 5.0: CENTRAL/CENTRAL_FIXED Phase-1a/1b instant pickup
+//   (only runs for AT_EVERY_TIMESTEP / AT_ON_NEW_TASK_OR_FREE)
 // ============================================================
 
-void Simulation::task_assignment() {
-    // Pseudocode Section 6 — Task_Assignment dispatcher
-
+void Simulation::central_phase1_instant_pickup() {
     // For CENTRAL/CENTRAL_FIXED: detect instant pickups
     // (free agent standing on a task's pickup → transition to CARRYING)
     // This must happen before should_assign() so these agents are not
     // treated as FREE by the Hungarian assignment.
-    if (config.assign_trigger == AT_EVERY_TIMESTEP ||
-        config.assign_trigger == AT_ON_NEW_TASK_OR_FREE) {
+    if (config.assign_trigger != AT_EVERY_TIMESTEP &&
+        config.assign_trigger != AT_ON_NEW_TASK_OR_FREE)
+        return;
+    {
         // Phase 1a: detect instant pickups and collect agents for delivery planning
         // Also set central_has_event_ if a free agent is at ANY task's pickup
         // (matching reference has_new_agent logic, line 373-376)
@@ -719,6 +811,80 @@ void Simulation::task_assignment() {
             }
         }
     }
+}
+
+// ============================================================
+// Section 5.1: TP/TPTS "no task found" bump/vacate
+//   (only runs for AT_ON_FREE_WAITS)
+// ============================================================
+
+void Simulation::tp_handle_no_assignment() {
+    // For TP/TPTS/HBH: when open_tasks_ is empty but agent is free,
+    // replicate reference TOTP/TPTR "no task found" branch:
+    //   check if the agent's location conflicts with other agents' paths
+    //   and move to another endpoint if needed.  Otherwise bump ft+1.
+    if (config.assign_trigger == AT_ON_FREE_WAITS) {
+        Agent* bump_ag = &agents[0];
+        for (int i = 1; i < (int)agents.size(); i++) {
+            if (!tp_timestep_advanced_ && agents[i].finish_time == cur_time_) {
+                bump_ag = &agents[i];
+                break;
+            } else if (agents[i].finish_time < bump_ag->finish_time) {
+                bump_ag = &agents[i];
+            }
+        }
+        if (bump_ag->finish_time <= cur_time_) {
+            // TPTS (AM_DECOUPLED_GREEDY_SWAPS): match reference TPTR
+            // "no task found" branch which checks path collisions and
+            // calls Move2EP when another agent's path crosses this loc.
+            // TP (AM_DECOUPLED_GREEDY): reference TOTP just bumps ft+1.
+            if (config.assign_method == AM_DECOUPLED_GREEDY_SWAPS) {
+                bump_ag->loc = bump_ag->path[cur_time_];
+                if (endpoint_mask_[bump_ag->loc]) {
+                    bool need_move = false;
+                    for (unsigned int t = cur_time_; t < maxtime && !need_move; t++)
+                        for (int i = 0; i < (int)agents.size() && !need_move; i++)
+                            if (i != bump_ag->id && path_table_[i][t] == (unsigned int)bump_ag->loc)
+                                need_move = true;
+                    if (need_move) {
+                        if (move2EP(*bump_ag)) {
+                            for (unsigned int i = cur_time_; i < path_table_[bump_ag->id].size(); i++)
+                                path_table_[bump_ag->id][i] = bump_ag->path[i];
+                        } else {
+                            bump_ag->finish_time = cur_time_ + 1;
+                        }
+                    } else {
+                        for (unsigned int i = cur_time_ + 1; i < maxtime; i++) {
+                            bump_ag->path[i] = bump_ag->path[cur_time_];
+                            path_table_[bump_ag->id][i] = bump_ag->path[cur_time_];
+                        }
+                        bump_ag->finish_time = cur_time_ + 1;
+                    }
+                } else {
+                    if (move2EP(*bump_ag)) {
+                        for (unsigned int i = cur_time_; i < path_table_[bump_ag->id].size(); i++)
+                            path_table_[bump_ag->id][i] = bump_ag->path[i];
+                    } else {
+                        bump_ag->finish_time = cur_time_ + 1;
+                    }
+                }
+            } else {
+                bump_ag->finish_time = cur_time_ + 1;
+            }
+        }
+    }
+}
+
+// ============================================================
+// Section 5: Task Assignment — Dispatcher
+//   (Pseudocode Section 6)
+// ============================================================
+void Simulation::task_assignment() {
+    // Pseudocode Section 6 — Task_Assignment dispatcher
+
+    // Phase 1 (CENTRAL/CENTRAL_FIXED): instant pickup + delivery planning.
+    // Must happen before should_assign() so these agents are not treated as FREE.
+    central_phase1_instant_pickup();
 
     // Clear phase2 data at the start of every iteration to prevent stale data
     phase2_free_ids_.clear();
@@ -728,60 +894,7 @@ void Simulation::task_assignment() {
 
     // Guard: only proceed if the trigger condition is met
     if (!should_assign()) {
-        // For TP/TPTS/HBH: when open_tasks_ is empty but agent is free,
-        // replicate reference TOTP/TPTR "no task found" branch:
-        //   check if the agent's location conflicts with other agents' paths
-        //   and move to another endpoint if needed.  Otherwise bump ft+1.
-        if (config.assign_trigger == AT_ON_FREE_WAITS) {
-            Agent* bump_ag = &agents[0];
-            for (int i = 1; i < (int)agents.size(); i++) {
-                if (!tp_timestep_advanced_ && agents[i].finish_time == cur_time_) {
-                    bump_ag = &agents[i];
-                    break;
-                } else if (agents[i].finish_time < bump_ag->finish_time) {
-                    bump_ag = &agents[i];
-                }
-            }
-            if (bump_ag->finish_time <= cur_time_) {
-                // TPTS (AM_DECOUPLED_GREEDY_SWAPS): match reference TPTR
-                // "no task found" branch which checks path collisions and
-                // calls Move2EP when another agent's path crosses this loc.
-                // TP (AM_DECOUPLED_GREEDY): reference TOTP just bumps ft+1.
-                if (config.assign_method == AM_DECOUPLED_GREEDY_SWAPS) {
-                    bump_ag->loc = bump_ag->path[cur_time_];
-                    if (endpoint_mask_[bump_ag->loc]) {
-                        bool need_move = false;
-                        for (unsigned int t = cur_time_; t < maxtime && !need_move; t++)
-                            for (int i = 0; i < (int)agents.size() && !need_move; i++)
-                                if (i != bump_ag->id && path_table_[i][t] == (unsigned int)bump_ag->loc)
-                                    need_move = true;
-                        if (need_move) {
-                            if (move2EP(*bump_ag)) {
-                                for (unsigned int i = cur_time_; i < path_table_[bump_ag->id].size(); i++)
-                                    path_table_[bump_ag->id][i] = bump_ag->path[i];
-                            } else {
-                                bump_ag->finish_time = cur_time_ + 1;
-                            }
-                        } else {
-                            for (unsigned int i = cur_time_ + 1; i < maxtime; i++) {
-                                bump_ag->path[i] = bump_ag->path[cur_time_];
-                                path_table_[bump_ag->id][i] = bump_ag->path[cur_time_];
-                            }
-                            bump_ag->finish_time = cur_time_ + 1;
-                        }
-                    } else {
-                        if (move2EP(*bump_ag)) {
-                            for (unsigned int i = cur_time_; i < path_table_[bump_ag->id].size(); i++)
-                                path_table_[bump_ag->id][i] = bump_ag->path[i];
-                        } else {
-                            bump_ag->finish_time = cur_time_ + 1;
-                        }
-                    }
-                } else {
-                    bump_ag->finish_time = cur_time_ + 1;
-                }
-            }
-        }
+        tp_handle_no_assignment();
         return;
     }
 
