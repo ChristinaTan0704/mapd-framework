@@ -33,14 +33,14 @@ CMP = {
     "Hungarian+PBS-MLA*": "Hungarian+PBS-MLA*",
     "Hungarian+wPBS-MLA*": "Hungarian+wPBS-MLA*",
     "Hungarian+PBS-MLSIPP": "Hungarian+PBS-MLA*",
-    "Hungarian+wPBS-MLSIPP": "Hungarian+PBS-MLA*",
+    "Hungarian+wPBS-MLSIPP": "Hungarian+wPBS-MLA*",
     "Hungarian+PP-SIPP": "Hungarian+PBS-MLA*",
     "TP-SIPP": "TP-STA*",
     "TPTS-SIPP": "TPTS-STA*",
     "LNS(1s)+PBS-MLA*": "LNS(1s)+PBS-MLA*",
     "LNS(1s)+wPBS-MLA*": "LNS(1s)+wPBS-MLA*",
     "LNS(1s)+PBS-MLSIPP": "LNS(1s)+PBS-MLA*",
-    "LNS(1s)+wPBS-MLSIPP": "Hungarian+wPBS-MLA*",
+    "LNS(1s)+wPBS-MLSIPP": "LNS(1s)+wPBS-MLA*",
     "LNS(1s)+PP-SIPP": "LNS(1s)+PBS-MLA*",
 }
 PER_STEP = {

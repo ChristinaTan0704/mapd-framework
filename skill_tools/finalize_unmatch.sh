@@ -8,7 +8,7 @@ python3 - <<'PY'
 import csv
 ROOT="/Users/jiaqit/Desktop/2026 meta docs/paper/MAPD_framework_imp"
 CMP={"LNS(1s)+PBS-MLA*":"LNS(1s)+PBS-MLA*","LNS(1s)+wPBS-MLA*":"LNS(1s)+wPBS-MLA*",
-"LNS(1s)+PBS-MLSIPP":"LNS(1s)+PBS-MLA*","LNS(1s)+wPBS-MLSIPP":"Hungarian+wPBS-MLA*","LNS(1s)+PP-SIPP":"LNS(1s)+PBS-MLA*"}
+"LNS(1s)+PBS-MLSIPP":"LNS(1s)+PBS-MLA*","LNS(1s)+wPBS-MLSIPP":"LNS(1s)+wPBS-MLA*","LNS(1s)+PP-SIPP":"LNS(1s)+PBS-MLA*"}
 PER_STEP={"LNS(1s)+PBS-MLA*","LNS(1s)+wPBS-MLA*"}
 def num(x):
     try:return float(x)
