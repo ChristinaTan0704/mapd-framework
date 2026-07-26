@@ -445,8 +445,12 @@ private:
                            int a1, int a2,
                            tuple<int,int,int,int,int>& conflict);
 
-    // Update system for PBS online mode
-    void update_system_pbs();
+    // Shared online event-detection post-step. Always run for online
+    // methods (all AT_ON_UNASSIGNED_OR_FREE: Hungarian AND LNS, PBS AND
+    // wPBS) after the timestep advances. It does bookkeeping, not planning:
+    // detects pickup/delivery arrivals and newly released tasks and sets
+    // pbs_has_event_/pbs_assign_event_/lns_agent_finished_ accordingly.
+    void process_online_events();
 
     // --- REALPATH_LNS_IMP: Generic Anytime Improvement (Chen et al. 2021, Sec IV-D) ---
     // Independent post-processing: destroy tasks, re-assign with real collision-free

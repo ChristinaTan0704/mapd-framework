@@ -244,8 +244,16 @@ void Simulation::update_system() {
     case AT_ON_FREE_WAITS:
         if (tp_pre_step()) return;   // TP/TPTS pre-step (block b); may return early
         break;                       // else fall through to stepwise (block c)
+    case AT_EVERY_TIMESTEP:          // CENTRAL (ECBS every timestep)
+    case AT_ON_NEW_TASK_OR_FREE:     // CENTRAL_FIXED
+    case AT_ONCE:                    // offline TA (LKH3 / TA-Hybrid)
+        break;                       // fall through to stepwise (block c)
     default:
-        break;
+        // Every valid assign_trigger is handled explicitly above; this is
+        // unreachable for real configs. Fail loudly instead of silently
+        // routing an unknown trigger to the stepwise path.
+        cerr << "update_system: unexpected assign_trigger" << endl;
+        return;
     }
     update_system_stepwise();        // CENTRAL/TA/TP-fallthrough (block c)
 }
@@ -258,12 +266,14 @@ void Simulation::update_system() {
 void Simulation::update_system_online() {
     // --- HUNGARIAN/LNS online mode ---
     {
-        // wPBS: advance 1 step at a time (matching reference KivaSystemOnline)
-        // PBS: event-driven advancement
+        // AT_ON_UNASSIGNED_OR_FREE is only ever PBS or wPBS.
+        // wPBS (windowed): advance to the next event but cap the jump at
+        //   replan_window (matching reference KivaSystemOnline).
+        // PBS (non-windowed): jump straight to the next event, no cap.
         unsigned int next_ts = maxtime;
 
         if (config.mapf == MAPF_wPBS) {
-            // wPBS: event-driven advancement capped at replan_window
+            // wPBS (windowed): event-driven advancement capped at replan_window
             for (int i = 0; i < (int)agents.size(); i++) {
                 if (agents[i].task_sequence.empty()) continue;
                 int task_id = agents[i].task_sequence.front();
@@ -284,8 +294,8 @@ void Simulation::update_system_online() {
                 if (!task_indices_by_time[t].empty()) { if (t < next_ts) next_ts = t; break; }
             unsigned int window_cap = cur_time_ + config.replan_window;
             if (window_cap < next_ts) next_ts = window_cap;
-        } else {
-            // PBS: jump to next event
+        } else if (config.mapf == MAPF_PBS) {
+            // PBS (non-windowed): jump straight to next event
             for (int i = 0; i < (int)agents.size(); i++) {
                 if (agents[i].task_sequence.empty()) continue;
                 int task_id = agents[i].task_sequence.front();
@@ -319,6 +329,10 @@ void Simulation::update_system_online() {
                     break;
                 }
             }
+        } else {
+            // AT_ON_UNASSIGNED_OR_FREE should only ever be PBS or wPBS;
+            // fail loudly if some other mapf reaches here.
+            cerr << "update_system_online: unexpected mapf" << endl;
         }
 
         if (next_ts >= maxtime) {
@@ -345,7 +359,7 @@ void Simulation::update_system_online() {
         }
 
         pbs_has_event_ = false;
-        update_system_pbs();
+        process_online_events();
         return;
     }
 }
@@ -1006,7 +1020,10 @@ void Simulation::path_planning() {
         ta_planning_done_ = true;
         break;
     default:
-        path_planning_pp();
+        // Every MAPFMethod enum value is handled explicitly above; this is
+        // unreachable for real configs. Fail loudly instead of silently
+        // routing an unknown mapf to PP.
+        cerr << "path_planning: unexpected mapf" << endl;
         break;
     }
 }
@@ -4383,12 +4400,17 @@ void Simulation::plan_ta_hybrid() {
 } // end plan_ta_hybrid
 
 // ============================================================
-// Section 28: PBS Online — Update System
-//   Detect completed task goals from agent positions.
-//   When agent is at delivery location of current task, pop it.
+// Section 28: Online event-detection post-step (shared bookkeeping)
+//   Always run for online methods (all AT_ON_UNASSIGNED_OR_FREE:
+//   Hungarian AND LNS, PBS AND wPBS) after the timestep advances.
+//   This is NOT PBS pathfinding — it does bookkeeping, not planning:
+//   detects completed task goals from agent positions (when an agent
+//   is at the delivery location of its current task, pop it), detects
+//   newly released tasks, and sets pbs_has_event_/pbs_assign_event_/
+//   lns_agent_finished_ so the caller can decide whether to replan.
 // ============================================================
 
-void Simulation::update_system_pbs() {
+void Simulation::process_online_events() {
     pbs_has_event_ = false;
     pbs_assign_event_ = false;
     lns_agent_finished_ = false;
