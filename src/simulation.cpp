@@ -99,8 +99,8 @@ void Simulation::init_algorithm_state() {
     case AT_ON_UNASSIGNED_OR_FREE:
         if (config.assign_method == AM_REPEATED_HUNGARIAN_LNS)
             init_lns_state();
-        else
-            init_pbs_state();
+        else if (config.assign_method == AM_HUNGARIAN)
+            init_pbs_state();   // Hungarian PBS / wPBS online
         break;
     default:
         break;
