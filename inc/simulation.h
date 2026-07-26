@@ -257,12 +257,12 @@ private:
 
     // --- Loop state ---
     int last_released_time_;  // tracks up to which timestep tasks have been released
-    bool ta_planning_done_;   // for offline algorithms: set after first iteration
-    bool tp_timestep_advanced_;  // true if update_system just advanced the timestep (TP/TPTS)
+    bool ta_planning_done_ = false;   // for offline algorithms: set after first iteration
+    bool tp_timestep_advanced_ = false;  // true if update_system just advanced the timestep (TP/TPTS)
 
     // --- Loop state for CENTRAL ---
-    bool central_has_event_;       // any event (pickup arrival, delivery done, new tasks)
-    bool central_reassign_event_;  // only delivery-done or new-tasks (for CENTRAL_FIXED)
+    bool central_has_event_ = false;       // any event (pickup arrival, delivery done, new tasks)
+    bool central_reassign_event_ = false;  // only delivery-done or new-tasks (for CENTRAL_FIXED)
 
     // --- TA-Prioritized (Section 10.1 + 12.0 + 14.5) ---
     string tour_file_;
@@ -311,11 +311,11 @@ private:
     // --- HUNGARIAN_PBS / HUNGARIAN_wPBS ---
 
     // State for online PBS loop
-    bool pbs_has_event_;          // any event (replan or assign)
-    bool pbs_assign_event_;       // real event needing re-assignment (not periodic)
-    int pbs_last_replan_time_;    // for wPBS periodic replanning
-    int lns_release_period_;      // task-release period (for gating the 1s LNS spin like the reference)
-    bool lns_agent_finished_;     // an agent reached its last goal this event (reference new_agent_finish)
+    bool pbs_has_event_ = false;          // any event (replan or assign)
+    bool pbs_assign_event_ = false;       // real event needing re-assignment (not periodic)
+    int pbs_last_replan_time_ = 0;    // for wPBS periodic replanning
+    int lns_release_period_ = 1;      // task-release period (for gating the 1s LNS spin like the reference)
+    bool lns_agent_finished_ = false;     // an agent reached its last goal this event (reference new_agent_finish)
 
     // Repeated Hungarian task assignment (builds task_sequences for all agents)
     void assign_repeated_hungarian();

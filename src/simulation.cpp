@@ -59,9 +59,9 @@ void Simulation::init(const string& map_file, const string& task_file, const MAP
             path_table_[i][k] = mapd_map.agent_starts[i];
     }
 
-    // Init general/system loop state
+    // Init general/system loop state (algorithm flags default via in-class
+    // initializers in simulation.h; ta_planning_done_ included).
     last_released_time_ = -1;  // no tasks released yet; release_tasks() will handle t=0
-    ta_planning_done_ = false;
     agent_pending_task.assign(agents.size(), nullptr);
 
     // Init algorithm-specific state (dispatched on config)
@@ -70,24 +70,16 @@ void Simulation::init(const string& map_file, const string& task_file, const MAP
 
 // ============================================================
 // Section 0.1: Algorithm-specific state initialization
-//   General init() dispatches here.  We FIRST set every
-//   algorithm flag to a safe default (the ctor is empty, so
-//   members are otherwise uninitialized), then the dispatched
-//   per-family helper overrides the ones that algorithm reads.
+//   General init() dispatches here.  All algorithm flags have
+//   in-class default initializers (simulation.h), so this is a
+//   pure dispatch: it selects the per-family helper that sets
+//   the state the chosen algorithm actually reads.
 // ============================================================
 
 void Simulation::init_algorithm_state() {
-    // Safe defaults for ALL algorithm flags (no method ever reads an
-    // uninitialized flag, regardless of which helper the dispatch selects).
-    tp_timestep_advanced_ = false;
-    central_has_event_ = false;
-    central_reassign_event_ = false;
-    pbs_has_event_ = false;
-    pbs_assign_event_ = false;
-    pbs_last_replan_time_ = 0;
-    lns_release_period_ = 1;
-    lns_agent_finished_ = false;
-
+    // All algorithm flags carry safe defaults from their in-class member
+    // initializers (see simulation.h), so this function is a pure dispatch:
+    // it only selects the per-algorithm helper that sets that method's state.
     switch (config.assign_trigger) {
     case AT_ON_FREE_WAITS:
         init_tp_state();
