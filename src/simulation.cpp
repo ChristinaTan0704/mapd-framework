@@ -266,10 +266,12 @@ void Simulation::update_system() {
 void Simulation::update_system_online() {
     // --- HUNGARIAN/LNS online mode ---
     {
-        // AT_ON_UNASSIGNED_OR_FREE is only ever PBS or wPBS.
-        // wPBS (windowed): advance to the next event but cap the jump at
-        //   replan_window (matching reference KivaSystemOnline).
-        // PBS (non-windowed): jump straight to the next event, no cap.
+        // AT_ON_UNASSIGNED_OR_FREE (Hungarian/LNS online) uses one of:
+        //   wPBS (windowed): advance to the next event but cap the jump at
+        //     replan_window (matching reference KivaSystemOnline).
+        //   PBS / PP (non-windowed): jump straight to the next event, no cap
+        //     (the *-PP-SIPP methods set mapf=MAPF_DECOUPLED_PP but share this
+        //     non-windowed, event-driven advancement).
         unsigned int next_ts = maxtime;
 
         if (config.mapf == MAPF_wPBS) {
@@ -294,8 +296,8 @@ void Simulation::update_system_online() {
                 if (!task_indices_by_time[t].empty()) { if (t < next_ts) next_ts = t; break; }
             unsigned int window_cap = cur_time_ + config.replan_window;
             if (window_cap < next_ts) next_ts = window_cap;
-        } else if (config.mapf == MAPF_PBS) {
-            // PBS (non-windowed): jump straight to next event
+        } else if (config.mapf == MAPF_PBS || config.mapf == MAPF_DECOUPLED_PP) {
+            // PBS / PP (non-windowed): jump straight to next event
             for (int i = 0; i < (int)agents.size(); i++) {
                 if (agents[i].task_sequence.empty()) continue;
                 int task_id = agents[i].task_sequence.front();
@@ -330,8 +332,8 @@ void Simulation::update_system_online() {
                 }
             }
         } else {
-            // AT_ON_UNASSIGNED_OR_FREE should only ever be PBS or wPBS;
-            // fail loudly if some other mapf reaches here.
+            // AT_ON_UNASSIGNED_OR_FREE is only ever wPBS, PBS, or PP;
+            // fail loudly if some other mapf ever reaches here.
             cerr << "update_system_online: unexpected mapf" << endl;
         }
 
