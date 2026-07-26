@@ -182,7 +182,7 @@ private:
     void task_assignment_and_path_planning();
 
     // --- Per-algorithm initialization (dispatched from init_algorithm_state) ---
-    void init_algorithm_state();   // sets safe defaults, then dispatches on config
+    void init_algorithm_state();   // pure dispatch on config (flags default via in-class initializers)
     void init_tp_state();          // TP / TPTS (AT_ON_FREE_WAITS)
     void init_central_state();     // CENTRAL / CENTRAL_FIXED
     void init_pbs_state();         // Hungarian PBS / wPBS online
