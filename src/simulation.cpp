@@ -463,7 +463,10 @@ void Simulation::update_system_stepwise() {
                 if (a.status != AG_FREE && a.finish_time > cur_time_) { any_busy = true; break; }
             if (!any_busy && open_tasks_.empty()) return;
         }
-    } else {
+    } else if (config.assign_trigger == AT_ON_NEW_TASK_OR_FREE ||   // CENTRAL_FIXED
+               config.assign_trigger == AT_ONCE ||                  // TA-Prioritized / TA-Hybrid
+               config.assign_trigger == AT_ON_FREE_WAITS) {         // TP / TPTS fallthrough
+        // Event-driven: jump straight to the next event (agent finish / task release)
         for (auto& ag : agents) {
             if (ag.finish_time > cur_time_ && ag.finish_time < next_ts)
                 next_ts = ag.finish_time;
@@ -482,6 +485,11 @@ void Simulation::update_system_stepwise() {
             next_ts = cur_time_ + 1;
         }
         if (next_ts <= cur_time_) next_ts = cur_time_ + 1;
+    } else {
+        // update_system_stepwise only runs for the triggers above
+        // (AT_ON_UNASSIGNED_OR_FREE takes update_system_online instead).
+        cerr << "update_system_stepwise: unexpected assign_trigger" << endl;
+        return;
     }
 
     // Step 3: Advance timestep and update agent locations
@@ -999,13 +1007,18 @@ void Simulation::path_planning() {
 
     switch (config.mapf) {
     case MAPF_DECOUPLED_PP:
+        // Reached here only by TA-Prioritized (offline TSP, AT_ONCE): plan every
+        // agent's tour via prioritized planning.  (TP/TPTS/HBH also use
+        // DECOUPLED_PP but plan inside assignment, so should_replan()==false and
+        // path_planning() is never called for them; Hungarian/LNS+PP-SIPP are
+        // handled by the leading pp_mla() special case above.)
         if (config.single_agent == SA_SEQ_STA ||
             (config.single_agent == SA_MLA_SEQUENCE &&
              config.assign_method == AM_LKH3_TSP)) {
             plan_ta_prioritized();
             ta_planning_done_ = true;
         } else {
-            path_planning_pp();
+            cerr << "path_planning: unexpected decoupled-PP config" << endl;
         }
         break;
     case MAPF_CBS:
