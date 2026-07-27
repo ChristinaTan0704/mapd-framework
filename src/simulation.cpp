@@ -397,21 +397,28 @@ void Simulation::update_system_online() {
 //   false to fall through to the shared stepwise block.
 // ============================================================
 
+// TPTS: drop tasks whose pickup has already been reached from the token
+// before running TPTR (matching reference: tasks stay in open_tasks_ until
+// their assigned agent arrives at the pickup, i.e. ag_arrive_start).
+void Simulation::tpts_purge_picked_up_tasks() {
+    auto it = open_tasks_.begin();
+    while (it != open_tasks_.end()) {
+        if ((*it)->status >= 0 && (*it)->ag_arrive_start >= 0 &&
+            (int)cur_time_ >= (*it)->ag_arrive_start) {
+            it = open_tasks_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
 bool Simulation::tp_pre_step() {
     // --- TP/TPTS mode: check if a free agent needs processing first ---
     {
         // For TPTS: remove tasks from token when pickup is reached
         // (matching reference: tasks stay in open_tasks_ until ag_arrive_start)
         if (config.assign_method == AM_DECOUPLED_GREEDY_SWAPS) {
-            auto it = open_tasks_.begin();
-            while (it != open_tasks_.end()) {
-                if ((*it)->status >= 0 && (*it)->ag_arrive_start >= 0 &&
-                    (int)cur_time_ >= (*it)->ag_arrive_start) {
-                    it = open_tasks_.erase(it);
-                } else {
-                    ++it;
-                }
-            }
+            tpts_purge_picked_up_tasks();
         }
 
         for (auto& ag : agents) {
@@ -980,17 +987,7 @@ void Simulation::task_assignment() {
         // Match reference: remove finished tasks BEFORE calling TPTR.
         // Reference run_TPTR removes tasks with TAKEN state and
         // timestep >= ag_arrive_start right before calling ag->TPTR.
-        {
-            auto it = open_tasks_.begin();
-            while (it != open_tasks_.end()) {
-                if ((*it)->status >= 0 && (*it)->ag_arrive_start >= 0 &&
-                    (int)cur_time_ >= (*it)->ag_arrive_start) {
-                    it = open_tasks_.erase(it);
-                } else {
-                    ++it;
-                }
-            }
-        }
+        tpts_purge_picked_up_tasks();
         if (ag->finish_time <= cur_time_) assign_tpts(*ag);
         break;
     }

@@ -213,6 +213,7 @@ private:
 
     // --- Task Assignment: Decoupled Greedy with Swaps (Section 9.2) ---
     bool assign_tpts(Agent& ag, int depth = 0);
+    void tpts_purge_picked_up_tasks();     // TPTS: drop already-picked-up tasks from token before TPTR
 
     // --- Task Assignment: Centralized Greedy (Section 9.3) ---
     void assign_centralized_greedy();
