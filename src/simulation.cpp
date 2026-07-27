@@ -392,9 +392,6 @@ bool Simulation::tp_pre_step() {
 
         for (auto& ag : agents) {
             if (ag.finish_time <= cur_time_) {
-                central_has_event_ = false;
-                central_reassign_event_ = false;
-
                 // Detect completed deliveries
                 for (int i = 0; i < (int)agents.size(); i++) {
                     if (agents[i].status == AG_CARRYING && agents[i].finish_time <= cur_time_) {
