@@ -5096,7 +5096,7 @@ int Simulation::choose_dummy_endpoint(int agent_id, int last_goal_loc,
 
 vector<vector<pair<int,int>>> Simulation::build_goal_sequences() {
     int num_ag = (int)agents.size();
-    bool strict = (config.mapf == MAPF_PBS);
+    bool strict = (config.endpoint_strategy == EP_FLEXIBLE_STRICT);
     vector<int> assigned_dummies(num_ag, -1);
     vector<vector<pair<int,int>>> goal_seqs(num_ag);
 
