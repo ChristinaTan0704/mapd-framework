@@ -198,8 +198,7 @@ bool Simulation::end() const {
     if (!open_tasks_.empty()) return false;
     if ((int)cur_time_ <= t_task) return false;
     if (!end_online()) return false;
-    for (auto& a : agents)
-        if (a.status != AG_FREE && a.finish_time > cur_time_) return false;
+    if (any_agent_busy()) return false;
     return true;
 }
 
@@ -494,10 +493,7 @@ void Simulation::update_system_stepwise() {
         // CENTRAL: advance one timestep at a time (matching reference for-loop)
         next_ts = cur_time_ + 1;
         if (next_ts >= maxtime) {
-            bool any_busy = false;
-            for (auto& a : agents)
-                if (a.status != AG_FREE && a.finish_time > cur_time_) { any_busy = true; break; }
-            if (!any_busy && open_tasks_.empty()) return;
+            if (!any_agent_busy() && open_tasks_.empty()) return;
         }
     } else if (config.assign_trigger == AT_ON_NEW_TASK_OR_FREE ||   // CENTRAL_FIXED
                config.assign_trigger == AT_ONCE ||                  // TA-Prioritized / TA-Hybrid
@@ -509,10 +505,7 @@ void Simulation::update_system_stepwise() {
         }
         clamp_next_ts_to_task_release(next_ts);
         if (next_ts >= maxtime) {
-            bool any_busy = false;
-            for (auto& a : agents)
-                if (a.status != AG_FREE && a.finish_time > cur_time_) { any_busy = true; break; }
-            if (!any_busy && open_tasks_.empty()) return;
+            if (!any_agent_busy() && open_tasks_.empty()) return;
             next_ts = cur_time_ + 1;
         }
         if (next_ts <= cur_time_) next_ts = cur_time_ + 1;

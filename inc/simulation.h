@@ -176,6 +176,12 @@ private:
     vector<int> phase2_goal_eps_;
 
     // --- Unified Main Loop (Section 2 of pseudocode) ---
+    // True if any agent is still executing a committed path past the current timestep.
+    bool any_agent_busy() const {
+        for (auto& a : agents)
+            if (a.status != AG_FREE && a.finish_time > cur_time_) return true;
+        return false;
+    }
     bool end() const;
     bool end_offline_ta() const;   // offline LKH3-TSP / TA-Hybrid single-iteration termination
     bool end_online() const;       // online PBS/LNS task_sequence emptiness check
