@@ -424,7 +424,7 @@ bool Simulation::tp_pre_step() {
     {
         // For TPTS: remove tasks from token when pickup is reached
         // (matching reference: tasks stay in open_tasks_ until ag_arrive_start)
-        if (config.assign_method == AM_DECOUPLED_GREEDY_SWAPS) {
+        if (config.coupled == CM_SWAPS_ONLY) {
             tpts_purge_picked_up_tasks();
         }
 
@@ -879,11 +879,11 @@ void Simulation::tp_handle_no_assignment() {
             }
         }
         if (bump_ag->finish_time <= cur_time_) {
-            // TPTS (AM_DECOUPLED_GREEDY_SWAPS): match reference TPTR
+            // TPTS (CM_SWAPS_ONLY): match reference TPTR
             // "no task found" branch which checks path collisions and
             // calls Move2EP when another agent's path crosses this loc.
-            // TP (AM_DECOUPLED_GREEDY): reference TOTP just bumps ft+1.
-            if (config.assign_method == AM_DECOUPLED_GREEDY_SWAPS) {
+            // TP (CM_NONE): reference TOTP just bumps ft+1.
+            if (config.coupled == CM_SWAPS_ONLY) {
                 bump_ag->loc = bump_ag->path[cur_time_];
                 if (endpoint_mask_[bump_ag->loc]) {
                     bool need_move = false;
