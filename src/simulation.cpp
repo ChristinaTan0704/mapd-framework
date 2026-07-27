@@ -902,11 +902,17 @@ void Simulation::task_assignment() {
     // Must happen before should_assign() so these agents are not treated as FREE.
     central_phase1_instant_pickup();
 
-    // Clear phase2 data at the start of every iteration to prevent stale data
-    phase2_free_ids_.clear();
-    phase2_tasks_.clear();
-    phase2_goal_locs_.clear();
-    phase2_goal_eps_.clear();
+    // CENTRAL (AM_HUNGARIAN) only: clear the CENTRAL/Hungarian phase-2 scratch
+    // buffers at the start of every iteration to prevent stale data. These
+    // buffers are shared exclusively between assign_hungarian() and the CENTRAL
+    // path_planning routines, so the general dispatcher must not touch them for
+    // non-CENTRAL algorithm families.
+    if (config.assign_method == AM_HUNGARIAN) {
+        phase2_free_ids_.clear();
+        phase2_tasks_.clear();
+        phase2_goal_locs_.clear();
+        phase2_goal_eps_.clear();
+    }
 
     // Guard: only proceed if the trigger condition is met
     if (!should_assign()) {
