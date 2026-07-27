@@ -288,6 +288,14 @@ void Simulation::clamp_next_ts_to_task_release(unsigned int& next_ts) const {
     }
 }
 
+// Resolve a task's two goal locations: first_goal is the pickup goal
+// (falls back to pickup_loc when goals is empty) and last_goal is the
+// delivery goal (the second goal when present, else first_goal).
+void Simulation::task_goals(const Task& task, int& first_goal, int& last_goal) const {
+    first_goal = task.goals.empty() ? task.pickup_loc : task.goals[0];
+    last_goal = task.goals.size() >= 2 ? task.goals[min((int)task.goals.size()-1, 1)] : first_goal;
+}
+
 // ============================================================
 // Section 1.3a: update_system — HUNGARIAN/LNS online mode
 //   (AT_ON_UNASSIGNED_OR_FREE)
@@ -310,8 +318,8 @@ void Simulation::update_system_online() {
                 if (agents[i].task_sequence.empty()) continue;
                 int task_id = agents[i].task_sequence.front();
                 Task& task = all_tasks[task_id];
-                int first_goal = task.goals.empty() ? task.pickup_loc : task.goals[0];
-                int last_goal = task.goals.size() >= 2 ? task.goals[min((int)task.goals.size()-1, 1)] : first_goal;
+                int first_goal, last_goal;
+                task_goals(task, first_goal, last_goal);
                 int target_loc = (agents[i].status == AG_MOVING_TO_PICKUP) ? first_goal :
                                  (agents[i].status == AG_CARRYING) ? last_goal : -1;
                 int min_time = (agents[i].status == AG_MOVING_TO_PICKUP) ? task.release_time : 0;
@@ -331,8 +339,8 @@ void Simulation::update_system_online() {
                 if (agents[i].task_sequence.empty()) continue;
                 int task_id = agents[i].task_sequence.front();
                 Task& task = all_tasks[task_id];
-                int first_goal = task.goals.empty() ? task.pickup_loc : task.goals[0];
-                int last_goal = task.goals.size() >= 2 ? task.goals[min((int)task.goals.size()-1, 1)] : first_goal;
+                int first_goal, last_goal;
+                task_goals(task, first_goal, last_goal);
                 int target_loc = -1;
                 int min_time = 0;
 
@@ -4475,8 +4483,8 @@ void Simulation::process_online_events() {
             int task_id = agents[i].task_sequence.front();
             Task& task = all_tasks[task_id];
 
-            int first_goal = task.goals.empty() ? task.pickup_loc : task.goals[0];
-            int last_goal = task.goals.size() >= 2 ? task.goals[min((int)task.goals.size()-1, 1)] : first_goal;
+            int first_goal, last_goal;
+            task_goals(task, first_goal, last_goal);
 
             // Scan path for pickup arrival
             if (agents[i].status == AG_MOVING_TO_PICKUP) {

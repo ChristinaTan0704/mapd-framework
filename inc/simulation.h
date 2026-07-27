@@ -195,6 +195,7 @@ private:
     bool tp_pre_step();            // TP/TPTS pre-step; returns true to return early
     void update_system_stepwise(); // shared step-advance (CENTRAL/TA/TP-fallthrough)
     void clamp_next_ts_to_task_release(unsigned int& next_ts) const; // pull next_ts back to earliest task release in window
+    void task_goals(const Task& task, int& first_goal, int& last_goal) const; // pickup goal + delivery goal for a task
 
     // --- Per-algorithm task_assignment dispatch (from task_assignment) ---
     void central_phase1_instant_pickup();  // CENTRAL/CENTRAL_FIXED Phase-1a/1b
