@@ -4445,7 +4445,7 @@ void Simulation::plan_ta_hybrid() {
 void Simulation::process_online_events() {
     pbs_has_event_ = false;
     pbs_assign_event_ = false;
-    lns_agent_finished_ = false;
+    if (config.assign_method == AM_REPEATED_HUNGARIAN_LNS) lns_agent_finished_ = false;
 
     // Check if new tasks arrived
     if (cur_time_ < maxtime && !task_indices_by_time[cur_time_].empty()) {
@@ -4495,7 +4495,8 @@ void Simulation::process_online_events() {
                         }
                         pbs_has_event_ = true;
                         pbs_assign_event_ = true;
-                        lns_agent_finished_ = true;  // agent reached its last goal (reference new_agent_finish)
+                        if (config.assign_method == AM_REPEATED_HUNGARIAN_LNS)
+                            lns_agent_finished_ = true;  // agent reached its last goal (reference new_agent_finish)
                         found_delivery = true;
                         break;
                     }
