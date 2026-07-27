@@ -182,6 +182,11 @@ private:
             if (a.status != AG_FREE && a.finish_time > cur_time_) return true;
         return false;
     }
+    // True for the CENTRAL family (CENTRAL ECBS every-timestep and CENTRAL_FIXED).
+    bool is_central_family() const {
+        return config.assign_trigger == AT_EVERY_TIMESTEP ||
+               config.assign_trigger == AT_ON_NEW_TASK_OR_FREE;
+    }
     bool end() const;
     bool end_offline_ta() const;   // offline LKH3-TSP / TA-Hybrid single-iteration termination
     bool end_online() const;       // online PBS/LNS task_sequence emptiness check
