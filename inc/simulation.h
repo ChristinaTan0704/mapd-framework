@@ -177,6 +177,8 @@ private:
 
     // --- Unified Main Loop (Section 2 of pseudocode) ---
     bool end() const;
+    bool end_offline_ta() const;   // offline LKH3-TSP / TA-Hybrid single-iteration termination
+    bool end_online() const;       // online PBS/LNS task_sequence emptiness check
     void release_tasks();
     void update_system();
     void task_assignment_and_path_planning();

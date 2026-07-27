@@ -168,22 +168,36 @@ void Simulation::run() {
 // Section 1.1: End Condition (Pseudocode Section 14.6)
 // ============================================================
 
-bool Simulation::end() const {
-    // Offline algorithms that do all planning in a single iteration:
-    // They need at least one iteration to run, then they're done.
-    // ta_planning_done_ is set after the first iteration completes.
-    if (config.mode == MODE_OFFLINE && config.assign_method == AM_LKH3_TSP)
-        return ta_planning_done_;
-    if (config.mapf == MAPF_TA_HYBRID_TWO_GROUP)
-        return ta_planning_done_;
+// Offline / TA family (offline LKH3-TSP and TA-Hybrid two-group) do all planning
+// in a single iteration: they need at least one iteration to run, then they're
+// done. ta_planning_done_ is set after the first iteration completes.
+bool Simulation::end_offline_ta() const {
+    return ta_planning_done_;
+}
 
-    if (!open_tasks_.empty()) return false;
-    if ((int)cur_time_ <= t_task) return false;
-    // For PBS online: also check task_sequences
+// Online PBS/LNS family (AT_ON_UNASSIGNED_OR_FREE): not done while any agent
+// still has queued tasks in its task_sequence. Returns true when the online
+// family imposes no further termination constraint (also true for non-online
+// families, which have no task_sequence check).
+bool Simulation::end_online() const {
     if (config.assign_trigger == AT_ON_UNASSIGNED_OR_FREE) {
         for (auto& a : agents)
             if (!a.task_sequence.empty()) return false;
     }
+    return true;
+}
+
+bool Simulation::end() const {
+    // Offline / TA families terminate after their single planning iteration.
+    if (config.mode == MODE_OFFLINE && config.assign_method == AM_LKH3_TSP)
+        return end_offline_ta();
+    if (config.mapf == MAPF_TA_HYBRID_TWO_GROUP)
+        return end_offline_ta();
+
+    // General (online / stepwise) termination logic.
+    if (!open_tasks_.empty()) return false;
+    if ((int)cur_time_ <= t_task) return false;
+    if (!end_online()) return false;
     for (auto& a : agents)
         if (a.status != AG_FREE && a.finish_time > cur_time_) return false;
     return true;
