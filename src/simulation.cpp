@@ -430,33 +430,10 @@ bool Simulation::tp_pre_step() {
 
         for (auto& ag : agents) {
             if (ag.finish_time <= cur_time_) {
-                // Detect completed deliveries
-                for (int i = 0; i < (int)agents.size(); i++) {
-                    if (agents[i].status == AG_CARRYING && agents[i].finish_time <= cur_time_) {
-                        Task* task = agent_pending_task[i];
-                        if (task) {
-                            task->completion_time = agents[i].finish_time;
-                            open_tasks_.remove(task);
-                            agent_pending_task[i] = nullptr;
-                        }
-                        agents[i].status = AG_FREE;
-                        agents[i].current_task = -1;
-                    }
-                }
-
-                // Detect pickup arrivals
-                for (int i = 0; i < (int)agents.size(); i++) {
-                    if (agents[i].status == AG_MOVING_TO_PICKUP && agents[i].finish_time <= cur_time_) {
-                        Task* task = agent_pending_task[i];
-                        if (task && (int)agents[i].loc == task->pickup_loc) {
-                            agents[i].status = AG_CARRYING;
-                        } else {
-                            agents[i].status = AG_FREE;
-                            if (task) task->status = -1;
-                            agent_pending_task[i] = nullptr;
-                        }
-                    }
-                }
+                // Detect completed deliveries and pickup arrivals (shared with
+                // update_system_stepwise). TP/TPTS does not use the event flags.
+                bool tp_has_event = false, tp_reassign_event = false;
+                detect_finish_time_transitions(tp_has_event, tp_reassign_event);
 
                 if (cur_time_ < maxtime && !task_indices_by_time[cur_time_].empty()) {
                 }
@@ -478,6 +455,48 @@ bool Simulation::tp_pre_step() {
 //   (CENTRAL, CENTRAL_FIXED, TA-Prioritized, TA-Hybrid, and
 //    TP/TPTS after tp_pre_step falls through)
 // ============================================================
+
+// Detect finish-time state transitions for agents whose committed path has reached
+// its end at cur_time_: completed deliveries (CARRYING -> FREE, task completed and
+// removed from open_tasks_) and pickup arrivals (MOVING_TO_PICKUP -> CARRYING on
+// success, or -> FREE with the task released on failure). Shared verbatim by
+// update_system_stepwise and tp_pre_step; the out-flags carry the CENTRAL-family
+// event bookkeeping (has_event = any transition; reassign_event = delivery done or
+// failed pickup) and are ignored by TP/TPTS callers.
+void Simulation::detect_finish_time_transitions(bool& has_event, bool& reassign_event) {
+    // Detect completed deliveries (CARRYING -> FREE)
+    for (int i = 0; i < (int)agents.size(); i++) {
+        if (agents[i].status == AG_CARRYING && agents[i].finish_time <= cur_time_) {
+            Task* task = agent_pending_task[i];
+            if (task) {
+                task->completion_time = agents[i].finish_time;
+                open_tasks_.remove(task);
+                agent_pending_task[i] = nullptr;
+            }
+            agents[i].status = AG_FREE;
+            agents[i].current_task = -1;
+            has_event = true;
+            reassign_event = true;
+        }
+    }
+
+    // Detect pickup arrivals (MOVING_TO_PICKUP -> CARRYING)
+    for (int i = 0; i < (int)agents.size(); i++) {
+        if (agents[i].status == AG_MOVING_TO_PICKUP && agents[i].finish_time <= cur_time_) {
+            Task* task = agent_pending_task[i];
+            if (task && (int)agents[i].loc == task->pickup_loc) {
+                agents[i].status = AG_CARRYING;
+                has_event = true;
+            } else {
+                agents[i].status = AG_FREE;
+                if (task) task->status = -1;
+                agent_pending_task[i] = nullptr;
+                has_event = true;
+                reassign_event = true;
+            }
+        }
+    }
+}
 
 void Simulation::update_system_stepwise() {
     // --- Default mode (CENTRAL, CENTRAL_FIXED, TA-Prioritized, TA-Hybrid, TP/TPTS) ---
@@ -533,38 +552,8 @@ void Simulation::update_system_stepwise() {
     bool central_has_event = false;
     bool central_reassign_event = false;
 
-    // Detect completed deliveries (CARRYING -> FREE)
-    for (int i = 0; i < (int)agents.size(); i++) {
-        if (agents[i].status == AG_CARRYING && agents[i].finish_time <= cur_time_) {
-            Task* task = agent_pending_task[i];
-            if (task) {
-                task->completion_time = agents[i].finish_time;
-                open_tasks_.remove(task);
-                agent_pending_task[i] = nullptr;
-            }
-            agents[i].status = AG_FREE;
-            agents[i].current_task = -1;
-            central_has_event = true;
-            central_reassign_event = true;
-        }
-    }
-
-    // Detect pickup arrivals (MOVING_TO_PICKUP -> CARRYING)
-    for (int i = 0; i < (int)agents.size(); i++) {
-        if (agents[i].status == AG_MOVING_TO_PICKUP && agents[i].finish_time <= cur_time_) {
-            Task* task = agent_pending_task[i];
-            if (task && (int)agents[i].loc == task->pickup_loc) {
-                agents[i].status = AG_CARRYING;
-                central_has_event = true;
-            } else {
-                agents[i].status = AG_FREE;
-                if (task) task->status = -1;
-                agent_pending_task[i] = nullptr;
-                central_has_event = true;
-                central_reassign_event = true;
-            }
-        }
-    }
+    // Detect completed deliveries and pickup arrivals (shared with tp_pre_step).
+    detect_finish_time_transitions(central_has_event, central_reassign_event);
 
     // Check if new tasks arrived at the new timestep
     if (cur_time_ < maxtime && !task_indices_by_time[cur_time_].empty()) {

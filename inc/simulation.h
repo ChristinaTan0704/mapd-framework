@@ -205,6 +205,11 @@ private:
     void update_system_online();   // PBS/LNS online (AT_ON_UNASSIGNED_OR_FREE)
     bool tp_pre_step();            // TP/TPTS pre-step; returns true to return early
     void update_system_stepwise(); // shared step-advance (CENTRAL/TA/TP-fallthrough)
+    // Shared finish-time transition loops (delivery completion CARRYING->FREE and
+    // pickup arrival MOVING_TO_PICKUP->CARRYING/FREE) run identically by
+    // update_system_stepwise and tp_pre_step; the only per-caller difference is the
+    // event-flag bookkeeping, exposed via the out-params (thrown away by tp_pre_step).
+    void detect_finish_time_transitions(bool& has_event, bool& reassign_event);
     void clamp_next_ts_to_task_release(unsigned int& next_ts) const; // pull next_ts back to earliest task release in window
     void task_goals(const Task& task, int& first_goal, int& last_goal) const; // pickup goal + delivery goal for a task
 
