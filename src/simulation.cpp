@@ -273,6 +273,22 @@ void Simulation::update_system() {
 }
 
 // ============================================================
+// Section 1.3: update_system — shared next-event helper
+//   Pull next_ts back to the earliest task-release timestep that
+//   falls within (cur_time_, next_ts].  Shared by the online
+//   (PBS/wPBS/PP) and stepwise (event-driven) advance blocks.
+// ============================================================
+
+void Simulation::clamp_next_ts_to_task_release(unsigned int& next_ts) const {
+    for (unsigned int t = cur_time_ + 1; t < maxtime && t <= next_ts; t++) {
+        if (!task_indices_by_time[t].empty()) {
+            if (t < next_ts) next_ts = t;
+            break;
+        }
+    }
+}
+
+// ============================================================
 // Section 1.3a: update_system — HUNGARIAN/LNS online mode
 //   (AT_ON_UNASSIGNED_OR_FREE)
 // ============================================================
@@ -306,8 +322,7 @@ void Simulation::update_system_online() {
                             break;
                         }
             }
-            for (unsigned int t = cur_time_ + 1; t < maxtime && t <= next_ts; t++)
-                if (!task_indices_by_time[t].empty()) { if (t < next_ts) next_ts = t; break; }
+            clamp_next_ts_to_task_release(next_ts);
             unsigned int window_cap = cur_time_ + config.replan_window;
             if (window_cap < next_ts) next_ts = window_cap;
         } else if (config.mapf == MAPF_PBS || config.mapf == MAPF_DECOUPLED_PP) {
@@ -339,12 +354,7 @@ void Simulation::update_system_online() {
                 }
             }
 
-            for (unsigned int t = cur_time_ + 1; t < maxtime && t <= next_ts; t++) {
-                if (!task_indices_by_time[t].empty()) {
-                    if (t < next_ts) next_ts = t;
-                    break;
-                }
-            }
+            clamp_next_ts_to_task_release(next_ts);
         } else {
             // AT_ON_UNASSIGNED_OR_FREE is only ever wPBS, PBS, or PP;
             // fail loudly if some other mapf ever reaches here.
@@ -482,12 +492,7 @@ void Simulation::update_system_stepwise() {
             if (ag.finish_time > cur_time_ && ag.finish_time < next_ts)
                 next_ts = ag.finish_time;
         }
-        for (unsigned int t = cur_time_ + 1; t < maxtime && t <= next_ts; t++) {
-            if (!task_indices_by_time[t].empty()) {
-                if (t < next_ts) next_ts = t;
-                break;
-            }
-        }
+        clamp_next_ts_to_task_release(next_ts);
         if (next_ts >= maxtime) {
             bool any_busy = false;
             for (auto& a : agents)
