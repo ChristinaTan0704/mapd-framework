@@ -801,18 +801,7 @@ void Simulation::central_phase1_instant_pickup() {
                                                        + task->goal_wait_time;
                         } else {
                             // CBS failed for this agent — fallback to single-agent A*
-                            int arrive = astar(agents[aid], task->pickup_loc,
-                                               cur_time_ + task->start_wait_time,
-                                               mapd_map.endpoints[task->delivery], aid);
-                            if (arrive >= 0) {
-                                for (unsigned int t = cur_time_; t < maxtime; t++)
-                                    path_table_[aid][t] = agents[aid].path[t];
-                                agents[aid].finish_time = arrive + task->goal_wait_time;
-                            } else {
-                                agents[aid].status = AG_FREE;
-                                task->status = -1;
-                                agent_pending_task[aid] = nullptr;
-                            }
+                            central_deliver_single_astar(aid, task);
                         }
                         ci++;
                     }
@@ -821,18 +810,7 @@ void Simulation::central_phase1_instant_pickup() {
                     for (int aid : instant_pickup_agents) {
                         Task* task = agent_pending_task[aid];
                         if (!task) continue;
-                        int arrive = astar(agents[aid], task->pickup_loc,
-                                           cur_time_ + task->start_wait_time,
-                                           mapd_map.endpoints[task->delivery], aid);
-                        if (arrive >= 0) {
-                            for (unsigned int t = cur_time_; t < maxtime; t++)
-                                path_table_[aid][t] = agents[aid].path[t];
-                            agents[aid].finish_time = arrive + task->goal_wait_time;
-                        } else {
-                            agents[aid].status = AG_FREE;
-                            task->status = -1;
-                            agent_pending_task[aid] = nullptr;
-                        }
+                        central_deliver_single_astar(aid, task);
                     }
                 }
             } else {
@@ -840,21 +818,29 @@ void Simulation::central_phase1_instant_pickup() {
                 for (int aid : instant_pickup_agents) {
                     Task* task = agent_pending_task[aid];
                     if (!task) continue;
-                    int arrive = astar(agents[aid], task->pickup_loc,
-                                       cur_time_ + task->start_wait_time,
-                                       mapd_map.endpoints[task->delivery], aid);
-                    if (arrive >= 0) {
-                        for (unsigned int t = cur_time_; t < maxtime; t++)
-                            path_table_[aid][t] = agents[aid].path[t];
-                        agents[aid].finish_time = arrive + task->goal_wait_time;
-                    } else {
-                        agents[aid].status = AG_FREE;
-                        task->status = -1;
-                        agent_pending_task[aid] = nullptr;
-                    }
+                    central_deliver_single_astar(aid, task);
                 }
             }
         }
+    }
+}
+
+// CENTRAL single-agent A* delivery fallback: plan a delivery path for one agent
+// with plain A*; on success commit it to the path table and set finish_time, on
+// failure free the agent and release the task. Shared by all three fallback sites
+// in central_phase1_instant_pickup (CBS-empty-path, CBS-failed, single-agent).
+void Simulation::central_deliver_single_astar(int aid, Task* task) {
+    int arrive = astar(agents[aid], task->pickup_loc,
+                       cur_time_ + task->start_wait_time,
+                       mapd_map.endpoints[task->delivery], aid);
+    if (arrive >= 0) {
+        for (unsigned int t = cur_time_; t < maxtime; t++)
+            path_table_[aid][t] = agents[aid].path[t];
+        agents[aid].finish_time = arrive + task->goal_wait_time;
+    } else {
+        agents[aid].status = AG_FREE;
+        task->status = -1;
+        agent_pending_task[aid] = nullptr;
     }
 }
 
