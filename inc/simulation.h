@@ -197,6 +197,7 @@ private:
 
     // --- Per-algorithm task_assignment dispatch (from task_assignment) ---
     void central_phase1_instant_pickup();  // CENTRAL/CENTRAL_FIXED Phase-1a/1b
+    void central_clear_phase2_scratch();   // CENTRAL (AM_HUNGARIAN) phase-2 scratch reset
     void tp_handle_no_assignment();        // TP/TPTS "no task found" bump/vacate
 
     // --- Dispatchers within task_assignment_and_path_planning ---

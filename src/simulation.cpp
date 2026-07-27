@@ -682,9 +682,8 @@ void Simulation::central_phase1_instant_pickup() {
     // (free agent standing on a task's pickup → transition to CARRYING)
     // This must happen before should_assign() so these agents are not
     // treated as FREE by the Hungarian assignment.
-    if (config.assign_trigger != AT_EVERY_TIMESTEP &&
-        config.assign_trigger != AT_ON_NEW_TASK_OR_FREE)
-        return;
+    // Call site (task_assignment) gates this to the CENTRAL family
+    // (AT_EVERY_TIMESTEP / AT_ON_NEW_TASK_OR_FREE).
     {
         // Phase 1a: detect instant pickups and collect agents for delivery planning
         // Also set central_has_event_ if a free agent is at ANY task's pickup
@@ -855,6 +854,24 @@ void Simulation::central_phase1_instant_pickup() {
 }
 
 // ============================================================
+// Section 5.0b: CENTRAL (AM_HUNGARIAN) phase-2 scratch reset
+// ============================================================
+
+void Simulation::central_clear_phase2_scratch() {
+    // CENTRAL (AM_HUNGARIAN) only: clear the CENTRAL/Hungarian phase-2 scratch
+    // buffers at the start of every iteration to prevent stale data. These
+    // buffers are shared exclusively between assign_hungarian() and the CENTRAL
+    // path_planning routines, so the general dispatcher must not touch them for
+    // non-CENTRAL algorithm families.
+    if (config.assign_method == AM_HUNGARIAN) {
+        phase2_free_ids_.clear();
+        phase2_tasks_.clear();
+        phase2_goal_locs_.clear();
+        phase2_goal_eps_.clear();
+    }
+}
+
+// ============================================================
 // Section 5.1: TP/TPTS "no task found" bump/vacate
 //   (only runs for AT_ON_FREE_WAITS)
 // ============================================================
@@ -925,19 +942,14 @@ void Simulation::task_assignment() {
 
     // Phase 1 (CENTRAL/CENTRAL_FIXED): instant pickup + delivery planning.
     // Must happen before should_assign() so these agents are not treated as FREE.
-    central_phase1_instant_pickup();
+    // Gated at the call site to the CENTRAL family.
+    if (config.assign_trigger == AT_EVERY_TIMESTEP ||
+        config.assign_trigger == AT_ON_NEW_TASK_OR_FREE)
+        central_phase1_instant_pickup();
 
-    // CENTRAL (AM_HUNGARIAN) only: clear the CENTRAL/Hungarian phase-2 scratch
-    // buffers at the start of every iteration to prevent stale data. These
-    // buffers are shared exclusively between assign_hungarian() and the CENTRAL
-    // path_planning routines, so the general dispatcher must not touch them for
-    // non-CENTRAL algorithm families.
-    if (config.assign_method == AM_HUNGARIAN) {
-        phase2_free_ids_.clear();
-        phase2_tasks_.clear();
-        phase2_goal_locs_.clear();
-        phase2_goal_eps_.clear();
-    }
+    // CENTRAL (AM_HUNGARIAN) only: reset the phase-2 scratch buffers so the
+    // general dispatcher stays free of CENTRAL-specific bookkeeping.
+    central_clear_phase2_scratch();
 
     // Guard: only proceed if the trigger condition is met
     if (!should_assign()) {
