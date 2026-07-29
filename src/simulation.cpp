@@ -1011,32 +1011,20 @@ void Simulation::assign_ta_tsp_step() {
 // ============================================================
 
 void Simulation::path_planning() {
-    // For CENTRAL/CENTRAL_FIXED with PBS override: use CBS wrapper
-    // but replace CBS Group 2 with PBS-based planning
-    if ((config.assign_trigger == AT_EVERY_TIMESTEP ||
-         config.assign_trigger == AT_ON_NEW_TASK_OR_FREE) &&
-        config.mapf == MAPF_PBS) {
-        path_planning_cbs_with_pp();
-        return;
-    }
-
-    // HUNGARIAN/LNS with PP override: PP + per-task MLA*
-    if (config.assign_trigger == AT_ON_UNASSIGNED_OR_FREE &&
-        config.mapf == MAPF_DECOUPLED_PP) {
-        path_planning_pp_mla();
-        return;
-    }
-
+    // Pseudocode Section 11 — pure dispatch on the MAPF method. Where a MAPF
+    // method has more than one planner variant, the variant is selected by an
+    // internal assign_trigger check (kept inside the case, not in the dispatcher).
     switch (config.mapf) {
     case MAPF_DECOUPLED_PP:
-        // Reached here only by TA-Prioritized (offline TSP, AT_ONCE): plan every
-        // agent's tour via prioritized planning.  (TP/TPTS/HBH also use
-        // DECOUPLED_PP but plan inside assignment, so should_replan()==false and
-        // path_planning() is never called for them; Hungarian/LNS+PP-SIPP are
-        // handled by the leading pp_mla() special case above.)
-        if (config.single_agent == SA_SEQ_STA ||
-            (config.single_agent == SA_MLA_SEQUENCE &&
-             config.assign_method == AM_LKH3_TSP)) {
+        if (config.assign_trigger == AT_ON_UNASSIGNED_OR_FREE) {
+            // Hungarian/LNS + PP-SIPP: prioritized planning with per-task MLA*.
+            path_planning_pp_mla();
+        } else if (config.single_agent == SA_SEQ_STA ||
+                   (config.single_agent == SA_MLA_SEQUENCE &&
+                    config.assign_method == AM_LKH3_TSP)) {
+            // TA-Prioritized (offline TSP, AT_ONCE): plan every agent's tour.
+            // (TP/TPTS/HBH also use DECOUPLED_PP but plan inside assignment, so
+            //  should_replan()==false and path_planning() is never called for them.)
             plan_ta_prioritized();
             ta_planning_done_ = true;
         } else {
@@ -1047,7 +1035,13 @@ void Simulation::path_planning() {
         path_planning_cbs();
         break;
     case MAPF_PBS:
-        path_planning_pbs();
+        // CENTRAL/CENTRAL_FIXED use a CBS wrapper whose Group-2 is PBS-based;
+        // Hungarian/LNS online use plain PBS.
+        if (config.assign_trigger == AT_EVERY_TIMESTEP ||
+            config.assign_trigger == AT_ON_NEW_TASK_OR_FREE)
+            path_planning_cbs_with_pp();
+        else
+            path_planning_pbs();
         break;
     case MAPF_wPBS:
         path_planning_wpbs();
@@ -1057,9 +1051,7 @@ void Simulation::path_planning() {
         ta_planning_done_ = true;
         break;
     default:
-        // Every MAPFMethod enum value is handled explicitly above; this is
-        // unreachable for real configs. Fail loudly instead of silently
-        // routing an unknown mapf to PP.
+        // Every MAPFMethod enum value is handled explicitly above; unreachable.
         cerr << "path_planning: unexpected mapf" << endl;
         break;
     }
