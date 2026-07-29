@@ -572,7 +572,8 @@ void Simulation::update_system_stepwise() {
 
     // Commit CENTRAL-family event flags only under the CENTRAL gate.
     // (For TA-* / TP-fallthrough callers these flags are never read.)
-    if (is_central_family()) {
+    if (config.assign_trigger == AT_EVERY_TIMESTEP ||
+        config.assign_trigger == AT_ON_NEW_TASK_OR_FREE) {
         central_has_event_ = central_has_event;
         central_reassign_event_ = central_reassign_event;
     }
@@ -930,7 +931,8 @@ void Simulation::task_assignment() {
     // Phase 1 (CENTRAL/CENTRAL_FIXED): instant pickup + delivery planning.
     // Must happen before should_assign() so these agents are not treated as FREE.
     // Gated at the call site to the CENTRAL family.
-    if (is_central_family())
+    if (config.assign_trigger == AT_EVERY_TIMESTEP ||
+        config.assign_trigger == AT_ON_NEW_TASK_OR_FREE)
         central_phase1_instant_pickup();
 
     // CENTRAL (AM_HUNGARIAN) only: reset the phase-2 scratch buffers so the
@@ -1010,7 +1012,8 @@ void Simulation::task_assignment() {
 void Simulation::path_planning() {
     // For CENTRAL/CENTRAL_FIXED with PBS override: use CBS wrapper
     // but replace CBS Group 2 with PBS-based planning
-    if (is_central_family() &&
+    if ((config.assign_trigger == AT_EVERY_TIMESTEP ||
+         config.assign_trigger == AT_ON_NEW_TASK_OR_FREE) &&
         config.mapf == MAPF_PBS) {
         path_planning_cbs_with_pp();
         return;
