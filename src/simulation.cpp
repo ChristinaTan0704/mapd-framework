@@ -4462,11 +4462,10 @@ void Simulation::process_online_events() {
         }
     }
 
-    // Trigger periodic replanning (replan only, no re-assignment)
-    // Only for wPBS mode — reference PBS/LNS-PBS only replans on actual events
-    // (task release or delivery completion), never periodically.  Periodic PP
-    // replanning disrupts existing collision-free paths and can worsen quality.
-    if (!pbs_has_event_ && config.mapf == MAPF_wPBS) {
+    // Trigger periodic replanning (replan only, no re-assignment).
+    // Only for WINDOWED planning — non-windowed (PBS/LNS-PBS) only replans on
+    // actual events (task release or delivery completion), never periodically.
+    if (!pbs_has_event_ && config.windowed) {
         bool any_active = false;
         for (auto& a : agents) {
             if (!a.task_sequence.empty()) { any_active = true; break; }
