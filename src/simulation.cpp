@@ -926,82 +926,83 @@ void Simulation::tp_handle_no_assignment() {
 //   (Pseudocode Section 6)
 // ============================================================
 void Simulation::task_assignment() {
-    // Pseudocode Section 6 — Task_Assignment dispatcher
+    // Pseudocode Section 6 — pure dispatch on the task-assignment method.
+    // Each per-method step owns its own should_assign() guard and any
+    // method-specific pre-steps (e.g. CENTRAL's instant-pickup/phase-2 reset),
+    // so this dispatcher carries no algorithm-specific logic.
+    switch (config.assign_method) {
+    case AM_DECOUPLED_GREEDY:       assign_decoupled_greedy_step();   break;
+    case AM_DECOUPLED_GREEDY_SWAPS: assign_tpts_step();               break;
+    case AM_CENTRALIZED_GREEDY:     assign_centralized_greedy_step(); break;
+    case AM_HUNGARIAN:              assign_hungarian_step();          break;
+    case AM_REPEATED_HUNGARIAN_LNS: assign_lns_step();               break;
+    case AM_LKH3_TSP:
+    case AM_LKH3_TSP_REASSIGN:      assign_ta_tsp_step();             break;
+    default: break;
+    }
+}
 
-    // Phase 1 (CENTRAL/CENTRAL_FIXED): instant pickup + delivery planning.
-    // Must happen before should_assign() so these agents are not treated as FREE.
-    // Gated at the call site to the CENTRAL family.
+// TP (AM_DECOUPLED_GREEDY): pick the earliest-free agent, assign it its
+// nearest task; on no assignable task, TP vacates via tp_handle_no_assignment.
+void Simulation::assign_decoupled_greedy_step() {
+    if (!should_assign()) { tp_handle_no_assignment(); return; }
+    // Match reference: default to agents[0], break on first exact match from i=1.
+    // When update_system just advanced the timestep, skip the exact-match branch
+    // (the reference selects the agent BEFORE advancing).
+    Agent* ag = &agents[0];
+    for (int i = 1; i < (int)agents.size(); i++) {
+        if (!tp_timestep_advanced_ && agents[i].finish_time == cur_time_) { ag = &agents[i]; break; }
+        else if (agents[i].finish_time < ag->finish_time) ag = &agents[i];
+    }
+    if (ag->finish_time <= cur_time_) assign_decoupled_greedy(*ag);
+}
+
+// TPTS (AM_DECOUPLED_GREEDY_SWAPS): same agent selection as TP, purge already
+// picked-up tasks, then decoupled-greedy-with-swaps.
+void Simulation::assign_tpts_step() {
+    if (!should_assign()) { tp_handle_no_assignment(); return; }
+    Agent* ag = &agents[0];
+    for (int i = 1; i < (int)agents.size(); i++) {
+        if (!tp_timestep_advanced_ && agents[i].finish_time == cur_time_) { ag = &agents[i]; break; }
+        else if (agents[i].finish_time < ag->finish_time) ag = &agents[i];
+    }
+    tpts_purge_picked_up_tasks();  // reference removes TAKEN+arrived tasks before TPTR
+    if (ag->finish_time <= cur_time_) assign_tpts(*ag);
+}
+
+// HBH-MLA* (AM_CENTRALIZED_GREEDY).
+void Simulation::assign_centralized_greedy_step() {
+    if (!should_assign()) { tp_handle_no_assignment(); return; }
+    assign_centralized_greedy();
+}
+
+// CENTRAL / CENTRAL_FIXED and Hungarian-online (AM_HUNGARIAN). CENTRAL's
+// instant-pickup + delivery planning runs first (before should_assign, so those
+// agents are not treated as FREE); phase-2 scratch is reset here too. Both are
+// internally gated so they are no-ops for the Hungarian-online (PBS/wPBS) path.
+void Simulation::assign_hungarian_step() {
+    // CENTRAL family only: instant pickup must run before should_assign().
+    // (central_phase1_instant_pickup no longer self-gates — gate here.)
     if (config.assign_trigger == AT_EVERY_TIMESTEP ||
         config.assign_trigger == AT_ON_NEW_TASK_OR_FREE)
         central_phase1_instant_pickup();
+    central_clear_phase2_scratch();    // gated on AM_HUNGARIAN internally
+    if (!should_assign()) { tp_handle_no_assignment(); return; }
+    if (config.assign_trigger == AT_ON_UNASSIGNED_OR_FREE) assign_repeated_hungarian();
+    else assign_hungarian();
+}
 
-    // CENTRAL (AM_HUNGARIAN) only: reset the phase-2 scratch buffers so the
-    // general dispatcher stays free of CENTRAL-specific bookkeeping.
-    central_clear_phase2_scratch();
+// LNS (AM_REPEATED_HUNGARIAN_LNS).
+void Simulation::assign_lns_step() {
+    if (!should_assign()) { tp_handle_no_assignment(); return; }
+    assign_repeated_hungarian_lns();
+}
 
-    // Guard: only proceed if the trigger condition is met
-    if (!should_assign()) {
-        tp_handle_no_assignment();
-        return;
-    }
-
-    switch (config.assign_method) {
-    case AM_DECOUPLED_GREEDY: {
-        // Match reference: default to agents[0], break on first exact match from i=1.
-        // BUT: when the timestep was just advanced by update_system, the exact-match
-        // branch must be skipped because the reference selects the agent BEFORE
-        // advancing the timestep (so no exact match is possible there).
-        Agent* ag = &agents[0];
-        for (int i = 1; i < (int)agents.size(); i++) {
-            if (!tp_timestep_advanced_ && agents[i].finish_time == cur_time_) {
-                ag = &agents[i];
-                break;
-            } else if (agents[i].finish_time < ag->finish_time) {
-                ag = &agents[i];
-            }
-        }
-        if (ag->finish_time <= cur_time_) assign_decoupled_greedy(*ag);
-        break;
-    }
-    case AM_DECOUPLED_GREEDY_SWAPS: {
-        // Match reference: same agent selection as TP above.
-        Agent* ag = &agents[0];
-        for (int i = 1; i < (int)agents.size(); i++) {
-            if (!tp_timestep_advanced_ && agents[i].finish_time == cur_time_) {
-                ag = &agents[i];
-                break;
-            } else if (agents[i].finish_time < ag->finish_time) {
-                ag = &agents[i];
-            }
-        }
-        // Match reference: remove finished tasks BEFORE calling TPTR.
-        // Reference run_TPTR removes tasks with TAKEN state and
-        // timestep >= ag_arrive_start right before calling ag->TPTR.
-        tpts_purge_picked_up_tasks();
-        if (ag->finish_time <= cur_time_) assign_tpts(*ag);
-        break;
-    }
-    case AM_CENTRALIZED_GREEDY:
-        assign_centralized_greedy();
-        break;
-    case AM_HUNGARIAN:
-        if (config.assign_trigger == AT_ON_UNASSIGNED_OR_FREE)
-            assign_repeated_hungarian();
-        else
-            assign_hungarian();
-        break;
-    case AM_REPEATED_HUNGARIAN_LNS:
-        assign_repeated_hungarian_lns();
-        break;
-    case AM_LKH3_TSP:
-        assign_ta_tsp();
-        break;
-    case AM_LKH3_TSP_REASSIGN:
-        assign_ta_tsp();  // same tour parsing; plan_ta_hybrid() handles the rest
-        break;
-    default:
-        break;
-    }
+// TA offline (AM_LKH3_TSP / AM_LKH3_TSP_REASSIGN): parse tour once; TA-Hybrid's
+// two-group planning is driven from path_planning().
+void Simulation::assign_ta_tsp_step() {
+    if (!should_assign()) { tp_handle_no_assignment(); return; }
+    assign_ta_tsp();
 }
 
 // ============================================================

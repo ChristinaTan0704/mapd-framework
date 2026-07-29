@@ -216,7 +216,14 @@ private:
 
     // --- Dispatchers within task_assignment_and_path_planning ---
     bool should_assign() const;        // Section 5 — switches on assign_trigger
-    void task_assignment();            // Section 6 — switches on assign_method
+    void task_assignment();            // Section 6 — pure switch on assign_method
+    // Per-assign-method steps (each owns its own should_assign guard + pre-steps):
+    void assign_decoupled_greedy_step();   // AM_DECOUPLED_GREEDY (TP)
+    void assign_tpts_step();               // AM_DECOUPLED_GREEDY_SWAPS (TPTS)
+    void assign_centralized_greedy_step(); // AM_CENTRALIZED_GREEDY (HBH-MLA*)
+    void assign_hungarian_step();          // AM_HUNGARIAN (CENTRAL / Hungarian-online)
+    void assign_lns_step();                // AM_REPEATED_HUNGARIAN_LNS (LNS)
+    void assign_ta_tsp_step();             // AM_LKH3_TSP / AM_LKH3_TSP_REASSIGN (TA)
     bool should_replan() const;        // true for CENTRAL, false for TP/TPTS
     void path_planning();              // Section 11 — switches on mapf
 
