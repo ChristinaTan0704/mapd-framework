@@ -301,100 +301,56 @@ void Simulation::task_goals(const Task& task, int& first_goal, int& last_goal) c
 // ============================================================
 
 void Simulation::update_system_online() {
-    // --- HUNGARIAN/LNS online mode ---
-    {
-        // AT_ON_UNASSIGNED_OR_FREE (Hungarian/LNS online) uses one of:
-        //   wPBS (windowed): advance to the next event but cap the jump at
-        //     replan_window (matching reference KivaSystemOnline).
-        //   PBS / PP (non-windowed): jump straight to the next event, no cap
-        //     (the *-PP-SIPP methods set mapf=MAPF_DECOUPLED_PP but share this
-        //     non-windowed, event-driven advancement).
-        unsigned int next_ts = maxtime;
-
-        if (config.mapf == MAPF_wPBS) {
-            // wPBS (windowed): event-driven advancement capped at replan_window
-            for (int i = 0; i < (int)agents.size(); i++) {
-                if (agents[i].task_sequence.empty()) continue;
-                int task_id = agents[i].task_sequence.front();
-                Task& task = all_tasks[task_id];
-                int first_goal, last_goal;
-                task_goals(task, first_goal, last_goal);
-                int target_loc = (agents[i].status == AG_MOVING_TO_PICKUP) ? first_goal :
-                                 (agents[i].status == AG_CARRYING) ? last_goal : -1;
-                int min_time = (agents[i].status == AG_MOVING_TO_PICKUP) ? task.release_time : 0;
-                if (target_loc >= 0)
-                    for (unsigned int t = cur_time_ + 1; t < maxtime; t++)
-                        if ((int)agents[i].path[t] == target_loc && (int)t >= min_time) {
-                            if (t < next_ts) next_ts = t;
-                            break;
-                        }
-            }
-            clamp_next_ts_to_task_release(next_ts);
-            unsigned int window_cap = cur_time_ + config.replan_window;
-            if (window_cap < next_ts) next_ts = window_cap;
-        } else if (config.mapf == MAPF_PBS || config.mapf == MAPF_DECOUPLED_PP) {
-            // PBS / PP (non-windowed): jump straight to next event
-            for (int i = 0; i < (int)agents.size(); i++) {
-                if (agents[i].task_sequence.empty()) continue;
-                int task_id = agents[i].task_sequence.front();
-                Task& task = all_tasks[task_id];
-                int first_goal, last_goal;
-                task_goals(task, first_goal, last_goal);
-                int target_loc = -1;
-                int min_time = 0;
-
-                if (agents[i].status == AG_MOVING_TO_PICKUP) {
-                    target_loc = first_goal;
-                    min_time = task.release_time;
-                } else if (agents[i].status == AG_CARRYING) {
-                    target_loc = last_goal;
-                    min_time = 0;
+    // Online advance (AT_ON_UNASSIGNED_OR_FREE): jump the clock to the next
+    // event (an agent reaching its current pickup/delivery, or a task release).
+    // The only MAPF-specific part is that a WINDOWED MAPF (wPBS) additionally
+    // caps the jump at replan_window; PBS / PP (incl. *-PP-SIPP) jump uncapped.
+    unsigned int next_ts = maxtime;
+    for (int i = 0; i < (int)agents.size(); i++) {
+        if (agents[i].task_sequence.empty()) continue;
+        int task_id = agents[i].task_sequence.front();
+        Task& task = all_tasks[task_id];
+        int first_goal, last_goal;
+        task_goals(task, first_goal, last_goal);
+        int target_loc = (agents[i].status == AG_MOVING_TO_PICKUP) ? first_goal :
+                         (agents[i].status == AG_CARRYING) ? last_goal : -1;
+        int min_time = (agents[i].status == AG_MOVING_TO_PICKUP) ? task.release_time : 0;
+        if (target_loc >= 0)
+            for (unsigned int t = cur_time_ + 1; t < maxtime; t++)
+                if ((int)agents[i].path[t] == target_loc && (int)t >= min_time) {
+                    if (t < next_ts) next_ts = t;
+                    break;
                 }
+    }
+    clamp_next_ts_to_task_release(next_ts);
+    if (config.mapf == MAPF_wPBS) {   // windowed: cap the jump at replan_window
+        unsigned int window_cap = cur_time_ + config.replan_window;
+        if (window_cap < next_ts) next_ts = window_cap;
+    }
 
-                if (target_loc >= 0) {
-                    for (unsigned int t = cur_time_ + 1; t < maxtime; t++) {
-                        if ((int)agents[i].path[t] == target_loc && (int)t >= min_time) {
-                            if (t < next_ts) next_ts = t;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            clamp_next_ts_to_task_release(next_ts);
-        } else {
-            // AT_ON_UNASSIGNED_OR_FREE is only ever wPBS, PBS, or PP;
-            // fail loudly if some other mapf ever reaches here.
-            cerr << "update_system_online: unexpected mapf" << endl;
+    if (next_ts >= maxtime) {
+        bool has_work = false;
+        for (auto& a : agents) {
+            if (!a.task_sequence.empty()) { has_work = true; break; }
         }
+        if (has_work || !open_tasks_.empty())
+            next_ts = cur_time_ + 1;
+        else
+            return;  // truly done
+    }
+    if (next_ts <= cur_time_) next_ts = cur_time_ + 1;
 
-        if (next_ts >= maxtime) {
-            bool has_work = false;
-            for (auto& a : agents) {
-                if (!a.task_sequence.empty()) { has_work = true; break; }
-            }
-            if (has_work || !open_tasks_.empty())
-                next_ts = cur_time_ + 1;
-            else
-                return;  // truly done
-        }
-        if (next_ts <= cur_time_) next_ts = cur_time_ + 1;
-
-        if (next_ts >= maxtime) {
-            cerr << "PBS: exceeded maxtime=" << maxtime << endl;
-            return;
-        }
-
-        cur_time_ = next_ts;
-        for (auto& ag : agents) {
-            if (cur_time_ < maxtime)
-                ag.loc = ag.path[cur_time_];
-        }
-
-        pbs_has_event_ = false;
-        process_online_events();
+    if (next_ts >= maxtime) {
+        cerr << "update_system_online: exceeded maxtime=" << maxtime << endl;
         return;
     }
+
+    cur_time_ = next_ts;
+    for (auto& ag : agents)
+        if (cur_time_ < maxtime) ag.loc = ag.path[cur_time_];
+
+    pbs_has_event_ = false;
+    process_online_events();
 }
 
 // ============================================================
