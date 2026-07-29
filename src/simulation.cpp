@@ -323,7 +323,7 @@ void Simulation::update_system_online() {
                 }
     }
     clamp_next_ts_to_task_release(next_ts);
-    if (config.mapf == MAPF_wPBS) {   // windowed: cap the jump at replan_window
+    if (config.windowed) {   // windowed planning: cap the jump at replan_window
         unsigned int window_cap = cur_time_ + config.replan_window;
         if (window_cap < next_ts) next_ts = window_cap;
     }
@@ -349,8 +349,7 @@ void Simulation::update_system_online() {
     for (auto& ag : agents)
         if (cur_time_ < maxtime) ag.loc = ag.path[cur_time_];
 
-    pbs_has_event_ = false;
-    process_online_events();
+    process_online_events();  // online post-step: detect completions/new tasks, set replan flags
 }
 
 // ============================================================
@@ -497,42 +496,32 @@ void Simulation::update_system_stepwise() {
     for (auto& ag : agents)
         ag.loc = ag.path[cur_time_];
 
-    // Step 5: Detect state transitions at the NEW timestep
-    //   (sets event flags for the next iteration's task_assignment_and_path_planning)
-    // The central_*_event_ flags are CENTRAL-family state (read only by the
-    // AT_EVERY_TIMESTEP / AT_ON_NEW_TASK_OR_FREE branches of should_assign()/
-    // should_replan()).  The delivery/pickup transition loops below are genuinely
-    // shared across all stepwise callers (CENTRAL, TA-*, TP/TPTS), so we compute
-    // the event flags into locals here and only commit them to the CENTRAL members
-    // under the CENTRAL gate at the end — for TA/TP callers these flags are dead.
-    bool central_has_event = false;
-    bool central_reassign_event = false;
+    // Step 5: shared state-transition detection at the NEW timestep. This updates
+    // agent status (deliveries CARRYING->FREE, pickups MOVING_TO_PICKUP->CARRYING)
+    // for every stepwise caller (CENTRAL, TA-*, TP/TPTS) and reports whether an
+    // event occurred via the out-params.
+    bool has_event = false, reassign_event = false;
+    detect_finish_time_transitions(has_event, reassign_event);
 
-    // Detect completed deliveries and pickup arrivals (shared with tp_pre_step).
-    detect_finish_time_transitions(central_has_event, central_reassign_event);
-
-    // Check if new tasks arrived at the new timestep
-    if (cur_time_ < maxtime && !task_indices_by_time[cur_time_].empty()) {
-        // For AT_EVERY_TIMESTEP (CENTRAL-ECBS): do NOT set central_has_event.
-        // The reference only triggers Phase 2 (has_new_agent) when an agent completes
-        // delivery (next_ep==NULL) or a free agent is at a task's pickup -- NOT on
-        // new task arrival alone.  Phase 1a in task_assignment() will set
-        // central_has_event_ if a free agent is standing on the new task's pickup.
-        // Setting central_has_event here causes spurious Phase 2 reassignment that
-        // returns AG_MOVING_TO_PICKUP agents to free, losing their progress.
-        if (config.assign_trigger != AT_EVERY_TIMESTEP) {
-            central_has_event = true;
-        }
-        central_reassign_event = true;
-    }
-
-    // Commit CENTRAL-family event flags only under the CENTRAL gate.
-    // (For TA-* / TP-fallthrough callers these flags are never read.)
+    // CENTRAL family only: fold in new-task arrivals and publish the replan/
+    // reassign flags it reads in should_assign()/should_replan().
     if (config.assign_trigger == AT_EVERY_TIMESTEP ||
-        config.assign_trigger == AT_ON_NEW_TASK_OR_FREE) {
-        central_has_event_ = central_has_event;
-        central_reassign_event_ = central_reassign_event;
+        config.assign_trigger == AT_ON_NEW_TASK_OR_FREE)
+        central_commit_step_events(has_event, reassign_event);
+}
+
+// CENTRAL / CENTRAL_FIXED: fold new-task arrivals into the step's event flags and
+// publish them to central_has_event_/central_reassign_event_.
+void Simulation::central_commit_step_events(bool has_event, bool reassign_event) {
+    if (cur_time_ < maxtime && !task_indices_by_time[cur_time_].empty()) {
+        // AT_EVERY_TIMESTEP (CENTRAL-ECBS): a new task alone does NOT set has_event
+        // (only delivery completion or a free agent at a pickup does — the latter
+        // handled by phase-1 in assignment). It does mark a reassign event.
+        if (config.assign_trigger != AT_EVERY_TIMESTEP) has_event = true;
+        reassign_event = true;
     }
+    central_has_event_ = has_event;
+    central_reassign_event_ = reassign_event;
 }
 
 // ============================================================

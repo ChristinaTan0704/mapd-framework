@@ -209,6 +209,7 @@ private:
     void task_goals(const Task& task, int& first_goal, int& last_goal) const; // pickup goal + delivery goal for a task
 
     // --- Per-algorithm task_assignment dispatch (from task_assignment) ---
+    void central_commit_step_events(bool has_event, bool reassign_event); // CENTRAL step event flags
     void central_phase1_instant_pickup();  // CENTRAL/CENTRAL_FIXED Phase-1a/1b
     void central_deliver_single_astar(int aid, Task* task);  // CENTRAL single-agent A* delivery fallback
     void central_clear_phase2_scratch();   // CENTRAL (AM_HUNGARIAN) phase-2 scratch reset

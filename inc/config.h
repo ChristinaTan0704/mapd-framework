@@ -69,13 +69,16 @@ struct MAPDConfig {
     int lns_seed;   // RNG seed for the LNS assignment loop: >=0 deterministic, <0 = time(NULL)
     CoupledMode coupled;               // task-assignment/pathfinding coupling axis
     EndpointStrategy endpoint_strategy; // endpoint/parking selection axis
+    bool windowed;                     // windowed replanning: the clock advances at
+                                       // most replan_window steps between replans
+                                       // (a planning-horizon property, true for wPBS)
 
     MAPDConfig() : name("Custom"), mode(MODE_ONLINE), assign_type(ASSIGN_IA),
         assign_method(AM_DECOUPLED_GREEDY), assign_trigger(AT_ON_FREE_WAITS),
         mapf(MAPF_DECOUPLED_PP), single_agent(SA_STA_TASK_EP),
         deadlock(DA_HOLDING_ENDPOINT), replan_window(10), ecbs_weight(1.0),
         lns_time_limit(1), mla_mode(MLA_TASKWISE), use_sipp(false), lns_seed(0),
-        coupled(CM_NONE), endpoint_strategy(EP_TASK_ENDPOINT) {}
+        coupled(CM_NONE), endpoint_strategy(EP_TASK_ENDPOINT), windowed(false) {}
 };
 
 // ============ Algorithm Presets ============
@@ -164,6 +167,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.single_agent = SA_MLA_SEQUENCE;
         c.deadlock = DA_DUMMY_PATH;
         c.replan_window = 15; // Match reference: --planning_window=15 --simulation_window=15
+        c.windowed = true;
         c.coupled = CM_NONE; c.endpoint_strategy = EP_FLEXIBLE_PAIRWISE;
     }
     else if (name == "LNS_PBS") {
@@ -184,6 +188,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.single_agent = SA_MLA_SEQUENCE;
         c.deadlock = DA_DUMMY_PATH;
         c.replan_window = 15; // Match reference: --simulation_window=15 --planning_window=15
+        c.windowed = true;
         c.lns_time_limit = 1;
         c.coupled = CM_NONE; c.endpoint_strategy = EP_FLEXIBLE_PAIRWISE;
     }
