@@ -1,15 +1,24 @@
 #pragma once
 // ============================================================================
-//  Unified MAPD Framework — currently instantiated for two assignment variants:
+//  Unified MAPD Framework — task-assignment and path-planning variants include:
 //
+//      Token Passing greedy assignment, with optional TPTS task swaps,
+//      using sequential STA* or MLSIPP
+//      Centralized Hungarian assignment with ECBS
+//      Offline LKH3 tour assignment with prioritized sequential STA*
 //      Repeated Hungarian, with or without the 1-second LNS improvement
 //      PBS / wPBS with MLA* or MLSIPP; PP with MLSIPP
 //        mode              = ONLINE / OFFLINE / SEMI_ONLINE
-//        assign_method     = HUNGARIAN / REPEATED_HUNGARIAN_LNS
-//        assign_trigger    = ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT
-//        mapf              = PBS / wPBS / DECOUPLED_PP
-//        single_agent      = MLA_SEQUENCE / MLSIPP_SEQUENCE
-//        deadlock          = DUMMY_PATH
+//        assign_method     = DECOUPLED_GREEDY / DECOUPLED_GREEDY_SWAPS /
+//                            CENTRAL_HUNGARIAN / REPEATED_HUNGARIAN /
+//                            LKH3_TSP /
+//                            REPEATED_HUNGARIAN_LNS
+//        assign_trigger    = ON_FREE_WAITS / EVERY_TIMESTEP /
+//                            ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT
+//        mapf              = CBS / PBS / wPBS / DECOUPLED_PP
+//        single_agent      = STA_TASK_EP / SEQ_STA /
+//                            MLA_SEQUENCE / MLSIPP_SEQUENCE
+//        dummy_path       = true / false
 //        endpoint_strategy = FLEXIBLE_STRICT
 //        anytime_improvement = false
 //
@@ -34,6 +43,35 @@
 #include <stack>
 #include <tuple>
 #include <boost/heap/fibonacci_heap.hpp>
+
+// Space-time A* node used by TP's two sequential low-level searches.
+struct SearchNode {
+    int loc;
+    int g_val;
+    int h_val;
+    int timestep;
+    SearchNode* parent;
+    bool in_openlist;
+
+    SearchNode(int location, int g, int h, SearchNode* previous, int time)
+        : loc(location), g_val(g), h_val(h), timestep(time),
+          parent(previous), in_openlist(true) {}
+    SearchNode(int location, int g, SearchNode* previous, int time)
+        : loc(location), g_val(g), h_val(0), timestep(time),
+          parent(previous), in_openlist(true) {}
+    int getFVal() const { return g_val + h_val; }
+};
+
+struct CompareNode {
+    bool operator()(const SearchNode* lhs, const SearchNode* rhs) const {
+        if (lhs->getFVal() != rhs->getFVal())
+            return lhs->getFVal() > rhs->getFVal();
+        return lhs->g_val <= rhs->g_val;
+    }
+};
+
+typedef boost::heap::fibonacci_heap<SearchNode*,
+        boost::heap::compare<CompareNode>> heap_open_t;
 
 // ============================================================================
 //  Priority graph — PBS's partial order over agents (Section 7)
@@ -132,6 +170,7 @@ private:
     friend class wPBSPlanner;
     friend class SIPPPlanner;
     friend class MLAStarPlanner;
+    friend class STAStarPlanner;
 
     // ======================================================================
     //  Instance + system state
@@ -156,6 +195,8 @@ private:
     void release_tasks();                       // T <- T u {tau_j | r_j = t}
     void task_assignment_and_path_planning();   // Computation
     void advance_time();                        // agents move, t <- t+1
+    void advance_time_tp();                     // TP processes free agents before advancing
+    void advance_time_central();                // CENTRAL advances one timestep
 
     bool any_agent_busy() const {
         for (auto& a : agents)
@@ -169,21 +210,50 @@ private:
     // ======================================================================
     //  Section 2 — Computation: dispatchers on the config axes
     // ======================================================================
+    // Per-iteration data passed from task assignment to path planning.  This
+    // is deliberately local to task_assignment_and_path_planning(); it is not
+    // persistent simulation state.
+    struct ComputationContext {
+        vector<int> central_agent_ids;
+        vector<int> central_assigned_task_ids;
+        vector<int> central_goal_endpoint_ids;
+    };
+
     bool should_assign() const;      // assign_trigger
-    void task_assignment();          // assign_method
+    void task_assignment(ComputationContext& context); // assign_method
     bool should_replan(bool assignment_triggered) const;
-    void path_planning();            // mapf
+    void path_planning(const ComputationContext& context); // mapf
 
     // Assignment-trigger state that cannot be derived from the current task
     // pool alone. A newly available agent is detected after movement and must
     // be remembered until the next assignment phase.
     void process_events();
-    bool new_available_agent_ = false; // newly available for sequence reassignment
+    bool new_available_agent_ = false; // newly available for event-triggered reassignment
     unsigned int last_path_planning_time_ = 0;
 
+    // Offline TA input retained between initialization and the one assignment.
+    string tour_file_;
+
     // ======================================================================
-    //  Section 3 — Task assignment: HUNGARIAN / REPEATED_HUNGARIAN_LNS
+    //  Section 3 — Task assignment: TP / HUNGARIAN / REPEATED_HUNGARIAN_LNS
     // ======================================================================
+    void assign_decoupled_greedy_step();
+    bool assign_decoupled_greedy(Agent& agent);
+    void assign_tpts_step();
+    bool assign_tpts(Agent& agent, int depth = 0);
+    void tpts_purge_picked_up_tasks();
+    void assign_ta_tsp();
+    void central_phase1_instant_pickup();
+    Task* central_current_task(int agent_id);
+    void central_plan_single_delivery(int agent_id, Task* task);
+    void assign_central_hungarian(vector<int>& agent_ids,
+                                  vector<int>& assigned_task_ids,
+                                  vector<int>& goal_endpoint_ids);
+    int central_path_cost(int agent_id, int start_loc, int goal_loc,
+                          int start_time, const vector<vector<int>>& constraints,
+                          const vector<char>* vertex_reservations,
+                          int reservation_size, const vector<int>* last_occupation,
+                          unordered_map<long long, int>& visited);
     void assign_repeated_hungarian_lns();      // Hungarian, then the 1 s LNS spin
     void assign_repeated_hungarian();          //   Phase 1
     int  hungarian_arrival_estimate(const Agent& ag, const Task& task) const;
@@ -199,7 +269,7 @@ private:
     // ======================================================================
     vector<vector<pair<int,int>>> build_goal_sequences();
     int  choose_dummy_endpoint(int agent_id, int last_goal_loc,
-                               const vector<int>& assigned_dummies, bool strict);
+                               const vector<int>& assigned_dummies);
     vector<vector<pair<int,int>>> split_into_task_groups(
         int agent_id, const vector<pair<int,int>>& goal_seq) const;
 
@@ -211,8 +281,16 @@ private:
     // using explicit per-search request objects. The *_impl methods below are
     // private kernels and are callable only by those friend strategy classes.
     void path_planning_pp();
+    void plan_ta_prioritized();
     void path_planning_pbs();
     void path_planning_wpbs();
+    void path_planning_ecbs(const vector<int>& agent_ids,
+                            const vector<int>& assigned_task_ids,
+                            const vector<int>& goal_endpoint_ids);
+    void central_plan_prioritized_fallback(
+        const vector<int>& agent_ids,
+        const vector<int>& assigned_task_ids,
+        const vector<int>& goal_endpoint_ids);
     void wpbs_windowed_solve_impl();
     bool pbs_solve_impl();
 
@@ -284,6 +362,24 @@ private:
                                 const vector<vector<int>>& old_paths,
                                 bool use_old_paths,
                                 bool skip_holding = false);
+
+    // TP's existing STA* kernel and endpoint-vacating fallback.
+    pair<int,int> plan_task_sta_impl(Agent& agent, Task& task, int hidden_agent = -1);
+    pair<int,int> plan_task_sipp(Agent& agent, Task& task, int hidden_agent = -1);
+    pair<int,int> plan_token_task(Agent& agent, Task& task, int hidden_agent = -1);
+    int sta_search(Agent& agent, int start_loc, int begin_time,
+                   const Endpoint& goal, int hidden_agent);
+    bool sta_is_constrained(int agent_id, int current_loc, int next_loc,
+                            int next_time, int hidden_agent) const;
+    void sta_update_path(Agent& agent, const SearchNode& goal_node);
+    bool move_to_endpoint(Agent& agent);
+    void release_search_nodes(map<unsigned int, SearchNode*>& nodes);
+    int astar_with_dummy(Agent& agent, int start_loc, int start_time,
+                         int goal_loc, int endpoint_loc,
+                         const vector<int>& h_goal,
+                         const vector<int>& h_endpoint,
+                         const vector<vector<int>>& constraint_paths,
+                         int release_time, bool goal_optimal = true);
 
     // Reused safe-interval buffers; only cells touched by the previous search
     // are reset, avoiding an O(map size) allocation for every PBS low-level call.

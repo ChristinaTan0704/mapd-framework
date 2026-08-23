@@ -78,7 +78,7 @@ count_total() {
     for NAGS in "${MAPS[@]}"; do
         for FREQ in "${FREQS[@]}"; do
             # Online algorithms: all freqs
-            t=$((t + 16))  # 16 online algorithms
+            t=$((t + 14))  # 14 online algorithms
             # Offline algorithms: only freq=500
             if [ "$FREQ" = "500" ]; then
                 t=$((t + 4))  # 4 offline algorithms (TA-*)
@@ -101,8 +101,6 @@ for NAGS in "${MAPS[@]}"; do
             "TPTS-MLSIPP $NAGS $FREQ -a TPTS --single_agent MLA --sipp" \
             "CENTRAL-CBS $NAGS $FREQ -a CENTRAL" \
             "CENTRAL-PBS $NAGS $FREQ -a CENTRAL --mapf PBS" \
-            "CENTRAL_FIXED-CBS $NAGS $FREQ -a CENTRAL_FIXED" \
-            "CENTRAL_FIXED-PBS $NAGS $FREQ -a CENTRAL_FIXED --mapf PBS" \
             "HBH-MLSIPP $NAGS $FREQ -a HBH_MLA --sipp" \
             "HUNGARIAN-PBS $NAGS $FREQ -a HUNGARIAN_PBS" \
             "HUNGARIAN-wPBS $NAGS $FREQ -a HUNGARIAN_wPBS" \

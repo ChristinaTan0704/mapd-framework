@@ -10,7 +10,6 @@ All paths verified **collision-free**. All 500/500 tasks completed.
 | TA_HYBRID | **1050** | 1037 | +1.3% |
 | TA_PRIORITIZED | **1052** | 1053 | -0.1% |
 | HBH_MLA | **1095** | — | — |
-| CENTRAL_FIXED | 1121 | — | — |
 | CENTRAL | 1126 | 1101 | +2.3% |
 | TP | 1133 | 1136 | -0.3% |
 | TPTS | 1145 | 1105 | +3.6% |
@@ -26,26 +25,24 @@ All paths verified **collision-free**. All 500/500 tasks completed.
 | HUNGARIAN_PBS | **2513** | 2512 | +0.04% |
 | HUNGARIAN_wPBS | **2513** | 2513 | exact |
 | CENTRAL | 2514 | 2516 | -0.1% |
-| CENTRAL_FIXED | 2514 | — | — |
 | HBH_MLA | **2514** | — | — |
 | TP | **2532** | 2532 | exact |
 | TPTS | **2532** | 2532 | exact |
 
-### Algorithms Implemented (11 + post-processing)
+### Algorithms Implemented (10 + post-processing)
 
-| # | Algorithm | Type | Assignment | MAPF | Deadlock |
+| # | Algorithm | Type | Assignment | MAPF | Dummy path? |
 |---|-----------|------|------------|------|----------|
-| 1 | TP | Online/IA | Decoupled Greedy | PP (2x A*) | Endpoint Hold |
-| 2 | TPTS | Online/IA | Greedy+Swaps | PP (2x A*) | Endpoint Hold |
-| 3 | CENTRAL | Online/IA | Hungarian | CBS/ECBS | Endpoint Hold |
-| 4 | CENTRAL_FIXED | Online/IA | Hungarian | CBS/ECBS | Endpoint Hold |
-| 5 | HBH_MLA | Online/IA | Centralized Greedy | PP (MLA*) | Endpoint Hold |
-| 6 | TA_PRIORITIZED | Offline/TA | LKH3 TSP | PP (SEQ_STA) | Dummy Path |
-| 7 | TA_HYBRID | Offline/TA | LKH3 TSP | Two-Group (Flow+CBS) | Dummy Path |
-| 8 | HUNGARIAN_PBS | Online/TA | Repeated Hungarian | PBS (MLA*) | Dummy Path |
-| 9 | HUNGARIAN_wPBS | Online/TA | Repeated Hungarian | wPBS (MLA*) | Dummy Path |
-| 10 | LNS_PBS | Online/TA | Repeated Hungarian + LNS | PBS (MLA*) | Dummy Path |
-| 11 | LNS_wPBS | Online/TA | Repeated Hungarian + LNS | wPBS (MLA*) | Dummy Path |
+| 1 | TP | Online/IA | Decoupled Greedy | PP (2x A*) | Yes (may be zero-length) |
+| 2 | TPTS | Online/IA | Greedy+Swaps | PP (2x A*) | Yes (may be zero-length) |
+| 3 | CENTRAL | Online/IA | Hungarian | CBS/ECBS | Yes (may be zero-length) |
+| 4 | HBH_MLA | Online/IA | Centralized Greedy | PP (MLA*) | Yes (may be zero-length) |
+| 5 | TA_PRIORITIZED | Offline/TA | LKH3 TSP | PP (SEQ_STA) | Yes |
+| 6 | TA_HYBRID | Offline/TA | LKH3 TSP | Two-Group (Flow+CBS) | Yes |
+| 7 | HUNGARIAN_PBS | Online/TA | Repeated Hungarian | PBS (MLA*) | Yes |
+| 8 | HUNGARIAN_wPBS | Online/TA | Repeated Hungarian | wPBS (MLA*) | Yes |
+| 9 | LNS_PBS | Online/TA | Repeated Hungarian + LNS | PBS (MLA*) | Yes |
+| 10 | LNS_wPBS | Online/TA | Repeated Hungarian + LNS | wPBS (MLA*) | Yes |
 | + | REALPATH_LNS_IMP | Post-processing | Hungarian reassign | PP (A*) | — |
 
 ### Build & Run
@@ -59,7 +56,6 @@ make clean && make
 ./mapd -m <map> -t <tasks> -a TPTS
 ./mapd -m <map> -t <tasks> -a HBH_MLA
 ./mapd -m <map> -t <tasks> -a CENTRAL [-w <ecbs_weight>]
-./mapd -m <map> -t <tasks> -a CENTRAL_FIXED [-w <ecbs_weight>]
 ./mapd -m <map> -t <tasks> -a HUNGARIAN_PBS
 ./mapd -m <map> -t <tasks> -a HUNGARIAN_wPBS
 ./mapd -m <map> -t <tasks> -a LNS_PBS [--lns_time <seconds>]

@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <stdexcept>
 using namespace std;
 
 // ============ Enums matching pseudocode Section 0 ============
@@ -9,7 +10,8 @@ enum AssignType { ASSIGN_IA, ASSIGN_TA };
 enum AssignMethod {
     AM_DECOUPLED_GREEDY,
     AM_CENTRALIZED_GREEDY,
-    AM_HUNGARIAN,
+    AM_CENTRAL_HUNGARIAN,
+    AM_REPEATED_HUNGARIAN,
     AM_DECOUPLED_GREEDY_SWAPS,
     AM_LKH3_TSP,
     AM_LKH3_TSP_REASSIGN,
@@ -19,7 +21,6 @@ enum AssignMethod {
 enum AssignTrigger {
     AT_ON_FREE_WAITS,
     AT_EVERY_TIMESTEP,
-    AT_ON_NEW_TASK_OR_FREE,
     AT_ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT,
     // Legacy name retained so the archived all-methods source still compiles.
     AT_ON_UNASSIGNED_OR_FREE = AT_ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT,
@@ -38,11 +39,6 @@ enum SingleAgentMethod {
     SA_MLA_SEQUENCE,
     SA_MLSIPP_SEQUENCE,
     SA_SEQ_STA
-};
-enum DeadlockAvoid {
-    DA_HOLDING_ENDPOINT,
-    DA_DUMMY_PATH,
-    DA_NO_AVOIDANCE
 };
 enum MLAMode {
     MLA_DEFAULT,
@@ -63,7 +59,9 @@ struct MAPDConfig {
     AssignTrigger assign_trigger;
     MAPFMethod mapf;
     SingleAgentMethod single_agent;
-    DeadlockAvoid deadlock;
+    // Whether to append a post-delivery path to the selected endpoint. The
+    // endpoint may equal the delivery location, yielding a zero-length dummy.
+    bool dummy_path;
     int replan_window;   // for wPBS
     double ecbs_weight;  // for ECBS/CBS (1.0 = optimal)
     int lns_time_limit;  // LNS improvement time limit in seconds (0 = no LNS)
@@ -79,7 +77,7 @@ struct MAPDConfig {
     MAPDConfig() : name("Custom"), mode(MODE_ONLINE), assign_type(ASSIGN_IA),
         assign_method(AM_DECOUPLED_GREEDY), assign_trigger(AT_ON_FREE_WAITS),
         mapf(MAPF_DECOUPLED_PP), single_agent(SA_STA_TASK_EP),
-        deadlock(DA_HOLDING_ENDPOINT), replan_window(10), ecbs_weight(1.0),
+        dummy_path(true), replan_window(10), ecbs_weight(1.0),
         lns_time_limit(1), mla_mode(MLA_TASKWISE), use_sipp(false), lns_seed(0),
         coupled(CM_NONE), endpoint_strategy(EP_TASK_ENDPOINT), windowed(false) {}
 };
@@ -96,7 +94,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.assign_trigger = AT_ON_FREE_WAITS;
         c.mapf = MAPF_DECOUPLED_PP;
         c.single_agent = SA_STA_TASK_EP;
-        c.deadlock = DA_HOLDING_ENDPOINT;
+        c.dummy_path = true;
         c.coupled = CM_NONE; c.endpoint_strategy = EP_TASK_ENDPOINT;
     }
     else if (name == "TPTS") {
@@ -105,25 +103,16 @@ inline MAPDConfig get_preset(const string& name) {
         c.assign_trigger = AT_ON_FREE_WAITS;
         c.mapf = MAPF_DECOUPLED_PP;
         c.single_agent = SA_STA_TASK_EP;
-        c.deadlock = DA_HOLDING_ENDPOINT;
+        c.dummy_path = true;
         c.coupled = CM_SWAPS_ONLY; c.endpoint_strategy = EP_TASK_ENDPOINT;
     }
     else if (name == "CENTRAL") {
         c.mode = MODE_ONLINE; c.assign_type = ASSIGN_IA;
-        c.assign_method = AM_HUNGARIAN;
+        c.assign_method = AM_CENTRAL_HUNGARIAN;
         c.assign_trigger = AT_EVERY_TIMESTEP;
         c.mapf = MAPF_CBS;
         c.single_agent = SA_STA_TASK_EP;
-        c.deadlock = DA_HOLDING_ENDPOINT;
-        c.coupled = CM_NONE; c.endpoint_strategy = EP_TASK_ENDPOINT;
-    }
-    else if (name == "CENTRAL_FIXED") {
-        c.mode = MODE_ONLINE; c.assign_type = ASSIGN_IA;
-        c.assign_method = AM_HUNGARIAN;
-        c.assign_trigger = AT_ON_NEW_TASK_OR_FREE;
-        c.mapf = MAPF_CBS;
-        c.single_agent = SA_STA_TASK_EP;
-        c.deadlock = DA_HOLDING_ENDPOINT;
+        c.dummy_path = true;
         c.coupled = CM_NONE; c.endpoint_strategy = EP_TASK_ENDPOINT;
     }
     else if (name == "HBH_MLA") {
@@ -132,7 +121,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.assign_trigger = AT_ON_FREE_WAITS;
         c.mapf = MAPF_DECOUPLED_PP;
         c.single_agent = SA_MLA_SEQUENCE;
-        c.deadlock = DA_HOLDING_ENDPOINT;
+        c.dummy_path = true;
         c.coupled = CM_NONE; c.endpoint_strategy = EP_TASK_ENDPOINT;
     }
     else if (name == "TA_PRIORITIZED") {
@@ -141,7 +130,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.assign_trigger = AT_ONCE;
         c.mapf = MAPF_DECOUPLED_PP;
         c.single_agent = SA_SEQ_STA;
-        c.deadlock = DA_DUMMY_PATH;
+        c.dummy_path = true;
         c.coupled = CM_NONE; c.endpoint_strategy = EP_FIXED_PARKING;
     }
     else if (name == "TA_HYBRID") {
@@ -150,25 +139,25 @@ inline MAPDConfig get_preset(const string& name) {
         c.assign_trigger = AT_ONCE;
         c.mapf = MAPF_TA_HYBRID_TWO_GROUP;
         c.single_agent = SA_STA_TASK_EP;
-        c.deadlock = DA_DUMMY_PATH;
+        c.dummy_path = true;
         c.coupled = CM_REASSIGN_ONLY; c.endpoint_strategy = EP_FIXED_PARKING;
     }
     else if (name == "HUNGARIAN_PBS") {
         c.mode = MODE_ONLINE; c.assign_type = ASSIGN_TA;
-        c.assign_method = AM_HUNGARIAN;
+        c.assign_method = AM_REPEATED_HUNGARIAN;
         c.assign_trigger = AT_ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT;
         c.mapf = MAPF_PBS;
         c.single_agent = SA_MLA_SEQUENCE;
-        c.deadlock = DA_DUMMY_PATH;
+        c.dummy_path = true;
         c.coupled = CM_NONE; c.endpoint_strategy = EP_FLEXIBLE_STRICT;
     }
     else if (name == "HUNGARIAN_wPBS") {
         c.mode = MODE_ONLINE; c.assign_type = ASSIGN_TA;
-        c.assign_method = AM_HUNGARIAN;
+        c.assign_method = AM_REPEATED_HUNGARIAN;
         c.assign_trigger = AT_ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT;
         c.mapf = MAPF_wPBS;
         c.single_agent = SA_MLA_SEQUENCE;
-        c.deadlock = DA_DUMMY_PATH;
+        c.dummy_path = true;
         c.replan_window = 15; // Match reference: --planning_window=15 --simulation_window=15
         c.windowed = true;
         c.coupled = CM_NONE; c.endpoint_strategy = EP_FLEXIBLE_PAIRWISE;
@@ -179,7 +168,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.assign_trigger = AT_ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT;
         c.mapf = MAPF_PBS;
         c.single_agent = SA_MLA_SEQUENCE;
-        c.deadlock = DA_DUMMY_PATH;
+        c.dummy_path = true;
         c.lns_time_limit = 1;
         c.coupled = CM_NONE; c.endpoint_strategy = EP_FLEXIBLE_STRICT;
     }
@@ -189,11 +178,14 @@ inline MAPDConfig get_preset(const string& name) {
         c.assign_trigger = AT_ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT;
         c.mapf = MAPF_wPBS;
         c.single_agent = SA_MLA_SEQUENCE;
-        c.deadlock = DA_DUMMY_PATH;
+        c.dummy_path = true;
         c.replan_window = 15; // Match reference: --simulation_window=15 --planning_window=15
         c.windowed = true;
         c.lns_time_limit = 1;
         c.coupled = CM_NONE; c.endpoint_strategy = EP_FLEXIBLE_PAIRWISE;
+    }
+    else {
+        throw invalid_argument("unsupported algorithm preset: " + name);
     }
 
     return c;

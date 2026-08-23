@@ -51,8 +51,7 @@ run()                                                      [123]
 | trigger (config) | assign when | replan? |
 |---|---|---|
 | `AT_ON_FREE_WAITS` (TP/TPTS) | any agent `finish_time <= t` | false (planning inside assignment) |
-| `AT_EVERY_TIMESTEP` (CENTRAL) | `central_has_event_` & free agent exists | `central_has_event_` |
-| `AT_ON_NEW_TASK_OR_FREE` (CENTRAL_FIXED) | `central_reassign_event_` & free agent | `central_has_event_` |
+| `AT_EVERY_TIMESTEP` (CENTRAL) | every timestep | every timestep |
 | `AT_ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT` (Hungarian/LNS) | assignment event | replan event |
 | `AT_ONCE` (TA) | `timestep == 0` | true |
 
@@ -60,15 +59,15 @@ run()                                                      [123]
 ```
 AM_DECOUPLED_GREEDY (TP)        -> assign_decoupled_greedy()   [985]
 AM_DECOUPLED_GREEDY_SWAPS (TPTS)-> assign_tpts()               [1057]
-AM_HUNGARIAN (CENTRAL / Hung)   -> assign_hungarian() [1411] (CENTRAL, every-step)
-                                   OR assign_repeated_hungarian() [4459] (Hungarian+PBS/wPBS/PP)
+AM_CENTRAL_HUNGARIAN            -> assign_central_hungarian() (CENTRAL, every-step)
+AM_REPEATED_HUNGARIAN           -> assign_repeated_hungarian() (Hungarian+PBS/wPBS/PP)
 AM_REPEATED_HUNGARIAN_LNS       -> assign_repeated_hungarian_lns() [4838]
 AM_LKH3_TSP / _REASSIGN (TA)    -> assign_ta_tsp()             [2649]
 ```
 
 ### `path_planning()` dispatch [933]
 ```
-if (CENTRAL/CENTRAL_FIXED trigger) && mapf==PBS   -> path_planning_cbs_with_pp()
+if (CENTRAL trigger) && mapf==PBS                 -> path_planning_cbs_with_pp()
 if (AT_ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT) && mapf==PP -> path_planning_pp_mla() [7625]
 switch mapf:
   MAPF_DECOUPLED_PP -> plan_ta_prioritized()[2752] (TA) | path_planning_pp()
@@ -83,7 +82,7 @@ switch mapf:
 ## 0.2 Agent-start shuffle (MGMAPD faithfulness) [`init` ~40]
 
 ```
-mgmapd_method = (assign_method==AM_HUNGARIAN || AM_REPEATED_HUNGARIAN_LNS)
+mgmapd_method = (assign_method==AM_REPEATED_HUNGARIAN || AM_REPEATED_HUNGARIAN_LNS)
                 && (mapf==MAPF_PBS || mapf==MAPF_wPBS)
 if (mgmapd_method):
     std::shuffle(mapd_map.agent_starts, std::default_random_engine())   -- default seed
@@ -123,7 +122,7 @@ heuristics; in windowed (wPBS) mode caps at `start+win_look` (env `SIPP_WIN_LOOK
 
 `path_planning_wpbs()` [8799] chooses between two windowed implementations:
 ```
-use_native = (assign_method==AM_HUNGARIAN || AM_REPEATED_HUNGARIAN_LNS)
+use_native = (assign_method==AM_REPEATED_HUNGARIAN || AM_REPEATED_HUNGARIAN_LNS)
              && mapf==MAPF_wPBS && !use_sipp        -- i.e. exactly #7 and #9
 if use_native: wpbs_windowed_solve()   [8835]
 else:          pbs_core(true)          [6467]       -- #11, #13 (SIPP wPBS)
@@ -149,7 +148,7 @@ This is a faithful in-framework re-expression of the MGMAPD reference solve (the
 Each entry: **CLI** (from `run_method.sh`) → **preset** (`config.h`) → **trace**.
 
 ### 1. TP-STA*  — Token Passing, space-time A*
-**CLI:** `-a TP` · **preset:** `DECOUPLED_GREEDY, ON_FREE_WAITS, DECOUPLED_PP, SA_STA_TASK_EP, HOLDING_ENDPOINT`
+**CLI:** `-a TP` · **preset:** `DECOUPLED_GREEDY, ON_FREE_WAITS, DECOUPLED_PP, SA_STA_TASK_EP, dummy_path=true, TASK_ENDPOINT`
 ```
 task_assignment() -> AM_DECOUPLED_GREEDY:
   should_assign(): AT_ON_FREE_WAITS -> any agent finish_time<=t
@@ -161,7 +160,7 @@ task_assignment() -> AM_DECOUPLED_GREEDY:
 ```
 
 ### 2. TPTS-STA*  — Token Passing with Task Swaps, space-time A*
-**CLI:** `-a TPTS` · **preset:** `DECOUPLED_GREEDY_SWAPS, ON_FREE_WAITS, DECOUPLED_PP, SA_STA_TASK_EP, HOLDING_ENDPOINT`
+**CLI:** `-a TPTS` · **preset:** `DECOUPLED_GREEDY_SWAPS, ON_FREE_WAITS, DECOUPLED_PP, SA_STA_TASK_EP, dummy_path=true, TASK_ENDPOINT`
 ```
 task_assignment() -> AM_DECOUPLED_GREEDY_SWAPS:
   pick ONE free agent, assign_tpts(ag, depth=0)                                [1057]
@@ -172,11 +171,12 @@ task_assignment() -> AM_DECOUPLED_GREEDY_SWAPS:
 ```
 
 ### 3. CENTRAL-ECBS  — Hungarian (every step) + CBS/ECBS
-**CLI:** `-a CENTRAL` · **preset:** `HUNGARIAN, EVERY_TIMESTEP, MAPF_CBS, SA_STA_TASK_EP, HOLDING_ENDPOINT`
+**CLI:** `-a CENTRAL` · **preset:** `CENTRAL_HUNGARIAN, EVERY_TIMESTEP, MAPF_CBS, SA_STA_TASK_EP, dummy_path=true, TASK_ENDPOINT`
 ```
-task_assignment(): AM_HUNGARIAN -> assign_hungarian()                          [1411]
-  collect FREE agents + candidate tasks + parking endpoints; cost matrix; dlib::max_cost_assignment()
-should_replan() -> central_has_event_
+task_assignment(): AM_CENTRAL_HUNGARIAN -> assign_central_hungarian()
+  process instant pickups; then collect FREE agents + candidate tasks + parking endpoints
+  build cost matrix; dlib::max_cost_assignment()
+should_replan() -> true (every timestep)
 path_planning() -> mapf==CBS -> path_planning_cbs()                            [1586]
   GROUP 1 (CARRYING deliveries): CBSSearch over all delivery agents; astar() fallback
   GROUP 2 (FREE -> pickup/parking): CBSSearch (CBS HL + ECBS LL, cbs.cpp); astar/PP fallback
@@ -184,7 +184,7 @@ path_planning() -> mapf==CBS -> path_planning_cbs()                            [
 ```
 
 ### 4. TA-Hybrid-STA*  — offline LKH3 (reassign) + two-group planning (Group 1 = ICBS)
-**CLI:** `-a TA_HYBRID --tour <N>-500.tour` · **preset:** `LKH3_TSP_REASSIGN, ONCE, TA_HYBRID_TWO_GROUP, SA_STA_TASK_EP, DUMMY_PATH`
+**CLI:** `-a TA_HYBRID --tour <N>-500.tour` · **preset:** `LKH3_TSP_REASSIGN, ONCE, TA_HYBRID_TWO_GROUP, SA_STA_TASK_EP, dummy_path=true, FIXED_PARKING`
 ```
 task_assignment() -> AM_LKH3_TSP_REASSIGN -> assign_ta_tsp()                   [2649]
   parse LKH3 tour file, split into per-agent task_sequences
@@ -199,7 +199,7 @@ end(): ta_planning_done_
 ```
 
 ### 5. TA-Prioritized-STA*  — offline LKH3 + prioritized planning
-**CLI:** `-a TA_PRIORITIZED --tour <N>-500.tour` · **preset:** `LKH3_TSP, ONCE, DECOUPLED_PP, SA_SEQ_STA, DUMMY_PATH`
+**CLI:** `-a TA_PRIORITIZED --tour <N>-500.tour` · **preset:** `LKH3_TSP, ONCE, DECOUPLED_PP, SA_SEQ_STA, dummy_path=true, FIXED_PARKING`
 ```
 task_assignment() -> AM_LKH3_TSP -> assign_ta_tsp()                            [2649]
 path_planning() -> DECOUPLED_PP & SA_SEQ_STA -> plan_ta_prioritized()          [2752]
@@ -207,10 +207,10 @@ path_planning() -> DECOUPLED_PP & SA_SEQ_STA -> plan_ta_prioritized()          [
 ```
 
 ### 6. Hungarian+PBS-MLA*  — repeated Hungarian + PBS, MLA* low-level
-**CLI:** `-a HUNGARIAN_PBS` · **preset:** `HUNGARIAN, ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT, MAPF_PBS, SA_MLA_SEQUENCE, DUMMY_PATH`
+**CLI:** `-a HUNGARIAN_PBS` · **preset:** `REPEATED_HUNGARIAN, ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT, MAPF_PBS, SA_MLA_SEQUENCE, dummy_path=true, FLEXIBLE_STRICT`
 ```
 init: agent-start shuffle (0.2)
-task_assignment() -> AM_HUNGARIAN (trigger UNASSIGNED_OR_FREE):
+task_assignment() -> AM_REPEATED_HUNGARIAN (trigger UNASSIGNED_OR_FREE):
   assign_repeated_hungarian()                                                  [4459]
     while remaining tasks: cost = -(estimated arrival); max_cost_assignment; append to task_sequence
 path_planning() -> path_planning_pbs() [7755] -> pbs_core(false)               [6467]
@@ -235,7 +235,7 @@ This is the in-framework re-expression of the MGMAPD reference windowed solve (f
 removed `ref_solve.cpp`). Matches the reference within +3% on the full grid (many cells beat it).
 
 ### 8. LNS(1s)+PBS-MLA*  — repeated Hungarian + LNS assignment + PBS, MLA*
-**CLI:** `-a LNS_PBS --lns_time 1` · **preset:** `REPEATED_HUNGARIAN_LNS, ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT, MAPF_PBS, SA_MLA_SEQUENCE, DUMMY_PATH, lns_time_limit=1`
+**CLI:** `-a LNS_PBS --lns_time 1` · **preset:** `REPEATED_HUNGARIAN_LNS, ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT, MAPF_PBS, SA_MLA_SEQUENCE, dummy_path=true, FLEXIBLE_STRICT, lns_time_limit=1`
 ```
 init: agent-start shuffle (0.2)
 task_assignment() -> assign_repeated_hungarian_lns()                           [4838]

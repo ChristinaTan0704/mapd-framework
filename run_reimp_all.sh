@@ -1,6 +1,6 @@
 #!/bin/bash
 # Run all reimplementation experiments to match reference results
-# Methods: TP, TPTS, CENTRAL, CENTRAL_FIXED (with CBS/PBS/2SIPP/MLSIPP variants),
+# Methods: TP, TPTS, CENTRAL (with CBS/PBS/2SIPP/MLSIPP variants),
 #          HBH+MLSIPP, TA-Prioritized, TA-Hybrid,
 #          Hungarian-PBS/wPBS/PP+MLSIPP, LNS versions
 
@@ -118,32 +118,9 @@ wait
 echo "--- Group 3 complete ---"
 
 ###############################################################################
-# Group 4: CENTRAL_FIXED variants (all frequencies)
+# Group 4: HBH+MLSIPP (all frequencies)
 ###############################################################################
-echo "--- Group 4: CENTRAL_FIXED variants ---"
-for AG in "${AGENTS[@]}"; do
-    for FREQ in "${FREQS[@]}"; do
-        # Skip 50ag/0.2 (intractable for CBS)
-        if [ "$AG" = "50" ] && [ "$FREQ" = "0.2" ]; then
-            echo "[SKIP] CENTRAL_FIXED+CBS 50ag f=0.2 (intractable)"
-            # Still run PBS variant
-            wait_for_slot
-            run_one "CENTRAL_FIXED+PBS" "$AG" "$FREQ" -a CENTRAL_FIXED --mapf PBS &
-        else
-            wait_for_slot
-            run_one "CENTRAL_FIXED+CBS" "$AG" "$FREQ" -a CENTRAL_FIXED --mapf CBS &
-            wait_for_slot
-            run_one "CENTRAL_FIXED+PBS" "$AG" "$FREQ" -a CENTRAL_FIXED --mapf PBS &
-        fi
-    done
-done
-wait
-echo "--- Group 4 complete ---"
-
-###############################################################################
-# Group 5: HBH+MLSIPP (all frequencies)
-###############################################################################
-echo "--- Group 5: HBH+MLSIPP ---"
+echo "--- Group 4: HBH+MLSIPP ---"
 for AG in "${AGENTS[@]}"; do
     for FREQ in "${FREQS[@]}"; do
         wait_for_slot
@@ -151,12 +128,12 @@ for AG in "${AGENTS[@]}"; do
     done
 done
 wait
-echo "--- Group 5 complete ---"
+echo "--- Group 4 complete ---"
 
 ###############################################################################
-# Group 6: TA-Prioritized variants (offline, freq=500 only)
+# Group 5: TA-Prioritized variants (offline, freq=500 only)
 ###############################################################################
-echo "--- Group 6: TA-Prioritized variants ---"
+echo "--- Group 5: TA-Prioritized variants ---"
 for AG in "${AGENTS[@]}"; do
     TF="$TOURDIR/${AG}-500.tour"
     if [ -f "$TF" ]; then
@@ -169,12 +146,12 @@ for AG in "${AGENTS[@]}"; do
     fi
 done
 wait
-echo "--- Group 6 complete ---"
+echo "--- Group 5 complete ---"
 
 ###############################################################################
-# Group 7: TA-Hybrid (offline, freq=500 only)
+# Group 6: TA-Hybrid (offline, freq=500 only)
 ###############################################################################
-echo "--- Group 7: TA-Hybrid ---"
+echo "--- Group 6: TA-Hybrid ---"
 for AG in "${AGENTS[@]}"; do
     TF="$TOURDIR/${AG}-500.tour"
     if [ -f "$TF" ]; then
@@ -183,12 +160,12 @@ for AG in "${AGENTS[@]}"; do
     fi
 done
 wait
-echo "--- Group 7 complete ---"
+echo "--- Group 6 complete ---"
 
 ###############################################################################
-# Group 8: Hungarian variants (all frequencies)
+# Group 7: Hungarian variants (all frequencies)
 ###############################################################################
-echo "--- Group 8: Hungarian variants ---"
+echo "--- Group 7: Hungarian variants ---"
 for AG in "${AGENTS[@]}"; do
     for FREQ in "${FREQS[@]}"; do
         wait_for_slot
@@ -200,12 +177,12 @@ for AG in "${AGENTS[@]}"; do
     done
 done
 wait
-echo "--- Group 8 complete ---"
+echo "--- Group 7 complete ---"
 
 ###############################################################################
-# Group 9: LNS(1s)-Hungarian variants (all frequencies)
+# Group 8: LNS(1s)-Hungarian variants (all frequencies)
 ###############################################################################
-echo "--- Group 9: LNS(1s) variants ---"
+echo "--- Group 8: LNS(1s) variants ---"
 for AG in "${AGENTS[@]}"; do
     for FREQ in "${FREQS[@]}"; do
         wait_for_slot
@@ -217,7 +194,7 @@ for AG in "${AGENTS[@]}"; do
     done
 done
 wait
-echo "--- Group 9 complete ---"
+echo "--- Group 8 complete ---"
 
 echo ""
 echo "=== All experiments complete at $(date) ==="

@@ -1,9 +1,24 @@
 #pragma once
 
+#include "types.h"
 #include <utility>
 #include <vector>
 
 class Simulation;
+struct Agent;
+struct Task;
+
+// TP plans one task as two sequential space-time A* searches: current position
+// to pickup, then pickup to delivery. The planner writes the committed path into
+// the supplied agent and returns the two arrival times.
+struct STAStarRequest {
+    Agent& agent;
+    Task& task;
+    int hidden_agent;
+
+    STAStarRequest(Agent& search_agent, Task& search_task, int hidden = -1)
+        : agent(search_agent), task(search_task), hidden_agent(hidden) {}
+};
 
 // Explicit input passed from a MAPF planner to the MLA* low-level solver.
 // The referenced containers only need to remain alive for the duration of
@@ -82,4 +97,48 @@ public:
     std::vector<int> solve(const MLAStarRequest& request);
 private:
     Simulation& simulation_;
+};
+
+class STAStarPlanner {
+public:
+    explicit STAStarPlanner(Simulation& simulation) : simulation_(simulation) {}
+    std::pair<int,int> solveTask(const STAStarRequest& request);
+private:
+    Simulation& simulation_;
+};
+
+struct ECBSRequest {
+    const std::vector<bool>& grid;
+    const std::vector<int>& start_locations;
+    const std::vector<int>& goal_locations;
+    const std::vector<int>& goal_endpoint_indices;
+    const std::vector<std::vector<int>>& constraint_paths;
+    int current_time;
+    int columns;
+    double focal_weight;
+    const std::vector<Endpoint>& endpoints;
+    int max_time;
+
+    ECBSRequest(const std::vector<bool>& map_grid,
+                const std::vector<int>& starts,
+                const std::vector<int>& goals,
+                const std::vector<int>& goal_endpoints,
+                const std::vector<std::vector<int>>& constraints,
+                int time, int map_columns, double weight,
+                const std::vector<Endpoint>& map_endpoints, int horizon)
+        : grid(map_grid), start_locations(starts), goal_locations(goals),
+          goal_endpoint_indices(goal_endpoints), constraint_paths(constraints),
+          current_time(time), columns(map_columns), focal_weight(weight),
+          endpoints(map_endpoints), max_time(horizon) {}
+};
+
+struct ECBSResult {
+    bool solution_found = false;
+    double solution_cost = -1;
+    std::vector<std::vector<int>> paths;
+};
+
+class ECBSPlanner {
+public:
+    ECBSResult solve(const ECBSRequest& request) const;
 };

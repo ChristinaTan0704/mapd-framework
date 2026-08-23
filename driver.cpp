@@ -117,7 +117,12 @@ int main(int argc, char** argv)
     string output_dir = vm["output_dir"].as<string>();
 
     MAPDConfig config;
-    set_parameters(config, vm);
+    try {
+        set_parameters(config, vm);
+    } catch (const invalid_argument& e) {
+        cerr << "Error: " << e.what() << endl;
+        return 1;
+    }
 
     if (screen >= 1) {
         cout << "Map: " << map_file << endl;
