@@ -20,7 +20,9 @@ enum AssignTrigger {
     AT_ON_FREE_WAITS,
     AT_EVERY_TIMESTEP,
     AT_ON_NEW_TASK_OR_FREE,
-    AT_ON_UNASSIGNED_OR_FREE,
+    AT_ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT,
+    // Legacy name retained so the archived all-methods source still compiles.
+    AT_ON_UNASSIGNED_OR_FREE = AT_ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT,
     AT_ONCE
 };
 enum MAPFMethod {
@@ -34,6 +36,7 @@ enum SingleAgentMethod {
     SA_STA_TASK_EP,
     SA_STA_NONTASK_EP,
     SA_MLA_SEQUENCE,
+    SA_MLSIPP_SEQUENCE,
     SA_SEQ_STA
 };
 enum DeadlockAvoid {
@@ -65,7 +68,7 @@ struct MAPDConfig {
     double ecbs_weight;  // for ECBS/CBS (1.0 = optimal)
     int lns_time_limit;  // LNS improvement time limit in seconds (0 = no LNS)
     MLAMode mla_mode;
-    bool use_sipp;  // use SIPP instead of MLA* for PBS low-level search
+    bool use_sipp;  // legacy CLI compatibility; maps to SA_MLSIPP_SEQUENCE
     int lns_seed;   // RNG seed for the LNS assignment loop: >=0 deterministic, <0 = time(NULL)
     CoupledMode coupled;               // task-assignment/pathfinding coupling axis
     EndpointStrategy endpoint_strategy; // endpoint/parking selection axis
@@ -153,7 +156,7 @@ inline MAPDConfig get_preset(const string& name) {
     else if (name == "HUNGARIAN_PBS") {
         c.mode = MODE_ONLINE; c.assign_type = ASSIGN_TA;
         c.assign_method = AM_HUNGARIAN;
-        c.assign_trigger = AT_ON_UNASSIGNED_OR_FREE;
+        c.assign_trigger = AT_ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT;
         c.mapf = MAPF_PBS;
         c.single_agent = SA_MLA_SEQUENCE;
         c.deadlock = DA_DUMMY_PATH;
@@ -162,7 +165,7 @@ inline MAPDConfig get_preset(const string& name) {
     else if (name == "HUNGARIAN_wPBS") {
         c.mode = MODE_ONLINE; c.assign_type = ASSIGN_TA;
         c.assign_method = AM_HUNGARIAN;
-        c.assign_trigger = AT_ON_UNASSIGNED_OR_FREE;
+        c.assign_trigger = AT_ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT;
         c.mapf = MAPF_wPBS;
         c.single_agent = SA_MLA_SEQUENCE;
         c.deadlock = DA_DUMMY_PATH;
@@ -173,7 +176,7 @@ inline MAPDConfig get_preset(const string& name) {
     else if (name == "LNS_PBS") {
         c.mode = MODE_ONLINE; c.assign_type = ASSIGN_TA;
         c.assign_method = AM_REPEATED_HUNGARIAN_LNS;
-        c.assign_trigger = AT_ON_UNASSIGNED_OR_FREE;
+        c.assign_trigger = AT_ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT;
         c.mapf = MAPF_PBS;
         c.single_agent = SA_MLA_SEQUENCE;
         c.deadlock = DA_DUMMY_PATH;
@@ -183,7 +186,7 @@ inline MAPDConfig get_preset(const string& name) {
     else if (name == "LNS_wPBS") {
         c.mode = MODE_ONLINE; c.assign_type = ASSIGN_TA;
         c.assign_method = AM_REPEATED_HUNGARIAN_LNS;
-        c.assign_trigger = AT_ON_UNASSIGNED_OR_FREE;
+        c.assign_trigger = AT_ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT;
         c.mapf = MAPF_wPBS;
         c.single_agent = SA_MLA_SEQUENCE;
         c.deadlock = DA_DUMMY_PATH;

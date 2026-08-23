@@ -20,6 +20,7 @@ void set_parameters(MAPDConfig& config, const po::variables_map& vm)
         config.lns_time_limit = vm["lns_time"].as<int>();
     string sa = vm["single_agent"].as<string>();
     if (sa == "MLA") config.single_agent = SA_MLA_SEQUENCE;
+    else if (sa == "MLSIPP" || sa == "SIPP") config.single_agent = SA_MLSIPP_SEQUENCE;
     else if (sa == "STA") config.single_agent = SA_STA_TASK_EP;
     string mf = vm["mapf"].as<string>();
     if (mf == "CBS") config.mapf = MAPF_CBS;
@@ -31,6 +32,7 @@ void set_parameters(MAPDConfig& config, const po::variables_map& vm)
     else if (mm == "task") config.mla_mode = MLA_TASKWISE;
     else if (mm == "sta") config.mla_mode = MLA_SEQ_STA;
     config.use_sipp = vm["sipp"].as<bool>();
+    if (config.use_sipp) config.single_agent = SA_MLSIPP_SEQUENCE;
     config.lns_seed = vm["seed"].as<int>();
 }
 
@@ -54,6 +56,7 @@ string mapf_name(MAPFMethod m) {
 string sa_name(SingleAgentMethod s) {
     switch (s) {
     case SA_MLA_SEQUENCE: return "MLA";
+    case SA_MLSIPP_SEQUENCE: return "MLSIPP";
     case SA_STA_TASK_EP: return "STA";
     default: return "";
     }
@@ -72,7 +75,7 @@ int main(int argc, char** argv)
         ("lns_time",       po::value<int>()->default_value(1),         "LNS improvement time limit (s)")
         ("lns_imp",        po::value<int>()->default_value(0),         "REALPATH_LNS_IMP rounds (0=off)")
         ("lns_imp_group",  po::value<int>()->default_value(5),         "REALPATH_LNS_IMP destroy group")
-        ("single_agent",   po::value<string>()->default_value("default"), "low-level: STA or MLA")
+        ("single_agent",   po::value<string>()->default_value("default"), "low-level: STA, MLA, or MLSIPP")
         ("mapf",           po::value<string>()->default_value("default"), "MAPF override: CBS, PBS, wPBS, PP")
         ("mla_mode",       po::value<string>()->default_value("default"), "MLA mode: seq (SeqMLA*), task (task-by-task), default")
         ("sipp",           po::bool_switch()->default_value(false),    "use SIPP instead of MLA* for PBS low-level")

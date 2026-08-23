@@ -53,7 +53,7 @@ run()                                                      [123]
 | `AT_ON_FREE_WAITS` (TP/TPTS) | any agent `finish_time <= t` | false (planning inside assignment) |
 | `AT_EVERY_TIMESTEP` (CENTRAL) | `central_has_event_` & free agent exists | `central_has_event_` |
 | `AT_ON_NEW_TASK_OR_FREE` (CENTRAL_FIXED) | `central_reassign_event_` & free agent | `central_has_event_` |
-| `AT_ON_UNASSIGNED_OR_FREE` (Hungarian/LNS) | `pbs_assign_event_` | `pbs_has_event_` |
+| `AT_ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT` (Hungarian/LNS) | assignment event | replan event |
 | `AT_ONCE` (TA) | `timestep == 0` | true |
 
 ### `task_assignment()` dispatch — `switch(config.assign_method)` [~857]
@@ -69,7 +69,7 @@ AM_LKH3_TSP / _REASSIGN (TA)    -> assign_ta_tsp()             [2649]
 ### `path_planning()` dispatch [933]
 ```
 if (CENTRAL/CENTRAL_FIXED trigger) && mapf==PBS   -> path_planning_cbs_with_pp()
-if (AT_ON_UNASSIGNED_OR_FREE)     && mapf==PP     -> path_planning_pp_mla()   [7625]
+if (AT_ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT) && mapf==PP -> path_planning_pp_mla() [7625]
 switch mapf:
   MAPF_DECOUPLED_PP -> plan_ta_prioritized()[2752] (TA) | path_planning_pp()
   MAPF_CBS          -> path_planning_cbs()          [1586]
@@ -207,7 +207,7 @@ path_planning() -> DECOUPLED_PP & SA_SEQ_STA -> plan_ta_prioritized()          [
 ```
 
 ### 6. Hungarian+PBS-MLA*  — repeated Hungarian + PBS, MLA* low-level
-**CLI:** `-a HUNGARIAN_PBS` · **preset:** `HUNGARIAN, ON_UNASSIGNED_OR_FREE, MAPF_PBS, SA_MLA_SEQUENCE, DUMMY_PATH`
+**CLI:** `-a HUNGARIAN_PBS` · **preset:** `HUNGARIAN, ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT, MAPF_PBS, SA_MLA_SEQUENCE, DUMMY_PATH`
 ```
 init: agent-start shuffle (0.2)
 task_assignment() -> AM_HUNGARIAN (trigger UNASSIGNED_OR_FREE):
@@ -218,7 +218,7 @@ path_planning() -> path_planning_pbs() [7755] -> pbs_core(false)               [
   ROOT: plan every agent via plan_agent -> mla_star_taskwise() [6363]  (MLA*)
   detect conflicts; DFS with priority constraints + nogood pruning; find_consistent_paths cascade
   commit best node (max_hl = 5000 if >30 agents else 50000)
-update_system(): AT_ON_UNASSIGNED_OR_FREE -> update_system_pbs()               [4357]
+update_system(): AT_ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT -> update_system_pbs() [4357]
 ```
 
 ### 7. Hungarian+wPBS-MLA*  — repeated Hungarian + windowed PBS, MLA*  (framework-native)
@@ -235,7 +235,7 @@ This is the in-framework re-expression of the MGMAPD reference windowed solve (f
 removed `ref_solve.cpp`). Matches the reference within +3% on the full grid (many cells beat it).
 
 ### 8. LNS(1s)+PBS-MLA*  — repeated Hungarian + LNS assignment + PBS, MLA*
-**CLI:** `-a LNS_PBS --lns_time 1` · **preset:** `REPEATED_HUNGARIAN_LNS, ON_UNASSIGNED_OR_FREE, MAPF_PBS, SA_MLA_SEQUENCE, DUMMY_PATH, lns_time_limit=1`
+**CLI:** `-a LNS_PBS --lns_time 1` · **preset:** `REPEATED_HUNGARIAN_LNS, ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT, MAPF_PBS, SA_MLA_SEQUENCE, DUMMY_PATH, lns_time_limit=1`
 ```
 init: agent-start shuffle (0.2)
 task_assignment() -> assign_repeated_hungarian_lns()                           [4838]
@@ -297,7 +297,7 @@ task_assignment() -> AM_DECOUPLED_GREEDY_SWAPS (as #2) -> assign_tpts() [1057]
 ```
 (NO agent-shuffle: mapf==PP is outside the shuffle gate)
 task_assignment() -> assign_repeated_hungarian() [4459]
-path_planning(): AT_ON_UNASSIGNED_OR_FREE & mapf==PP -> path_planning_pp_mla() [7625]
+path_planning(): AT_ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT & mapf==PP -> path_planning_pp_mla() [7625]
   order: active agents first, idle second; for each: cons=others' paths;
   goals=[pickup,delivery] (task_truncated_size=1) + dummy; use_sipp -> sipp_search(goals,cons) [5750]
 ```

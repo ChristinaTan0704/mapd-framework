@@ -1,32 +1,32 @@
-#include <random>  // ! *** [S0] includes: dlib = Hungarian solver, boost heap = A*/SIPP open lists
-#include <deque>  // ! ***
-#include <chrono>  // ! ***
-#include <cstdio>  // ! ***
-#include "simulation.h"  // ! ***
-#include "cbs.h"  // ! ***
-#include <boost/heap/fibonacci_heap.hpp>  // ! ***
-#include <boost/unordered_set.hpp>  // ! ***
-#include <boost/unordered_map.hpp>  // ! ***
-#include <algorithm>  // ! ***
-#include <cstdlib>  // ! ***
-#include <set>  // ! ***
+#include <random>
+#include <deque>
+#include <chrono>
+#include <cstdio>
+#include "simulation.h"
+#include "cbs.h"
+#include <boost/heap/fibonacci_heap.hpp>
+#include <boost/unordered_set.hpp>
+#include <boost/unordered_map.hpp>
+#include <algorithm>
+#include <cstdlib>
+#include <set>
 
-#include <ctime>  // ! ***
-#include <fstream>  // ! ***
-#include <climits>  // ! ***
-#include <unordered_map>  // ! ***
-#include <dlib/optimization/max_cost_assignment.h>  // ! ***
+#include <ctime>
+#include <fstream>
+#include <climits>
+#include <unordered_map>
+#include <dlib/optimization/max_cost_assignment.h>
 
 // ============================================================
 // Section 0: Initialization (Pseudocode Section 2)
 // ============================================================
 
-void Simulation::init(const string& map_file, const string& task_file, const MAPDConfig& cfg,  // ! *** [S1] init(): load map/tasks, build agents + path_table_
-                      const string& tour_file) {  // ! ***
-    tour_file_ = tour_file;  // ! ***
-    config = cfg;  // ! ***
-    mapd_map.load(map_file);  // ! ***
-    maxtime = mapd_map.maxtime;  // ! ***
+void Simulation::init(const string& map_file, const string& task_file, const MAPDConfig& cfg,
+                      const string& tour_file) {
+    tour_file_ = tour_file;
+    config = cfg;
+    mapd_map.load(map_file);
+    maxtime = mapd_map.maxtime;
 
     // NOTE: the reference MGMAPD code applies a std::shuffle to the agent-home
     // locations. We deliberately do NOT reproduce it: an A/B over the fast
@@ -34,38 +34,38 @@ void Simulation::init(const string& map_file, const string& task_file, const MAP
     // (mean gap vs reference ~1% either way, same # of >3% cells), so agents
     // keep their natural map-scan start order for all methods.
 
-    all_tasks = load_tasks(task_file, mapd_map.endpoints);  // ! ***
+    all_tasks = load_tasks(task_file, mapd_map.endpoints);
 
-    task_indices_by_time.resize(maxtime);  // ! ***
-    t_task = 0;  // ! ***
-    for (int i = 0; i < (int)all_tasks.size(); i++) {  // ! ***
-        int rt = all_tasks[i].release_time;  // ! ***
-        if (rt >= 0 && rt < (int)maxtime) {  // ! ***
-            task_indices_by_time[rt].push_back(i);  // ! ***
-            if (rt > t_task) t_task = rt;  // ! ***
+    task_indices_by_time.resize(maxtime);
+    t_task = 0;
+    for (int i = 0; i < (int)all_tasks.size(); i++) {
+        int rt = all_tasks[i].release_time;
+        if (rt >= 0 && rt < (int)maxtime) {
+            task_indices_by_time[rt].push_back(i);
+            if (rt > t_task) t_task = rt;
         }
     }
 
-    agents.resize(mapd_map.num_agents);  // ! ***
-    path_table_.resize(mapd_map.num_agents);  // ! ***
-    passable_map_ = mapd_map.grid;  // ! ***
-    endpoint_mask_ = mapd_map.is_endpoint;  // ! ***
-    cur_time_ = 0;  // ! ***
+    agents.resize(mapd_map.num_agents);
+    path_table_.resize(mapd_map.num_agents);
+    passable_map_ = mapd_map.grid;
+    endpoint_mask_ = mapd_map.is_endpoint;
+    cur_time_ = 0;
 
-    for (int i = 0; i < mapd_map.num_agents; i++) {  // ! ***
-        agents[i].init(i, mapd_map.agent_starts[i], mapd_map.col, mapd_map.row, maxtime);  // ! ***
-        path_table_[i].resize(maxtime);  // ! ***
-        for (unsigned int k = 0; k < maxtime; k++)  // ! ***
-            path_table_[i][k] = mapd_map.agent_starts[i];  // ! ***
+    for (int i = 0; i < mapd_map.num_agents; i++) {
+        agents[i].init(i, mapd_map.agent_starts[i], mapd_map.col, mapd_map.row, maxtime);
+        path_table_[i].resize(maxtime);
+        for (unsigned int k = 0; k < maxtime; k++)
+            path_table_[i][k] = mapd_map.agent_starts[i];
     }
 
     // Init general/system loop state (algorithm flags default via in-class
     // initializers in simulation.h; ta_planning_done_ included).
-    last_released_time_ = -1;  // no tasks released yet; release_tasks() will handle t=0  // ! ***
-    agent_pending_task.assign(agents.size(), nullptr);  // ! ***
+    last_released_time_ = -1;  // no tasks released yet; release_tasks() will handle t=0
+    agent_pending_task.assign(agents.size(), nullptr);
 
     // Init algorithm-specific state (dispatched on config)
-    init_algorithm_state();  // ! ***
+    init_algorithm_state();
 }
 
 // ============================================================
@@ -76,25 +76,25 @@ void Simulation::init(const string& map_file, const string& task_file, const MAP
 //   the state the chosen algorithm actually reads.
 // ============================================================
 
-void Simulation::init_algorithm_state() {  // ! *** [S1] init_algorithm_state(): both series are AT_ON_UNASSIGNED_OR_FREE
+void Simulation::init_algorithm_state() {
     // All algorithm flags carry safe defaults from their in-class member
     // initializers (see simulation.h), so this function is a pure dispatch:
     // it only selects the per-algorithm helper that sets that method's state.
-    switch (config.assign_trigger) {  // ! ***
-    case AT_ON_FREE_WAITS:  // ! (not-LNS) init_algorithm_state: TP/TPTS + CENTRAL init branches
+    switch (config.assign_trigger) {
+    case AT_ON_FREE_WAITS:
         init_tp_state();
         break;
     case AT_EVERY_TIMESTEP:
     case AT_ON_NEW_TASK_OR_FREE:
         init_central_state();
         break;
-    case AT_ON_UNASSIGNED_OR_FREE:  // ! ***
-        if (config.assign_method == AM_REPEATED_HUNGARIAN_LNS)  // ! *** LNS branch of the init dispatch
-            init_lns_state();  // ! *** -> init_lns_state()
-        else if (config.assign_method == AM_HUNGARIAN)  // ! *** Hungarian branch of the init dispatch
-            init_pbs_state();   // Hungarian PBS / wPBS online  // ! *** -> init_pbs_state()
-        break;  // ! ***
-    default:  // ! (not-LNS) unreachable default
+    case AT_ON_UNASSIGNED_OR_FREE:
+        if (config.assign_method == AM_REPEATED_HUNGARIAN_LNS)
+            init_lns_state();
+        else if (config.assign_method == AM_HUNGARIAN)
+            init_pbs_state();   // Hungarian PBS / wPBS online
+        break;
+    default:
         break;
     }
 }
@@ -111,16 +111,16 @@ void Simulation::init_central_state() {
     central_reassign_event_ = true;
 }
 
-void Simulation::init_pbs_state() {  // ! *** [S1] init_pbs_state (Hungarian) / init_lns_state (LNS: task-release period)
+void Simulation::init_pbs_state() {
     // Online PBS/wPBS (Hungarian): first iteration must assign and replan.
-    pbs_has_event_ = true;  // ! ***
-    pbs_assign_event_ = true;  // ! ***
-    pbs_last_replan_time_ = 0;  // ! ***
+    pbs_has_event_ = true;
+    pbs_assign_event_ = true;
+    pbs_last_replan_time_ = 0;
 }
 
-void Simulation::init_lns_state() {  // ! *** defines Simulation::init_lns_state()
+void Simulation::init_lns_state() {
     // LNS shares the online PBS loop, so it needs the PBS event flags too.
-    init_pbs_state();  // ! *** -> init_pbs_state()
+    init_pbs_state();
 
     // Derive the task-release period (gap between the first two distinct release
     // times) — matches the reference task_release_period.  The reference only
@@ -128,20 +128,20 @@ void Simulation::init_lns_state() {  // ! *** defines Simulation::init_lns_state
     // agent finishes its last goal; gating our LNS spin the same way keeps the
     // runtime in line with the reference without changing the assignment result
     // (Hungarian still runs every event for correctness).
-    lns_release_period_ = 1;  // ! *** fallback: <2 distinct release times -> period 1 -> gate always open (redundant with the in-class init, simulation.h:343)
+    lns_release_period_ = 1;
     {
-        int first_rt = -1, second_rt = -1;  // ! ***
-        for (int t = 0; t < (int)maxtime; t++) {  // ! *** scan for the first two timesteps that release tasks
-            if (!task_indices_by_time[t].empty()) {  // ! ***
-                if (first_rt < 0) first_rt = t;  // ! ***
-                else { second_rt = t; break; }  // ! ***
+        int first_rt = -1, second_rt = -1;
+        for (int t = 0; t < (int)maxtime; t++) {
+            if (!task_indices_by_time[t].empty()) {
+                if (first_rt < 0) first_rt = t;
+                else { second_rt = t; break; }
             }
         }
-        if (first_rt >= 0 && second_rt > first_rt)  // ! ***
-            lns_release_period_ = second_rt - first_rt;  // ! *** period = gap between them; this is the divisor of the gate at 4883
-        if (lns_release_period_ <= 0) lns_release_period_ = 1;  // ! *** clamp: the modulo gate needs a positive period
+        if (first_rt >= 0 && second_rt > first_rt)
+            lns_release_period_ = second_rt - first_rt;
+        if (lns_release_period_ <= 0) lns_release_period_ = 1;
     }
-    lns_agent_finished_ = false;  // ! ***
+    lns_agent_finished_ = false;
 }
 
 // ============================================================
@@ -153,11 +153,11 @@ void Simulation::init_lns_state() {  // ! *** defines Simulation::init_lns_state
 //     Step C: update_system (transitions + advance + release)
 // ============================================================
 
-void Simulation::run() {  // ! *** [S2] run(): release_tasks -> task_assignment_and_path_planning -> update_system
-    while (!end()) {  // ! ***
-        release_tasks();                      // Step A  // ! *** -> release_tasks()
-        task_assignment_and_path_planning();   // Step B  // ! ***
-        update_system();                       // Step C  // ! ***
+void Simulation::run() {
+    while (!end()) {
+        release_tasks();                      // Step A
+        task_assignment_and_path_planning();   // Step B
+        update_system();                       // Step C
     }
 
     // Paths (incl. parked tails at unique endpoints) are already collision-free here.
@@ -171,7 +171,7 @@ void Simulation::run() {  // ! *** [S2] run(): release_tasks -> task_assignment_
 // Offline / TA family (offline LKH3-TSP and TA-Hybrid two-group) do all planning
 // in a single iteration: they need at least one iteration to run, then they're
 // done. ta_planning_done_ is set after the first iteration completes.
-bool Simulation::end_offline_ta() const {  // ! (not-LNS) end_offline_ta(): offline LKH3 / TA-Hybrid only
+bool Simulation::end_offline_ta() const {
     return ta_planning_done_;
 }
 
@@ -179,27 +179,27 @@ bool Simulation::end_offline_ta() const {  // ! (not-LNS) end_offline_ta(): offl
 // still has queued tasks in its task_sequence. Returns true when the online
 // family imposes no further termination constraint (also true for non-online
 // families, which have no task_sequence check).
-bool Simulation::end_online() const {  // ! *** defines Simulation::end_online()
-    if (config.assign_trigger == AT_ON_UNASSIGNED_OR_FREE) {  // ! *** online end test: any agent still holding queued tasks?
-        for (auto& a : agents)  // ! ***
-            if (!a.task_sequence.empty()) return false;  // ! ***
+bool Simulation::end_online() const {
+    if (config.assign_trigger == AT_ON_UNASSIGNED_OR_FREE) {
+        for (auto& a : agents)
+            if (!a.task_sequence.empty()) return false;
     }
-    return true;  // ! ***
+    return true;
 }
 
-bool Simulation::end() const {  // ! *** defines Simulation::end()
+bool Simulation::end() const {
     // Offline / TA families terminate after their single planning iteration.
-    if (config.mode == MODE_OFFLINE && config.assign_method == AM_LKH3_TSP)  // ! ***
-        return end_offline_ta();  // ! (not-LNS) offline LKH3 only
-    if (config.mapf == MAPF_TA_HYBRID_TWO_GROUP)  // ! ***
-        return end_offline_ta();  // ! (not-LNS) TA-Hybrid only
+    if (config.mode == MODE_OFFLINE && config.assign_method == AM_LKH3_TSP)
+        return end_offline_ta();
+    if (config.mapf == MAPF_TA_HYBRID_TWO_GROUP)
+        return end_offline_ta();
 
     // General (online / stepwise) termination logic.
-    if (!open_tasks_.empty()) return false;  // ! ***
-    if ((int)cur_time_ <= t_task) return false;  // ! ***
-    if (!end_online()) return false;  // ! ***
-    if (any_agent_busy()) return false;  // ! ***
-    return true;  // ! ***
+    if (!open_tasks_.empty()) return false;
+    if ((int)cur_time_ <= t_task) return false;
+    if (!end_online()) return false;
+    if (any_agent_busy()) return false;
+    return true;
 }
 
 // ============================================================
@@ -209,24 +209,24 @@ bool Simulation::end() const {  // ! *** defines Simulation::end()
 //   This function exists for structural clarity.
 // ============================================================
 
-void Simulation::release_tasks() {  // ! *** [S2] release_tasks(): released tasks enter open_tasks_
+void Simulation::release_tasks() {
     // Pseudocode Section 3 — GetReleasedTasks(t, mode)
     // Release all tasks from last_released_time_+1 up to current cur_time_.
     // This handles both the initial t=0 release and subsequent releases
     // after update_system() advances the timestep.
 
-    int from = last_released_time_ + 1;  // ! ***
-    int to = (int)cur_time_;  // ! ***
+    int from = last_released_time_ + 1;
+    int to = (int)cur_time_;
 
-    switch (config.mode) {  // ! ***
-    case MODE_ONLINE:  // ! ***
-    case MODE_SEMI_ONLINE:  // ! ***
-        for (int t = from; t <= to && t < (int)maxtime; t++) {  // ! ***
-            for (int idx : task_indices_by_time[t])  // ! ***
-                open_tasks_.push_back(&all_tasks[idx]);  // ! ***
+    switch (config.mode) {
+    case MODE_ONLINE:
+    case MODE_SEMI_ONLINE:
+        for (int t = from; t <= to && t < (int)maxtime; t++) {
+            for (int idx : task_indices_by_time[t])
+                open_tasks_.push_back(&all_tasks[idx]);
         }
-        break;  // ! ***
-    case MODE_OFFLINE:  // ! (not-LNS) MODE_OFFLINE only (both series are MODE_ONLINE)
+        break;
+    case MODE_OFFLINE:
         // All tasks released at t=0
         if (last_released_time_ < 0) {
             for (int i = 0; i < (int)all_tasks.size(); i++)
@@ -235,7 +235,7 @@ void Simulation::release_tasks() {  // ! *** [S2] release_tasks(): released task
         break;
     }
 
-    last_released_time_ = to;  // ! ***
+    last_released_time_ = to;
 }
 
 // ============================================================
@@ -248,27 +248,27 @@ void Simulation::release_tasks() {  // ! *** [S2] release_tasks(): released task
 //     4. Update agent locations
 // ============================================================
 
-void Simulation::update_system() {  // ! *** [S2] update_system(): online family -> update_system_online
+void Simulation::update_system() {
     // General dispatcher: pick the per-algorithm update path based on trigger.
-    switch (config.assign_trigger) {  // ! ***
-    case AT_ON_UNASSIGNED_OR_FREE:  // ! *** both series land here
-        update_system_online();      // PBS/LNS online (block a)  // ! *** -> update_system_online()
-        return;  // ! ***
-    case AT_ON_FREE_WAITS:  // ! (not-LNS) TP/TPTS pre-step
+    switch (config.assign_trigger) {
+    case AT_ON_UNASSIGNED_OR_FREE:
+        update_system_online();      // PBS/LNS online (block a)
+        return;
+    case AT_ON_FREE_WAITS:
         if (tp_pre_step()) return;   // TP/TPTS pre-step (block b); may return early
         break;                       // else fall through to stepwise (block c)
-    case AT_EVERY_TIMESTEP:          // CENTRAL (ECBS every timestep)  // ! (not-LNS) CENTRAL / CENTRAL_FIXED / offline TA
+    case AT_EVERY_TIMESTEP:          // CENTRAL (ECBS every timestep)
     case AT_ON_NEW_TASK_OR_FREE:     // CENTRAL_FIXED
     case AT_ONCE:                    // offline TA (LKH3 / TA-Hybrid)
         break;                       // fall through to stepwise (block c)
-    default:  // ! (not-LNS) unreachable default
+    default:
         // Every valid assign_trigger is handled explicitly above; this is
         // unreachable for real configs. Fail loudly instead of silently
         // routing an unknown trigger to the stepwise path.
         cerr << "update_system: unexpected assign_trigger" << endl;
         return;
     }
-    update_system_stepwise();        // CENTRAL/TA/TP-fallthrough (block c)  // ! (not-LNS) stepwise advance: the online families returned at 256
+    update_system_stepwise();        // CENTRAL/TA/TP-fallthrough (block c)
 }
 
 // ============================================================
@@ -278,11 +278,11 @@ void Simulation::update_system() {  // ! *** [S2] update_system(): online family
 //   (PBS/wPBS/PP) and stepwise (event-driven) advance blocks.
 // ============================================================
 
-void Simulation::clamp_next_ts_to_task_release(unsigned int& next_ts) const {  // ! *** [S2] clamp_next_ts_to_task_release(): never jump over a task release
-    for (unsigned int t = cur_time_ + 1; t < maxtime && t <= next_ts; t++) {  // ! ***
-        if (!task_indices_by_time[t].empty()) {  // ! ***
-            if (t < next_ts) next_ts = t;  // ! ***
-            break;  // ! ***
+void Simulation::clamp_next_ts_to_task_release(unsigned int& next_ts) const {
+    for (unsigned int t = cur_time_ + 1; t < maxtime && t <= next_ts; t++) {
+        if (!task_indices_by_time[t].empty()) {
+            if (t < next_ts) next_ts = t;
+            break;
         }
     }
 }
@@ -290,9 +290,9 @@ void Simulation::clamp_next_ts_to_task_release(unsigned int& next_ts) const {  /
 // Resolve a task's two goal locations: first_goal is the pickup goal
 // (falls back to pickup_loc when goals is empty) and last_goal is the
 // delivery goal (the second goal when present, else first_goal).
-void Simulation::task_goals(const Task& task, int& first_goal, int& last_goal) const {  // ! *** [S2] task_goals(): (pickup goal, delivery goal)
-    first_goal = task.goals.empty() ? task.pickup_loc : task.goals[0];  // ! ***
-    last_goal = task.goals.size() >= 2 ? task.goals[min((int)task.goals.size()-1, 1)] : first_goal;  // ! ***
+void Simulation::task_goals(const Task& task, int& first_goal, int& last_goal) const {
+    first_goal = task.goals.empty() ? task.pickup_loc : task.goals[0];
+    last_goal = task.goals.size() >= 2 ? task.goals[min((int)task.goals.size()-1, 1)] : first_goal;
 }
 
 // ============================================================
@@ -300,56 +300,56 @@ void Simulation::task_goals(const Task& task, int& first_goal, int& last_goal) c
 //   (AT_ON_UNASSIGNED_OR_FREE)
 // ============================================================
 
-void Simulation::update_system_online() {  // ! *** [S2] update_system_online(): event-jump clock; wPBS caps jump at replan_window
+void Simulation::update_system_online() {
     // Online advance (AT_ON_UNASSIGNED_OR_FREE): jump the clock to the next
     // event (an agent reaching its current pickup/delivery, or a task release).
     // The only MAPF-specific part is that a WINDOWED MAPF (wPBS) additionally
     // caps the jump at replan_window; PBS / PP (incl. *-PP-SIPP) jump uncapped.
-    unsigned int next_ts = maxtime;  // ! ***
-    for (int i = 0; i < (int)agents.size(); i++) {  // ! ***
-        if (agents[i].task_sequence.empty()) continue;  // ! ***
-        int task_id = agents[i].task_sequence.front();  // ! ***
-        Task& task = all_tasks[task_id];  // ! ***
-        int first_goal, last_goal;  // ! ***
-        task_goals(task, first_goal, last_goal);  // ! *** -> task_goals()
-        int target_loc = (agents[i].status == AG_MOVING_TO_PICKUP) ? first_goal :  // ! ***
-                         (agents[i].status == AG_CARRYING) ? last_goal : -1;  // ! ***
-        int min_time = (agents[i].status == AG_MOVING_TO_PICKUP) ? task.release_time : 0;  // ! ***
-        if (target_loc >= 0)  // ! ***
-            for (unsigned int t = cur_time_ + 1; t < maxtime; t++)  // ! ***
-                if ((int)agents[i].path[t] == target_loc && (int)t >= min_time) {  // ! ***
-                    if (t < next_ts) next_ts = t;  // ! ***
-                    break;  // ! ***
+    unsigned int next_ts = maxtime;
+    for (int i = 0; i < (int)agents.size(); i++) {
+        if (agents[i].task_sequence.empty()) continue;
+        int task_id = agents[i].task_sequence.front();
+        Task& task = all_tasks[task_id];
+        int first_goal, last_goal;
+        task_goals(task, first_goal, last_goal);
+        int target_loc = (agents[i].status == AG_MOVING_TO_PICKUP) ? first_goal :
+                         (agents[i].status == AG_CARRYING) ? last_goal : -1;
+        int min_time = (agents[i].status == AG_MOVING_TO_PICKUP) ? task.release_time : 0;
+        if (target_loc >= 0)
+            for (unsigned int t = cur_time_ + 1; t < maxtime; t++)
+                if ((int)agents[i].path[t] == target_loc && (int)t >= min_time) {
+                    if (t < next_ts) next_ts = t;
+                    break;
                 }
     }
-    clamp_next_ts_to_task_release(next_ts);  // ! *** -> clamp_next_ts_to_task_release()
-    if (config.windowed) {   // windowed planning: cap the jump at replan_window  // ! *** wPBS only: clock jump capped at replan_window
-        unsigned int window_cap = cur_time_ + config.replan_window;  // ! ***
-        if (window_cap < next_ts) next_ts = window_cap;  // ! ***
+    clamp_next_ts_to_task_release(next_ts);
+    if (config.windowed) {   // windowed planning: cap the jump at replan_window
+        unsigned int window_cap = cur_time_ + config.replan_window;
+        if (window_cap < next_ts) next_ts = window_cap;
     }
 
-    if (next_ts >= maxtime) {  // ! ***
-        bool has_work = false;  // ! ***
-        for (auto& a : agents) {  // ! ***
-            if (!a.task_sequence.empty()) { has_work = true; break; }  // ! ***
+    if (next_ts >= maxtime) {
+        bool has_work = false;
+        for (auto& a : agents) {
+            if (!a.task_sequence.empty()) { has_work = true; break; }
         }
-        if (has_work || !open_tasks_.empty())  // ! ***
-            next_ts = cur_time_ + 1;  // ! ***
-        else  // ! ***
-            return;  // truly done  // ! ***
+        if (has_work || !open_tasks_.empty())
+            next_ts = cur_time_ + 1;
+        else
+            return;  // truly done
     }
-    if (next_ts <= cur_time_) next_ts = cur_time_ + 1;  // ! ***
+    if (next_ts <= cur_time_) next_ts = cur_time_ + 1;
 
-    if (next_ts >= maxtime) {  // ! ***
-        cerr << "update_system_online: exceeded maxtime=" << maxtime << endl;  // ! ***
-        return;  // ! ***
+    if (next_ts >= maxtime) {
+        cerr << "update_system_online: exceeded maxtime=" << maxtime << endl;
+        return;
     }
 
-    cur_time_ = next_ts;  // ! ***
-    for (auto& ag : agents)  // ! ***
-        if (cur_time_ < maxtime) ag.loc = ag.path[cur_time_];  // ! ***
+    cur_time_ = next_ts;
+    for (auto& ag : agents)
+        if (cur_time_ < maxtime) ag.loc = ag.path[cur_time_];
 
-    process_online_events();  // online post-step: detect completions/new tasks, set replan flags  // ! *** post-step bookkeeping -> sets the replan/assign flags read next iteration
+    process_online_events();  // online post-step: detect completions/new tasks, set replan flags
 }
 
 // ============================================================
@@ -533,11 +533,11 @@ void Simulation::central_commit_step_events(bool has_event, bool reassign_event)
 //        path_planning()      — dispatcher (CBS, PP, PBS, etc.)
 // ============================================================
 
-void Simulation::task_assignment_and_path_planning() {  // ! *** [S3] task_assignment_and_path_planning(): THE assignment/path-planning split
-    task_assignment();  // ! *** ASSIGNMENT half
+void Simulation::task_assignment_and_path_planning() {
+    task_assignment();
 
-    if (should_replan())  // ! *** -> should_replan()
-        path_planning();  // ! *** PATH-PLANNING half
+    if (should_replan())
+        path_planning();
 }
 
 // ============================================================
@@ -545,29 +545,29 @@ void Simulation::task_assignment_and_path_planning() {  // ! *** [S3] task_assig
 //   (Pseudocode Section 5)
 // ============================================================
 
-bool Simulation::should_assign() const {  // ! *** [S3] should_assign(): online families -> pbs_assign_event_
+bool Simulation::should_assign() const {
     // For TA methods (Hungarian/LNS), tasks are in agent sequences, not open_tasks_.
     // assign_repeated_hungarian() puts them back before re-assigning.
-    if (config.assign_trigger != AT_ON_UNASSIGNED_OR_FREE &&  // ! ***
-        config.assign_trigger != AT_EVERY_TIMESTEP &&  // ! ***
-        open_tasks_.empty())  // ! ***
-        return false;  // ! (not-LNS) early-out skipped: AT_ON_UNASSIGNED_OR_FREE is exempt from the open_tasks_ test
+    if (config.assign_trigger != AT_ON_UNASSIGNED_OR_FREE &&
+        config.assign_trigger != AT_EVERY_TIMESTEP &&
+        open_tasks_.empty())
+        return false;
 
-    switch (config.assign_trigger) {  // ! ***
-    case AT_ON_FREE_WAITS:  // ! (not-LNS) should_assign: TP/TPTS
+    switch (config.assign_trigger) {
+    case AT_ON_FREE_WAITS:
         // TP / TPTS: any free agent at end of path
         for (auto& ag : agents)
             if (ag.finish_time <= cur_time_) return true;
         return false;
 
-    case AT_EVERY_TIMESTEP:  // ! (not-LNS) should_assign: CENTRAL
+    case AT_EVERY_TIMESTEP:
         // CENTRAL: whenever any event occurred and free agents exist
         if (!central_has_event_) return false;
         for (auto& ag : agents)
             if (ag.status == AG_FREE) return true;
         return false;
 
-    case AT_ON_NEW_TASK_OR_FREE:  // ! (not-LNS) should_assign: CENTRAL_FIXED
+    case AT_ON_NEW_TASK_OR_FREE:
         // CENTRAL_FIXED: only when agent became free or new tasks arrived
         // (pickup arrival triggers Phase 1 delivery, NOT Phase 2 reassignment)
         if (!central_reassign_event_) return false;
@@ -575,14 +575,14 @@ bool Simulation::should_assign() const {  // ! *** [S3] should_assign(): online 
             if (ag.status == AG_FREE) return true;
         return false;
 
-    case AT_ON_UNASSIGNED_OR_FREE:  // ! ***
-        return pbs_assign_event_;  // ! *** online families: assign only on a real event
+    case AT_ON_UNASSIGNED_OR_FREE:
+        return pbs_assign_event_;
 
-    case AT_ONCE:  // ! (not-LNS) should_assign: offline TA
+    case AT_ONCE:
         // TA-Prioritized: assign once at t=0
         return cur_time_ == 0;
 
-    default:  // ! (not-LNS) unreachable default
+    default:
         return false;
     }
 }
@@ -592,29 +592,29 @@ bool Simulation::should_assign() const {  // ! *** [S3] should_assign(): online 
 //   (Pseudocode Section 15)
 // ============================================================
 
-bool Simulation::should_replan() const {  // ! *** [S3] should_replan(): online families -> pbs_has_event_
+bool Simulation::should_replan() const {
     // Pseudocode Section 15 — ShouldReplan
-    switch (config.assign_trigger) {  // ! ***
-    case AT_ON_FREE_WAITS:  // ! (not-LNS) should_replan: TP/TPTS
+    switch (config.assign_trigger) {
+    case AT_ON_FREE_WAITS:
         // TP/TPTS/HBH-MLA*: path planning is done inside assignment
         return false;
 
-    case AT_EVERY_TIMESTEP:  // ! (not-LNS) should_replan: CENTRAL
+    case AT_EVERY_TIMESTEP:
         // CENTRAL: replan when event occurred
         return central_has_event_;
 
-    case AT_ON_NEW_TASK_OR_FREE:  // ! (not-LNS) should_replan: CENTRAL_FIXED
+    case AT_ON_NEW_TASK_OR_FREE:
         // CENTRAL_FIXED: replan when event occurred
         return central_has_event_;
 
-    case AT_ON_UNASSIGNED_OR_FREE:  // ! ***
-        return pbs_has_event_;  // ! *** online families: replan on any event
+    case AT_ON_UNASSIGNED_OR_FREE:
+        return pbs_has_event_;
 
-    case AT_ONCE:  // ! (not-LNS) should_replan: offline TA
+    case AT_ONCE:
         // TA-Prioritized/TA-Hybrid: replan after initial assignment
         return true;
 
-    default:  // ! (not-LNS) unreachable default
+    default:
         return false;
     }
 }
@@ -790,17 +790,17 @@ void Simulation::central_deliver_single_astar(int aid, Task* task) {
 // Section 5.0b: CENTRAL (AM_HUNGARIAN) phase-2 scratch reset
 // ============================================================
 
-void Simulation::central_clear_phase2_scratch() {  // ! *** [S3] central_clear_phase2_scratch(): runs for AM_HUNGARIAN (clears unused scratch)
+void Simulation::central_clear_phase2_scratch() {
     // CENTRAL (AM_HUNGARIAN) only: clear the CENTRAL/Hungarian phase-2 scratch
     // buffers at the start of every iteration to prevent stale data. These
     // buffers are shared exclusively between assign_hungarian() and the CENTRAL
     // path_planning routines, so the general dispatcher must not touch them for
     // non-CENTRAL algorithm families.
-    if (config.assign_method == AM_HUNGARIAN) {  // ! ***
-        phase2_free_ids_.clear();  // ! ***
-        phase2_tasks_.clear();  // ! ***
-        phase2_goal_locs_.clear();  // ! ***
-        phase2_goal_eps_.clear();  // ! ***
+    if (config.assign_method == AM_HUNGARIAN) {
+        phase2_free_ids_.clear();
+        phase2_tasks_.clear();
+        phase2_goal_locs_.clear();
+        phase2_goal_eps_.clear();
     }
 }
 
@@ -809,7 +809,7 @@ void Simulation::central_clear_phase2_scratch() {  // ! *** [S3] central_clear_p
 //   (only runs for AT_ON_FREE_WAITS)
 // ============================================================
 
-void Simulation::tp_handle_no_assignment() {  // ! (not-LNS) reached from assign_hungarian_step/assign_lns_step but the whole body is gated on AT_ON_FREE_WAITS -> no-op for both series
+void Simulation::tp_handle_no_assignment() {
     // For TP/TPTS/HBH: when open_tasks_ is empty but agent is free,
     // replicate reference TOTP/TPTR "no task found" branch:
     //   check if the agent's location conflicts with other agents' paths
@@ -870,18 +870,18 @@ void Simulation::tp_handle_no_assignment() {  // ! (not-LNS) reached from assign
 // Section 5: Task Assignment — Dispatcher
 //   (Pseudocode Section 6)
 // ============================================================
-void Simulation::task_assignment() {  // ! *** [S3] task_assignment(): switch(config.assign_method)
+void Simulation::task_assignment() {
     // Pseudocode Section 6 — pure dispatch on the task-assignment method.
     // Each per-method step owns its own should_assign() guard and any
     // method-specific pre-steps (e.g. CENTRAL's instant-pickup/phase-2 reset),
     // so this dispatcher carries no algorithm-specific logic.
-    switch (config.assign_method) {  // ! ***
-    case AM_DECOUPLED_GREEDY:       assign_decoupled_greedy_step();   break;  // ! (not-LNS) task_assignment: TP / TPTS / HBH-MLA*
+    switch (config.assign_method) {
+    case AM_DECOUPLED_GREEDY:       assign_decoupled_greedy_step();   break;
     case AM_DECOUPLED_GREEDY_SWAPS: assign_tpts_step();               break;
     case AM_CENTRALIZED_GREEDY:     assign_centralized_greedy_step(); break;
-    case AM_HUNGARIAN:              assign_hungarian_step();          break;  // ! *** HUNGARIAN series
-    case AM_REPEATED_HUNGARIAN_LNS: assign_lns_step();               break;  // ! *** LNS series
-    case AM_LKH3_TSP:  // ! (not-LNS) task_assignment: offline TA + unreachable default
+    case AM_HUNGARIAN:              assign_hungarian_step();          break;
+    case AM_REPEATED_HUNGARIAN_LNS: assign_lns_step();               break;
+    case AM_LKH3_TSP:
     case AM_LKH3_TSP_REASSIGN:      assign_ta_tsp_step();             break;
     default: break;
     }
@@ -925,22 +925,22 @@ void Simulation::assign_centralized_greedy_step() {
 // instant-pickup + delivery planning runs first (before should_assign, so those
 // agents are not treated as FREE); phase-2 scratch is reset here too. Both are
 // internally gated so they are no-ops for the Hungarian-online (PBS/wPBS) path.
-void Simulation::assign_hungarian_step() {  // ! *** [S3] assign_hungarian_step(): HUNGARIAN series entry
+void Simulation::assign_hungarian_step() {
     // CENTRAL family only: instant pickup must run before should_assign().
     // (central_phase1_instant_pickup no longer self-gates — gate here.)
-    if (config.assign_trigger == AT_EVERY_TIMESTEP ||  // ! ***
-        config.assign_trigger == AT_ON_NEW_TASK_OR_FREE)  // ! ***
-        central_phase1_instant_pickup();  // ! (not-LNS) CENTRAL family only (AT_EVERY_TIMESTEP / AT_ON_NEW_TASK_OR_FREE)
-    central_clear_phase2_scratch();    // gated on AM_HUNGARIAN internally  // ! ***
-    if (!should_assign()) { tp_handle_no_assignment(); return; }  // ! *** same NO-OP fallback for the Hungarian series
-    if (config.assign_trigger == AT_ON_UNASSIGNED_OR_FREE) assign_repeated_hungarian();  // ! *** online Hungarian -> assign_repeated_hungarian (NOT CENTRAL's assign_hungarian)
-    else assign_hungarian();  // ! (not-LNS) CENTRAL's Hungarian; never taken by the online series
+    if (config.assign_trigger == AT_EVERY_TIMESTEP ||
+        config.assign_trigger == AT_ON_NEW_TASK_OR_FREE)
+        central_phase1_instant_pickup();
+    central_clear_phase2_scratch();    // gated on AM_HUNGARIAN internally
+    if (!should_assign()) { tp_handle_no_assignment(); return; }
+    if (config.assign_trigger == AT_ON_UNASSIGNED_OR_FREE) assign_repeated_hungarian();
+    else assign_hungarian();
 }
 
 // LNS (AM_REPEATED_HUNGARIAN_LNS).
-void Simulation::assign_lns_step() {  // ! *** [S3] assign_lns_step(): LNS series entry
-    if (!should_assign()) { tp_handle_no_assignment(); return; }  // ! *** tp_handle_no_assignment() is a NO-OP here (its body is gated on AT_ON_FREE_WAITS)
-    assign_repeated_hungarian_lns();  // ! *** LNS -> Hungarian + LNS spin
+void Simulation::assign_lns_step() {
+    if (!should_assign()) { tp_handle_no_assignment(); return; }
+    assign_repeated_hungarian_lns();
 }
 
 // TA offline (AM_LKH3_TSP / AM_LKH3_TSP_REASSIGN): parse tour once; TA-Hybrid's
@@ -955,16 +955,16 @@ void Simulation::assign_ta_tsp_step() {
 //   (Pseudocode Section 11)
 // ============================================================
 
-void Simulation::path_planning() {  // ! *** [S3] path_planning(): switch(config.mapf)
+void Simulation::path_planning() {
     // Pseudocode Section 11 — pure dispatch on the MAPF method. Where a MAPF
     // method has more than one planner variant, the variant is selected by an
     // internal assign_trigger check (kept inside the case, not in the dispatcher).
-    switch (config.mapf) {  // ! ***
-    case MAPF_DECOUPLED_PP:  // ! ***
-        if (config.assign_trigger == AT_ON_UNASSIGNED_OR_FREE) {  // ! *** #16/#17 Hungarian|LNS + PP-SIPP
+    switch (config.mapf) {
+    case MAPF_DECOUPLED_PP:
+        if (config.assign_trigger == AT_ON_UNASSIGNED_OR_FREE) {
             // Hungarian/LNS + PP-SIPP: prioritized planning with per-task MLA*.
-            path_planning_pp_mla();  // ! *** -> path_planning_pp_mla()
-        } else if (config.single_agent == SA_SEQ_STA ||  // ! (not-LNS) path_planning: TA-Prioritized (offline TSP)
+            path_planning_pp_mla();
+        } else if (config.single_agent == SA_SEQ_STA ||
                    (config.single_agent == SA_MLA_SEQUENCE &&
                     config.assign_method == AM_LKH3_TSP)) {
             // TA-Prioritized (offline TSP, AT_ONCE): plan every agent's tour.
@@ -975,27 +975,27 @@ void Simulation::path_planning() {  // ! *** [S3] path_planning(): switch(config
         } else {
             cerr << "path_planning: unexpected decoupled-PP config" << endl;
         }
-        break;  // ! ***
-    case MAPF_CBS:  // ! (not-LNS) path_planning: CENTRAL / CBS
+        break;
+    case MAPF_CBS:
         path_planning_cbs();
         break;
-    case MAPF_PBS:  // ! ***
+    case MAPF_PBS:
         // CENTRAL/CENTRAL_FIXED use a CBS wrapper whose Group-2 is PBS-based;
         // Hungarian/LNS online use plain PBS.
-        if (config.assign_trigger == AT_EVERY_TIMESTEP ||  // ! ***
-            config.assign_trigger == AT_ON_NEW_TASK_OR_FREE)  // ! ***
-            path_planning_cbs_with_pp();  // ! (not-LNS) CENTRAL's CBS+PP wrapper
-        else  // ! ***
-            path_planning_pbs();  // ! *** #6/#8/#10/#12 *_PBS
-        break;  // ! ***
-    case MAPF_wPBS:  // ! ***
-        path_planning_wpbs();  // ! *** #7/#9/#11/#13 *_wPBS
-        break;  // ! ***
-    case MAPF_TA_HYBRID_TWO_GROUP:  // ! (not-LNS) path_planning: TA-Hybrid
+        if (config.assign_trigger == AT_EVERY_TIMESTEP ||
+            config.assign_trigger == AT_ON_NEW_TASK_OR_FREE)
+            path_planning_cbs_with_pp();
+        else
+            path_planning_pbs();
+        break;
+    case MAPF_wPBS:
+        path_planning_wpbs();
+        break;
+    case MAPF_TA_HYBRID_TWO_GROUP:
         plan_ta_hybrid();
         ta_planning_done_ = true;
         break;
-    default:  // ! (not-LNS) unreachable default
+    default:
         // Every MAPFMethod enum value is handled explicitly above; unreachable.
         cerr << "path_planning: unexpected mapf" << endl;
         break;
@@ -1433,7 +1433,7 @@ int Simulation::astar_cost_only(int agent_id, int start_loc, int goal_loc,
     return map_size;
 }
 
-void Simulation::assign_hungarian() {  // ! (not-LNS) assign_hungarian() = CENTRAL only; the online series uses assign_repeated_hungarian() at 4489
+void Simulation::assign_hungarian() {
     phase2_free_ids_.clear();
     phase2_tasks_.clear();
     phase2_goal_locs_.clear();
@@ -2562,7 +2562,7 @@ void Simulation::releaseNodes(map<unsigned int, SearchNode*>& table) {
     table.clear();
 }
 
-bool Simulation::fullCollisionCheck(const string& alg_name) const {  // ! (shared) driver-side post-run check, common to all 17 methods
+bool Simulation::fullCollisionCheck(const string& alg_name) const {
     bool ok = true;
     int collision_count = 0;
     int num_ag = path_table_.size();
@@ -2593,7 +2593,7 @@ bool Simulation::fullCollisionCheck(const string& alg_name) const {  // ! (share
     return ok;
 }
 
-void Simulation::showTask() const {  // ! (shared) driver-side reporting, common to all 17 methods
+void Simulation::showTask() const {
     int makespan = 0;
     int total_wait = 0;
     int tasks_done = 0;
@@ -2611,7 +2611,7 @@ void Simulation::showTask() const {  // ! (shared) driver-side reporting, common
     cout << "Tasks completed:\t" << tasks_done << "/" << all_tasks.size() << endl;
 }
 
-void Simulation::saveOutput(const string& filepath, double runtime_ms) const {  // ! (shared) driver-side reporting, common to all 17 methods
+void Simulation::saveOutput(const string& filepath, double runtime_ms) const {
     ofstream out(filepath);
     if (!out.is_open()) {
         cerr << "Error: cannot open output file: " << filepath << endl;
@@ -4384,80 +4384,80 @@ void Simulation::plan_ta_hybrid() {
 //   lns_agent_finished_ so the caller can decide whether to replan.
 // ============================================================
 
-void Simulation::process_online_events() {  // ! *** [S2] process_online_events(): pickup/delivery detection + event flags
-    pbs_has_event_ = false;  // ! ***
-    pbs_assign_event_ = false;  // ! ***
-    if (config.assign_method == AM_REPEATED_HUNGARIAN_LNS) lns_agent_finished_ = false;  // ! *** LNS only: lns_agent_finished_ (reference new_agent_finish)
+void Simulation::process_online_events() {
+    pbs_has_event_ = false;
+    pbs_assign_event_ = false;
+    if (config.assign_method == AM_REPEATED_HUNGARIAN_LNS) lns_agent_finished_ = false;
 
     // Check if new tasks arrived
-    if (cur_time_ < maxtime && !task_indices_by_time[cur_time_].empty()) {  // ! ***
-        pbs_has_event_ = true;  // ! ***
-        pbs_assign_event_ = true;  // ! ***
+    if (cur_time_ < maxtime && !task_indices_by_time[cur_time_].empty()) {
+        pbs_has_event_ = true;
+        pbs_assign_event_ = true;
     }
 
     // Advance goal state machine: detect completed goals
     // For wPBS: scan all timesteps since last check (may have skipped intermediate steps)
-    for (int i = 0; i < (int)agents.size(); i++) {  // ! ***
+    for (int i = 0; i < (int)agents.size(); i++) {
         // Process multiple task completions that may have occurred between replans
-        while (!agents[i].task_sequence.empty()) {  // ! ***
-            int task_id = agents[i].task_sequence.front();  // ! ***
-            Task& task = all_tasks[task_id];  // ! ***
+        while (!agents[i].task_sequence.empty()) {
+            int task_id = agents[i].task_sequence.front();
+            Task& task = all_tasks[task_id];
 
-            int first_goal, last_goal;  // ! ***
-            task_goals(task, first_goal, last_goal);  // ! *** -> task_goals()
+            int first_goal, last_goal;
+            task_goals(task, first_goal, last_goal);
 
             // Scan path for pickup arrival
-            if (agents[i].status == AG_MOVING_TO_PICKUP) {  // ! ***
-                bool found_pickup = false;  // ! ***
-                for (unsigned int t = pbs_last_replan_time_; t <= cur_time_ && t < maxtime; t++) {  // ! ***
-                    if ((int)agents[i].path[t] == first_goal && (int)t >= task.release_time) {  // ! ***
-                        agents[i].status = AG_CARRYING;  // ! ***
-                        found_pickup = true;  // ! ***
-                        break;  // ! ***
+            if (agents[i].status == AG_MOVING_TO_PICKUP) {
+                bool found_pickup = false;
+                for (unsigned int t = pbs_last_replan_time_; t <= cur_time_ && t < maxtime; t++) {
+                    if ((int)agents[i].path[t] == first_goal && (int)t >= task.release_time) {
+                        agents[i].status = AG_CARRYING;
+                        found_pickup = true;
+                        break;
                     }
                 }
-                if (!found_pickup) break;  // ! ***
+                if (!found_pickup) break;
             }
 
             // Scan path for delivery arrival
-            if (agents[i].status == AG_CARRYING) {  // ! ***
-                bool found_delivery = false;  // ! ***
-                for (unsigned int t = pbs_last_replan_time_; t <= cur_time_ && t < maxtime; t++) {  // ! ***
-                    if ((int)agents[i].path[t] == last_goal) {  // ! ***
-                        task.completion_time = (int)t;  // ! ***
-                        task.status = INT_MAX;  // ! ***
-                        agents[i].task_sequence.pop_front();  // ! ***
-                        agents[i].current_task = -1;  // ! ***
+            if (agents[i].status == AG_CARRYING) {
+                bool found_delivery = false;
+                for (unsigned int t = pbs_last_replan_time_; t <= cur_time_ && t < maxtime; t++) {
+                    if ((int)agents[i].path[t] == last_goal) {
+                        task.completion_time = (int)t;
+                        task.status = INT_MAX;
+                        agents[i].task_sequence.pop_front();
+                        agents[i].current_task = -1;
 
-                        if (!agents[i].task_sequence.empty()) {  // ! ***
-                            agents[i].status = AG_MOVING_TO_PICKUP;  // ! ***
-                            agents[i].current_task = agents[i].task_sequence.front();  // ! ***
-                        } else {  // ! ***
-                            agents[i].status = AG_FREE;  // ! ***
+                        if (!agents[i].task_sequence.empty()) {
+                            agents[i].status = AG_MOVING_TO_PICKUP;
+                            agents[i].current_task = agents[i].task_sequence.front();
+                        } else {
+                            agents[i].status = AG_FREE;
                         }
-                        pbs_has_event_ = true;  // ! ***
-                        pbs_assign_event_ = true;  // ! ***
-                        if (config.assign_method == AM_REPEATED_HUNGARIAN_LNS)  // ! *** LNS only: agent reached its last goal -> allows the 1s spin this event
-                            lns_agent_finished_ = true;  // agent reached its last goal (reference new_agent_finish)  // ! ***
-                        found_delivery = true;  // ! ***
-                        break;  // ! ***
+                        pbs_has_event_ = true;
+                        pbs_assign_event_ = true;
+                        if (config.assign_method == AM_REPEATED_HUNGARIAN_LNS)
+                            lns_agent_finished_ = true;  // agent reached its last goal (reference new_agent_finish)
+                        found_delivery = true;
+                        break;
                     }
                 }
-                if (!found_delivery) break;  // ! ***
+                if (!found_delivery) break;
             }
 
-            if (agents[i].status != AG_MOVING_TO_PICKUP && agents[i].status != AG_CARRYING)  // ! ***
-                break;  // ! ***
+            if (agents[i].status != AG_MOVING_TO_PICKUP && agents[i].status != AG_CARRYING)
+                break;
         }
     }
 
     // Check if any agent is free (no tasks) and there are unassigned tasks
-    if (!pbs_assign_event_ && !open_tasks_.empty()) {  // ! ***
-        for (auto& a : agents) {  // ! ***
-            if (a.task_sequence.empty() && a.status == AG_FREE) {  // ! ***
-                pbs_has_event_ = true;  // ! ***
-                pbs_assign_event_ = true;  // ! ***
-                break;  // ! ***
+    if (!pbs_assign_event_ && !open_tasks_.empty()) {
+        for (auto& a : agents) {
+            if (a.task_sequence.empty() && a.status == AG_FREE) {
+                pbs_has_event_ = true;
+                pbs_assign_event_ = true;
+                break;
             }
         }
     }
@@ -4465,19 +4465,19 @@ void Simulation::process_online_events() {  // ! *** [S2] process_online_events(
     // Trigger periodic replanning (replan only, no re-assignment).
     // Only for WINDOWED planning — non-windowed (PBS/LNS-PBS) only replans on
     // actual events (task release or delivery completion), never periodically.
-    if (!pbs_has_event_ && config.windowed) {  // ! *** wPBS only: periodic replan (paths only, no re-assignment)
-        bool any_active = false;  // ! ***
-        for (auto& a : agents) {  // ! ***
-            if (!a.task_sequence.empty()) { any_active = true; break; }  // ! ***
+    if (!pbs_has_event_ && config.windowed) {
+        bool any_active = false;
+        for (auto& a : agents) {
+            if (!a.task_sequence.empty()) { any_active = true; break; }
         }
-        if (any_active && (int)cur_time_ - pbs_last_replan_time_ >= config.replan_window) {  // ! ***
-            pbs_has_event_ = true;  // ! ***
+        if (any_active && (int)cur_time_ - pbs_last_replan_time_ >= config.replan_window) {
+            pbs_has_event_ = true;
             // pbs_assign_event_ stays false — only replan paths, don't re-assign
         }
     }
 
-    if (pbs_has_event_)  // ! ***
-        pbs_last_replan_time_ = (int)cur_time_;  // ! ***
+    if (pbs_has_event_)
+        pbs_last_replan_time_ = (int)cur_time_;
 }
 
 // ============================================================
@@ -4486,128 +4486,128 @@ void Simulation::process_online_events() {  // ! *** [S2] process_online_events(
 //   in rounds. Each round assigns min(num_agents, remaining) tasks.
 // ============================================================
 
-void Simulation::assign_repeated_hungarian() {  // ! *** [S4] assign_repeated_hungarian(): HUNGARIAN series assignment / LNS Phase 1
+void Simulation::assign_repeated_hungarian() {
     // Re-assign from scratch: release all non-delivering tasks
     // (matching reference: clears task_sequences except delivering front task)
-    for (int i = 0; i < (int)agents.size(); i++) {  // ! *** re-assign from scratch: release everything except a task being carried
-        if (agents[i].task_sequence.empty()) continue;  // ! ***
-        int front_tid = agents[i].task_sequence.front();  // ! ***
-        bool keep_front = (agents[i].status == AG_CARRYING &&  // ! ***
-                           agents[i].current_task == front_tid);  // ! ***
-        for (int tid : agents[i].task_sequence) {  // ! ***
-            if (keep_front && tid == front_tid) continue;  // ! ***
-            all_tasks[tid].status = -1;  // ! ***
+    for (int i = 0; i < (int)agents.size(); i++) {
+        if (agents[i].task_sequence.empty()) continue;
+        int front_tid = agents[i].task_sequence.front();
+        bool keep_front = (agents[i].status == AG_CARRYING &&
+                           agents[i].current_task == front_tid);
+        for (int tid : agents[i].task_sequence) {
+            if (keep_front && tid == front_tid) continue;
+            all_tasks[tid].status = -1;
             // Put task back into open_tasks_ (it was removed when assigned)
-            open_tasks_.push_back(&all_tasks[tid]);  // ! ***
+            open_tasks_.push_back(&all_tasks[tid]);
         }
-        if (keep_front) {  // ! ***
-            agents[i].task_sequence = {front_tid};  // ! ***
-        } else {  // ! ***
-            agents[i].task_sequence.clear();  // ! ***
-            if (agents[i].status == AG_MOVING_TO_PICKUP) {  // ! ***
-                agents[i].status = AG_FREE;  // ! ***
-                agents[i].current_task = -1;  // ! ***
+        if (keep_front) {
+            agents[i].task_sequence = {front_tid};
+        } else {
+            agents[i].task_sequence.clear();
+            if (agents[i].status == AG_MOVING_TO_PICKUP) {
+                agents[i].status = AG_FREE;
+                agents[i].current_task = -1;
             }
         }
     }
 
     // Collect all unassigned tasks
-    vector<Task*> remaining_tasks;  // ! ***
-    for (auto it = open_tasks_.begin(); it != open_tasks_.end(); ++it) {  // ! ***
-        if ((*it)->status == -1)  // ! ***
-            remaining_tasks.push_back(*it);  // ! ***
+    vector<Task*> remaining_tasks;
+    for (auto it = open_tasks_.begin(); it != open_tasks_.end(); ++it) {
+        if ((*it)->status == -1)
+            remaining_tasks.push_back(*it);
     }
-    if (remaining_tasks.empty()) return;  // ! ***
+    if (remaining_tasks.empty()) return;
 
-    int num_ag = (int)agents.size();  // ! ***
+    int num_ag = (int)agents.size();
 
-    while (!remaining_tasks.empty()) {  // ! ***
-        int remain = (int)remaining_tasks.size();  // ! ***
-        int row = max(num_ag, remain);  // ! ***
+    while (!remaining_tasks.empty()) {
+        int remain = (int)remaining_tasks.size();
+        int row = max(num_ag, remain);
 
-        dlib::matrix<int> cost_mat(row, row);  // ! *** cost matrix: rows = agents, cols = tasks, square-padded
-        for (int i = 0; i < row; i++) {  // ! ***
-            for (int j = 0; j < row; j++) {  // ! ***
-                if (i >= num_ag || j >= remain) {  // ! ***
-                    cost_mat(i, j) = INT_MIN;  // ! ***
-                } else {  // ! ***
-                    Task* task = remaining_tasks[j];  // ! ***
-                    Agent& ag = agents[i];  // ! ***
+        dlib::matrix<int> cost_mat(row, row);
+        for (int i = 0; i < row; i++) {
+            for (int j = 0; j < row; j++) {
+                if (i >= num_ag || j >= remain) {
+                    cost_mat(i, j) = INT_MIN;
+                } else {
+                    Task* task = remaining_tasks[j];
+                    Agent& ag = agents[i];
 
                     // Compute estimated arrival time at task's last goal
-                    int est_time = 0;  // ! ***
-                    if (!ag.task_sequence.empty()) {  // ! ***
-                        int loc = (int)ag.loc;  // ! ***
-                        int t = (int)cur_time_;  // ! ***
-                        for (int tid : ag.task_sequence) {  // ! ***
-                            Task& tt = all_tasks[tid];  // ! ***
-                            int ng = min((int)tt.goals.size(), 2);  // ! ***
+                    int est_time = 0;
+                    if (!ag.task_sequence.empty()) {
+                        int loc = (int)ag.loc;
+                        int t = (int)cur_time_;
+                        for (int tid : ag.task_sequence) {
+                            Task& tt = all_tasks[tid];
+                            int ng = min((int)tt.goals.size(), 2);
                             // Skip pickup goal if agent is carrying this task
                             // (reference excludes delivering task from sequence and
                             //  adjusts start_location/start_timestep instead)
-                            bool is_carrying_tid = (ag.status == AG_CARRYING &&  // ! ***
-                                                    ag.current_task == tid);  // ! ***
-                            int start_g = (is_carrying_tid && ng >= 2) ? 1 : 0;  // ! ***
-                            for (int g = start_g; g < ng; g++) {  // ! ***
-                                int gloc = tt.goals[g];  // ! ***
-                                int ep_idx = mapd_map.ep_index(gloc);  // ! ***
-                                int d = (ep_idx >= 0) ? mapd_map.endpoints[ep_idx].h_val[loc] : 0;  // ! ***
-                                if (d == INT_MAX) d = 0;  // ! ***
-                                t += d;  // ! ***
+                            bool is_carrying_tid = (ag.status == AG_CARRYING &&
+                                                    ag.current_task == tid);
+                            int start_g = (is_carrying_tid && ng >= 2) ? 1 : 0;
+                            for (int g = start_g; g < ng; g++) {
+                                int gloc = tt.goals[g];
+                                int ep_idx = mapd_map.ep_index(gloc);
+                                int d = (ep_idx >= 0) ? mapd_map.endpoints[ep_idx].h_val[loc] : 0;
+                                if (d == INT_MAX) d = 0;
+                                t += d;
                                 // Only clamp by release_time for the pickup goal (not delivery)
-                                if (g == start_g && !is_carrying_tid &&  // ! ***
-                                    t < tt.release_time)  // ! ***
-                                    t = tt.release_time;  // ! ***
-                                loc = gloc;  // ! ***
+                                if (g == start_g && !is_carrying_tid &&
+                                    t < tt.release_time)
+                                    t = tt.release_time;
+                                loc = gloc;
                             }
                         }
-                        int first_goal_loc = task->goals.empty() ? task->pickup_loc : task->goals[0];  // ! ***
-                        int ep_idx = mapd_map.ep_index(first_goal_loc);  // ! ***
-                        int d = (ep_idx >= 0) ? mapd_map.endpoints[ep_idx].h_val[loc] : 0;  // ! ***
-                        if (d == INT_MAX) d = 0;  // ! ***
-                        est_time = t + d;  // ! ***
-                    } else {  // ! ***
-                        int first_goal_loc = task->goals.empty() ? task->pickup_loc : task->goals[0];  // ! ***
-                        int ep_idx = mapd_map.ep_index(first_goal_loc);  // ! ***
-                        int d = (ep_idx >= 0) ? mapd_map.endpoints[ep_idx].h_val[ag.loc] : 0;  // ! ***
-                        if (d == INT_MAX) d = 0;  // ! ***
-                        est_time = (int)cur_time_ + d;  // ! ***
+                        int first_goal_loc = task->goals.empty() ? task->pickup_loc : task->goals[0];
+                        int ep_idx = mapd_map.ep_index(first_goal_loc);
+                        int d = (ep_idx >= 0) ? mapd_map.endpoints[ep_idx].h_val[loc] : 0;
+                        if (d == INT_MAX) d = 0;
+                        est_time = t + d;
+                    } else {
+                        int first_goal_loc = task->goals.empty() ? task->pickup_loc : task->goals[0];
+                        int ep_idx = mapd_map.ep_index(first_goal_loc);
+                        int d = (ep_idx >= 0) ? mapd_map.endpoints[ep_idx].h_val[ag.loc] : 0;
+                        if (d == INT_MAX) d = 0;
+                        est_time = (int)cur_time_ + d;
                     }
-                    est_time = max(est_time, task->release_time);  // ! ***
+                    est_time = max(est_time, task->release_time);
                     // Add distance to second goal (capped to first 2 goals)
-                    if (task->goals.size() >= 2) {  // ! ***
-                        int g0 = task->goals[0];  // ! ***
-                        int g1 = task->goals[min((int)task->goals.size()-1, 1)];  // ! ***
-                        int ep_idx = mapd_map.ep_index(g1);  // ! ***
-                        int d = (ep_idx >= 0) ? mapd_map.endpoints[ep_idx].h_val[g0] : 0;  // ! ***
-                        if (d == INT_MAX) d = 0;  // ! ***
-                        est_time += d;  // ! ***
+                    if (task->goals.size() >= 2) {
+                        int g0 = task->goals[0];
+                        int g1 = task->goals[min((int)task->goals.size()-1, 1)];
+                        int ep_idx = mapd_map.ep_index(g1);
+                        int d = (ep_idx >= 0) ? mapd_map.endpoints[ep_idx].h_val[g0] : 0;
+                        if (d == INT_MAX) d = 0;
+                        est_time += d;
                     }
 
                     // Negative cost for max_cost_assignment (minimize arrival time)
-                    cost_mat(i, j) = -est_time;  // ! *** cost = -(estimated arrival time at the task's last goal)
+                    cost_mat(i, j) = -est_time;
                 }
             }
         }
 
-        vector<long> assignment = dlib::max_cost_assignment(cost_mat);  // ! *** dlib Hungarian
+        vector<long> assignment = dlib::max_cost_assignment(cost_mat);
 
-        vector<Task*> assigned;  // ! ***
-        for (int i = 0; i < num_ag; i++) {  // ! ***
-            if (assignment[i] < remain) {  // ! ***
-                Task* task = remaining_tasks[assignment[i]];  // ! ***
-                agents[i].task_sequence.push_back(task->id);  // ! ***
-                task->status = i;  // ! ***
-                assigned.push_back(task);  // ! ***
+        vector<Task*> assigned;
+        for (int i = 0; i < num_ag; i++) {
+            if (assignment[i] < remain) {
+                Task* task = remaining_tasks[assignment[i]];
+                agents[i].task_sequence.push_back(task->id);
+                task->status = i;
+                assigned.push_back(task);
             }
         }
 
         // Remove assigned tasks from remaining and from open_tasks_
-        for (Task* t : assigned) {  // ! ***
-            remaining_tasks.erase(  // ! ***
-                remove(remaining_tasks.begin(), remaining_tasks.end(), t),  // ! ***
-                remaining_tasks.end());  // ! ***
-            open_tasks_.remove(t);  // ! ***
+        for (Task* t : assigned) {
+            remaining_tasks.erase(
+                remove(remaining_tasks.begin(), remaining_tasks.end(), t),
+                remaining_tasks.end());
+            open_tasks_.remove(t);
         }
     }
 }
@@ -4618,258 +4618,258 @@ void Simulation::assign_repeated_hungarian() {  // ! *** [S4] assign_repeated_hu
 //   Phase 2: LNS destroy/repair loop for improvement
 // ============================================================
 
-int Simulation::estimate_sequence_cost(int agent_id) const {  // ! *** [S4] estimate_sequence_cost(): LNS objective sum(delivery) - sum(release)
+int Simulation::estimate_sequence_cost(int agent_id) const {
     // Match reference calculateFlowtime: returns sum of (delivery_time - release_time)
     // for all tasks in the agent's sequence, which is sum_of_delivery_time - sum_of_release_time.
-    const Agent& ag = agents[agent_id];  // ! ***
-    int loc = (int)ag.loc;  // ! ***
-    int delivery_time = (int)cur_time_;  // ! ***
-    int sum_of_delivery_time = 0;  // ! ***
-    int sum_of_release_time = 0;  // ! ***
+    const Agent& ag = agents[agent_id];
+    int loc = (int)ag.loc;
+    int delivery_time = (int)cur_time_;
+    int sum_of_delivery_time = 0;
+    int sum_of_release_time = 0;
 
-    if (ag.task_sequence.empty()) return 0;  // ! ***
+    if (ag.task_sequence.empty()) return 0;
 
-    for (int idx = 0; idx < (int)ag.task_sequence.size(); idx++) {  // ! ***
-        int tid = ag.task_sequence[idx];  // ! ***
-        const Task& tt = all_tasks[tid];  // ! ***
-        int ng = min((int)tt.goals.size(), 2);  // ! ***
+    for (int idx = 0; idx < (int)ag.task_sequence.size(); idx++) {
+        int tid = ag.task_sequence[idx];
+        const Task& tt = all_tasks[tid];
+        int ng = min((int)tt.goals.size(), 2);
 
         // Check if agent is currently carrying this task (skip pickup)
-        bool is_carrying = (idx == 0 && ag.status == AG_CARRYING && ag.current_task == tid);  // ! ***
-        int start_goal = is_carrying ? 1 : 0;  // ! ***
+        bool is_carrying = (idx == 0 && ag.status == AG_CARRYING && ag.current_task == tid);
+        int start_goal = is_carrying ? 1 : 0;
 
-        if (start_goal < ng) {  // ! ***
+        if (start_goal < ng) {
             // Distance to first relevant goal
-            int gloc0 = tt.goals[start_goal];  // ! ***
-            int ep_idx = mapd_map.ep_index(gloc0);  // ! ***
-            int d = (ep_idx >= 0) ? mapd_map.endpoints[ep_idx].h_val[loc] : 0;  // ! ***
-            if (d == INT_MAX) d = 0;  // ! ***
+            int gloc0 = tt.goals[start_goal];
+            int ep_idx = mapd_map.ep_index(gloc0);
+            int d = (ep_idx >= 0) ? mapd_map.endpoints[ep_idx].h_val[loc] : 0;
+            if (d == INT_MAX) d = 0;
 
-            if (idx == 0) {  // ! ***
-                delivery_time = (int)cur_time_ + d;  // ! ***
-            } else {  // ! ***
-                delivery_time += d;  // ! ***
+            if (idx == 0) {
+                delivery_time = (int)cur_time_ + d;
+            } else {
+                delivery_time += d;
             }
-            if (!is_carrying)  // ! ***
-                delivery_time = max(delivery_time, tt.release_time);  // ! ***
+            if (!is_carrying)
+                delivery_time = max(delivery_time, tt.release_time);
 
             // Distance through remaining goals (e.g., pickup -> delivery)
-            for (int g = start_goal; g < ng - 1; g++) {  // ! ***
-                int g0 = tt.goals[g];  // ! ***
-                int g1 = tt.goals[g + 1];  // ! ***
-                int ep2 = mapd_map.ep_index(g1);  // ! ***
-                int dd = (ep2 >= 0) ? mapd_map.endpoints[ep2].h_val[g0] : 0;  // ! ***
-                if (dd == INT_MAX) dd = 0;  // ! ***
-                delivery_time += dd;  // ! ***
+            for (int g = start_goal; g < ng - 1; g++) {
+                int g0 = tt.goals[g];
+                int g1 = tt.goals[g + 1];
+                int ep2 = mapd_map.ep_index(g1);
+                int dd = (ep2 >= 0) ? mapd_map.endpoints[ep2].h_val[g0] : 0;
+                if (dd == INT_MAX) dd = 0;
+                delivery_time += dd;
             }
         }
 
-        sum_of_delivery_time += delivery_time;  // ! ***
-        sum_of_release_time += tt.release_time;  // ! ***
+        sum_of_delivery_time += delivery_time;
+        sum_of_release_time += tt.release_time;
 
         // Update loc to last goal for next task's distance computation
-        loc = tt.goals[min(ng - 1, (int)tt.goals.size() - 1)];  // ! ***
+        loc = tt.goals[min(ng - 1, (int)tt.goals.size() - 1)];
     }
 
-    return sum_of_delivery_time - sum_of_release_time;  // ! ***
+    return sum_of_delivery_time - sum_of_release_time;
 }
 
-void Simulation::lns_destroy(vector<int>& removed_tasks) {  // ! *** [S4] lns_destroy(): Shaw removal, weights 9/1/3, neighborhood_size=2
+void Simulation::lns_destroy(vector<int>& removed_tasks) {
     // Collect all tasks in agent sequences (not currently being carried)
-    vector<int> eligible;  // ! ***
-    for (auto& ag : agents) {  // ! ***
-        for (int tid : ag.task_sequence) {  // ! ***
-            if (ag.status == AG_CARRYING && ag.current_task == tid) continue;  // ! ***
-            eligible.push_back(tid);  // ! ***
+    vector<int> eligible;
+    for (auto& ag : agents) {
+        for (int tid : ag.task_sequence) {
+            if (ag.status == AG_CARRYING && ag.current_task == tid) continue;
+            eligible.push_back(tid);
         }
     }
-    if (eligible.empty()) return;  // ! ***
+    if (eligible.empty()) return;
 
     // Match reference: always use Shaw removal with neighborhood_size=2
     // Reference: LNS lns(G, tl, al, 2, 1, 2, 2) -> removal_strategy=1 (Shaw), neighborhood_size=2
-    int neighborhood_size = 2;  // ! ***
+    int neighborhood_size = 2;
 
     // Compute estimated pick_up_time and delivery_time for each task in agent sequences.
     // Matches reference generateNeighborsByShawRemoval lines 343-362:
     //   For each agent, walk through task_sequence computing running pick_up and delivery times.
     //   pick_up_time = max(estimated_arrival_at_pickup, release_time)
     //   delivery_time = pick_up_time + internal_goal_distances
-    unordered_map<int, pair<int,int>> task_times;  // tid -> (pick_up_time, delivery_time)  // ! ***
-    for (auto& ag : agents) {  // ! ***
-        int pick_up_time = 0;  // ! ***
-        for (int idx = 0; idx < (int)ag.task_sequence.size(); idx++) {  // ! ***
-            int tid = ag.task_sequence[idx];  // ! ***
-            const Task& tt = all_tasks[tid];  // ! ***
-            int ng = min((int)tt.goals.size(), 2);  // ! ***
-            int first_goal = tt.goals.empty() ? tt.pickup_loc : tt.goals[0];  // ! ***
-            int last_goal = (ng >= 2) ? tt.goals[min(ng-1, (int)tt.goals.size()-1)] : first_goal;  // ! ***
+    unordered_map<int, pair<int,int>> task_times;  // tid -> (pick_up_time, delivery_time)
+    for (auto& ag : agents) {
+        int pick_up_time = 0;
+        for (int idx = 0; idx < (int)ag.task_sequence.size(); idx++) {
+            int tid = ag.task_sequence[idx];
+            const Task& tt = all_tasks[tid];
+            int ng = min((int)tt.goals.size(), 2);
+            int first_goal = tt.goals.empty() ? tt.pickup_loc : tt.goals[0];
+            int last_goal = (ng >= 2) ? tt.goals[min(ng-1, (int)tt.goals.size()-1)] : first_goal;
 
-            if (idx == 0) {  // ! ***
+            if (idx == 0) {
                 // Reference: pick_up_time = start_timestep + h(start_location, goal_arr[0])
-                int ep_idx = mapd_map.ep_index(first_goal);  // ! ***
-                int d = (ep_idx >= 0) ? mapd_map.endpoints[ep_idx].h_val[ag.loc] : 0;  // ! ***
-                if (d == INT_MAX) d = 0;  // ! ***
-                pick_up_time = (int)cur_time_ + d;  // ! ***
+                int ep_idx = mapd_map.ep_index(first_goal);
+                int d = (ep_idx >= 0) ? mapd_map.endpoints[ep_idx].h_val[ag.loc] : 0;
+                if (d == INT_MAX) d = 0;
+                pick_up_time = (int)cur_time_ + d;
             }
-            int this_pickup = max(pick_up_time, tt.release_time);  // ! ***
-            int this_delivery = this_pickup;  // ! ***
+            int this_pickup = max(pick_up_time, tt.release_time);
+            int this_delivery = this_pickup;
             // Add internal goal distances (pickup -> delivery)
-            for (int g = 0; g < ng - 1; g++) {  // ! ***
-                int g0 = tt.goals[g];  // ! ***
-                int g1 = tt.goals[g + 1];  // ! ***
-                int ep2 = mapd_map.ep_index(g1);  // ! ***
-                int dd = (ep2 >= 0) ? mapd_map.endpoints[ep2].h_val[g0] : 0;  // ! ***
-                if (dd == INT_MAX) dd = 0;  // ! ***
-                this_delivery += dd;  // ! ***
+            for (int g = 0; g < ng - 1; g++) {
+                int g0 = tt.goals[g];
+                int g1 = tt.goals[g + 1];
+                int ep2 = mapd_map.ep_index(g1);
+                int dd = (ep2 >= 0) ? mapd_map.endpoints[ep2].h_val[g0] : 0;
+                if (dd == INT_MAX) dd = 0;
+                this_delivery += dd;
             }
-            task_times[tid] = {this_pickup, this_delivery};  // ! ***
+            task_times[tid] = {this_pickup, this_delivery};
 
             // Compute pick_up_time for next task in sequence
-            if (idx < (int)ag.task_sequence.size() - 1) {  // ! ***
-                int next_tid = ag.task_sequence[idx + 1];  // ! ***
-                const Task& next_tt = all_tasks[next_tid];  // ! ***
-                int next_first = next_tt.goals.empty() ? next_tt.pickup_loc : next_tt.goals[0];  // ! ***
-                int ep_idx = mapd_map.ep_index(next_first);  // ! ***
-                int d = (ep_idx >= 0) ? mapd_map.endpoints[ep_idx].h_val[last_goal] : 0;  // ! ***
-                if (d == INT_MAX) d = 0;  // ! ***
-                pick_up_time = this_delivery + d;  // ! ***
+            if (idx < (int)ag.task_sequence.size() - 1) {
+                int next_tid = ag.task_sequence[idx + 1];
+                const Task& next_tt = all_tasks[next_tid];
+                int next_first = next_tt.goals.empty() ? next_tt.pickup_loc : next_tt.goals[0];
+                int ep_idx = mapd_map.ep_index(next_first);
+                int d = (ep_idx >= 0) ? mapd_map.endpoints[ep_idx].h_val[last_goal] : 0;
+                if (d == INT_MAX) d = 0;
+                pick_up_time = this_delivery + d;
             }
         }
     }
 
     // Shaw removal: pick a random task as seed, find most related tasks
     // Relatedness = weight1 * spatial_dist(last_goal) + spatial_dist(first_goal) + weight2 * temporal_dist
-    int seed_idx = rand() % (int)eligible.size();  // ! *** Shaw removal seed (rand() -- seeded from config.lns_seed)
-    int seed_tid = eligible[seed_idx];  // ! ***
-    const Task& seed_task = all_tasks[seed_tid];  // ! ***
-    int seed_last_goal = seed_task.goals.empty() ? seed_task.pickup_loc : seed_task.goals.back();  // ! ***
-    int seed_first_goal = seed_task.goals.empty() ? seed_task.pickup_loc : seed_task.goals[0];  // ! ***
-    int seed_pickup_t = 0, seed_delivery_t = 0;  // ! ***
-    if (task_times.count(seed_tid)) {  // ! ***
-        seed_pickup_t = task_times[seed_tid].first;  // ! ***
-        seed_delivery_t = task_times[seed_tid].second;  // ! ***
+    int seed_idx = rand() % (int)eligible.size();
+    int seed_tid = eligible[seed_idx];
+    const Task& seed_task = all_tasks[seed_tid];
+    int seed_last_goal = seed_task.goals.empty() ? seed_task.pickup_loc : seed_task.goals.back();
+    int seed_first_goal = seed_task.goals.empty() ? seed_task.pickup_loc : seed_task.goals[0];
+    int seed_pickup_t = 0, seed_delivery_t = 0;
+    if (task_times.count(seed_tid)) {
+        seed_pickup_t = task_times[seed_tid].first;
+        seed_delivery_t = task_times[seed_tid].second;
     }
-    removed_tasks.push_back(seed_tid);  // ! ***
+    removed_tasks.push_back(seed_tid);
 
     // Compute relatedness for all other eligible tasks using BFS distances
     // Reference weights: relatedness_weight1=9, relatedness_weight2=3
-    vector<pair<int,int>> relatedness;  // ! ***
-    for (int tid : eligible) {  // ! ***
-        if (tid == seed_tid) continue;  // ! ***
-        const Task& t = all_tasks[tid];  // ! ***
-        int t_last_goal = t.goals.empty() ? t.pickup_loc : t.goals.back();  // ! ***
-        int t_first_goal = t.goals.empty() ? t.pickup_loc : t.goals[0];  // ! ***
+    vector<pair<int,int>> relatedness;
+    for (int tid : eligible) {
+        if (tid == seed_tid) continue;
+        const Task& t = all_tasks[tid];
+        int t_last_goal = t.goals.empty() ? t.pickup_loc : t.goals.back();
+        int t_first_goal = t.goals.empty() ? t.pickup_loc : t.goals[0];
 
         // Use BFS distances from endpoints
-        int dist_last = 0, dist_first = 0;  // ! ***
-        for (auto& ep : mapd_map.endpoints) {  // ! ***
-            if (ep.loc == seed_last_goal) { dist_last = ep.h_val[t_last_goal]; break; }  // ! ***
+        int dist_last = 0, dist_first = 0;
+        for (auto& ep : mapd_map.endpoints) {
+            if (ep.loc == seed_last_goal) { dist_last = ep.h_val[t_last_goal]; break; }
         }
-        for (auto& ep : mapd_map.endpoints) {  // ! ***
-            if (ep.loc == seed_first_goal) { dist_first = ep.h_val[t_first_goal]; break; }  // ! ***
+        for (auto& ep : mapd_map.endpoints) {
+            if (ep.loc == seed_first_goal) { dist_first = ep.h_val[t_first_goal]; break; }
         }
-        if (dist_last == INT_MAX) dist_last = mapd_map.col * mapd_map.row;  // ! ***
-        if (dist_first == INT_MAX) dist_first = mapd_map.col * mapd_map.row;  // ! ***
+        if (dist_last == INT_MAX) dist_last = mapd_map.col * mapd_map.row;
+        if (dist_first == INT_MAX) dist_first = mapd_map.col * mapd_map.row;
 
         // Temporal relatedness: use estimated pick_up_time and delivery_time
         // matching reference generateNeighborsByShawRemoval line 372
-        int t_pickup_t = 0, t_delivery_t = 0;  // ! ***
-        if (task_times.count(tid)) {  // ! ***
-            t_pickup_t = task_times[tid].first;  // ! ***
-            t_delivery_t = task_times[tid].second;  // ! ***
+        int t_pickup_t = 0, t_delivery_t = 0;
+        if (task_times.count(tid)) {
+            t_pickup_t = task_times[tid].first;
+            t_delivery_t = task_times[tid].second;
         }
-        int time_diff = abs(t_pickup_t - seed_pickup_t) + abs(t_delivery_t - seed_delivery_t);  // ! ***
+        int time_diff = abs(t_pickup_t - seed_pickup_t) + abs(t_delivery_t - seed_delivery_t);
 
-        int rel = 9 * dist_last + dist_first + 3 * time_diff;  // ! *** relatedness = 9*dist(last goal) + dist(first goal) + 3*time diff
-        relatedness.push_back({rel, tid});  // ! ***
+        int rel = 9 * dist_last + dist_first + 3 * time_diff;
+        relatedness.push_back({rel, tid});
     }
-    sort(relatedness.begin(), relatedness.end());  // ! ***
-    for (auto& p : relatedness) {  // ! ***
-        removed_tasks.push_back(p.second);  // ! ***
-        if ((int)removed_tasks.size() >= neighborhood_size) break;  // ! ***
+    sort(relatedness.begin(), relatedness.end());
+    for (auto& p : relatedness) {
+        removed_tasks.push_back(p.second);
+        if ((int)removed_tasks.size() >= neighborhood_size) break;
     }
 
     // Actually remove from agent sequences
-    for (int tid : removed_tasks) {  // ! ***
-        all_tasks[tid].status = -1;  // ! ***
-        for (auto& ag : agents) {  // ! ***
-            auto it = find(ag.task_sequence.begin(), ag.task_sequence.end(), tid);  // ! ***
-            if (it != ag.task_sequence.end()) {  // ! ***
-                ag.task_sequence.erase(it);  // ! ***
-                break;  // ! ***
+    for (int tid : removed_tasks) {
+        all_tasks[tid].status = -1;
+        for (auto& ag : agents) {
+            auto it = find(ag.task_sequence.begin(), ag.task_sequence.end(), tid);
+            if (it != ag.task_sequence.end()) {
+                ag.task_sequence.erase(it);
+                break;
             }
         }
     }
 }
 
-void Simulation::lns_repair(vector<int>& removed_tasks) {  // ! *** [S4] lns_repair(): regret-2 re-insertion on marginal sequence cost
+void Simulation::lns_repair(vector<int>& removed_tasks) {
     // Regret-based re-insertion using MARGINAL cost (matching reference)
-    while (!removed_tasks.empty()) {  // ! ***
-        int best_task = -1;  // ! ***
-        int best_agent = -1;  // ! ***
-        int best_pos = -1;  // ! ***
-        int best_marginal = INT_MAX;  // ! ***
-        int best_regret = INT_MIN;  // ! ***
+    while (!removed_tasks.empty()) {
+        int best_task = -1;
+        int best_agent = -1;
+        int best_pos = -1;
+        int best_marginal = INT_MAX;
+        int best_regret = INT_MIN;
 
-        for (int rt : removed_tasks) {  // ! ***
-            int best1_marginal = INT_MAX, best1_agent = -1, best1_pos = -1;  // ! ***
-            int best2_marginal = INT_MAX;  // ! ***
+        for (int rt : removed_tasks) {
+            int best1_marginal = INT_MAX, best1_agent = -1, best1_pos = -1;
+            int best2_marginal = INT_MAX;
 
-            for (int a = 0; a < (int)agents.size(); a++) {  // ! ***
-                int seq_len = (int)agents[a].task_sequence.size();  // ! ***
+            for (int a = 0; a < (int)agents.size(); a++) {
+                int seq_len = (int)agents[a].task_sequence.size();
                 // Skip position 0 if agent is carrying the front task
-                int start_pos = 0;  // ! ***
-                if (agents[a].status == AG_CARRYING && !agents[a].task_sequence.empty()  // ! ***
-                    && agents[a].task_sequence.front() == agents[a].current_task)  // ! ***
-                    start_pos = 1;  // ! ***
+                int start_pos = 0;
+                if (agents[a].status == AG_CARRYING && !agents[a].task_sequence.empty()
+                    && agents[a].task_sequence.front() == agents[a].current_task)
+                    start_pos = 1;
 
-                int base_cost = estimate_sequence_cost(a);  // cost WITHOUT the new task  // ! *** -> estimate_sequence_cost()
+                int base_cost = estimate_sequence_cost(a);  // cost WITHOUT the new task
 
-                for (int p = start_pos; p <= seq_len; p++) {  // ! ***
+                for (int p = start_pos; p <= seq_len; p++) {
                     // Temporarily insert
-                    agents[a].task_sequence.insert(agents[a].task_sequence.begin() + p, rt);  // ! ***
-                    int c = estimate_sequence_cost(a);  // ! *** -> estimate_sequence_cost()
-                    agents[a].task_sequence.erase(agents[a].task_sequence.begin() + p);  // ! ***
+                    agents[a].task_sequence.insert(agents[a].task_sequence.begin() + p, rt);
+                    int c = estimate_sequence_cost(a);
+                    agents[a].task_sequence.erase(agents[a].task_sequence.begin() + p);
 
-                    int marginal = c - base_cost;  // MARGINAL insertion cost  // ! ***
+                    int marginal = c - base_cost;  // MARGINAL insertion cost
 
-                    if (marginal < best1_marginal) {  // ! ***
-                        best2_marginal = best1_marginal;  // ! ***
-                        best1_marginal = marginal;  // ! ***
-                        best1_agent = a;  // ! ***
-                        best1_pos = p;  // ! ***
-                    } else if (marginal < best2_marginal) {  // ! ***
-                        best2_marginal = marginal;  // ! ***
+                    if (marginal < best1_marginal) {
+                        best2_marginal = best1_marginal;
+                        best1_marginal = marginal;
+                        best1_agent = a;
+                        best1_pos = p;
+                    } else if (marginal < best2_marginal) {
+                        best2_marginal = marginal;
                     }
                 }
             }
 
-            int regret = (best2_marginal == INT_MAX) ? 0 : best2_marginal - best1_marginal;  // ! *** regret-2 selection
-            if (regret > best_regret || (regret == best_regret && best1_marginal < best_marginal)) {  // ! *** keep the task with the largest regret
-                best_regret = regret;  // ! ***
-                best_task = rt;  // ! ***
-                best_agent = best1_agent;  // ! ***
-                best_pos = best1_pos;  // ! ***
-                best_marginal = best1_marginal;  // ! ***
+            int regret = (best2_marginal == INT_MAX) ? 0 : best2_marginal - best1_marginal;
+            if (regret > best_regret || (regret == best_regret && best1_marginal < best_marginal)) {
+                best_regret = regret;
+                best_task = rt;
+                best_agent = best1_agent;
+                best_pos = best1_pos;
+                best_marginal = best1_marginal;
             }
         }
 
-        if (best_task < 0 || best_agent < 0) break;  // ! ***
+        if (best_task < 0 || best_agent < 0) break;
 
-        agents[best_agent].task_sequence.insert(  // ! ***
-            agents[best_agent].task_sequence.begin() + best_pos, best_task);  // ! ***
-        all_tasks[best_task].status = best_agent;  // ! ***
-        removed_tasks.erase(  // ! ***
-            remove(removed_tasks.begin(), removed_tasks.end(), best_task),  // ! ***
-            removed_tasks.end());  // ! ***
+        agents[best_agent].task_sequence.insert(
+            agents[best_agent].task_sequence.begin() + best_pos, best_task);
+        all_tasks[best_task].status = best_agent;
+        removed_tasks.erase(
+            remove(removed_tasks.begin(), removed_tasks.end(), best_task),
+            removed_tasks.end());
     }
 }
 
-void Simulation::assign_repeated_hungarian_lns() {  // ! *** [S4] assign_repeated_hungarian_lns(): Phase 1 + gated 1s destroy/repair spin
+void Simulation::assign_repeated_hungarian_lns() {
     // Phase 1: Build initial assignment via repeated Hungarian
-    assign_repeated_hungarian();  // ! *** Phase 1: the plain Hungarian assignment (all the Hungarian series ever does)
+    assign_repeated_hungarian();
 
-    if (config.lns_time_limit <= 0) return;  // ! ***
+    if (config.lns_time_limit <= 0) return;
 
     // Phase 2: LNS improvement.  The reference (KivaSystemOnline::simulate) spends the
     // 1-second LNS budget ONLY at task-release-period boundaries (timestep % period == 0)
@@ -4879,9 +4879,9 @@ void Simulation::assign_repeated_hungarian_lns() {  // ! *** [S4] assign_repeate
     // touching the Hungarian assignment that already ran above (so MS/SWT are unchanged
     // on the events where the reference would also have run only Hungarian, and identical
     // LNS quality on the events where the reference runs LNS).
-    bool lns_trigger =  // ! *** reference gate: spin only on a release-period boundary or when an agent finished
-        ((int)cur_time_ % lns_release_period_ == 0) || lns_agent_finished_;  // ! *** cur_time_ % lns_release_period_: only spin on release-period boundaries
-    if (!lns_trigger) return;  // ! ***
+    bool lns_trigger =
+        ((int)cur_time_ % lns_release_period_ == 0) || lns_agent_finished_;
+    if (!lns_trigger) return;
 
     // Quality-neutral runtime guard: LNS destroy/repair can only change anything if there is at
     // least one reassignable task (queued in some agent's sequence and not currently being
@@ -4891,23 +4891,23 @@ void Simulation::assign_repeated_hungarian_lns() {  // ! *** [S4] assign_repeate
     // beyond the reference (which likewise does no useful LNS there).  Skipping the spin here is
     // exact: it removes only no-op iterations, so makespan/SWT are byte-identical.
     {
-        bool any_reassignable = false;  // ! ***
-        for (auto& ag : agents) {  // ! ***
-            for (int tid : ag.task_sequence) {  // ! ***
-                if (ag.status == AG_CARRYING && ag.current_task == tid) continue;  // ! ***
-                any_reassignable = true; break;  // ! ***
+        bool any_reassignable = false;
+        for (auto& ag : agents) {
+            for (int tid : ag.task_sequence) {
+                if (ag.status == AG_CARRYING && ag.current_task == tid) continue;
+                any_reassignable = true; break;
             }
-            if (any_reassignable) break;  // ! ***
+            if (any_reassignable) break;
         }
-        if (!any_reassignable) return;  // ! ***
+        if (!any_reassignable) return;
     }
 
     // RNG seed for the LNS loop. Default is a fixed seed (config.lns_seed, from --seed)
     // so LNS runs are reproducible; pass --seed <0 to restore the reference's time(NULL).
-    if (config.lns_seed < 0) srand((unsigned)time(NULL));  // ! ***
-    else srand((unsigned)config.lns_seed);  // ! ***
-    clock_t lns_start = clock();  // ! ***
-    double time_limit_ms = config.lns_time_limit * 1000.0;  // ! ***
+    if (config.lns_seed < 0) srand((unsigned)time(NULL));
+    else srand((unsigned)config.lns_seed);
+    clock_t lns_start = clock();
+    double time_limit_ms = config.lns_time_limit * 1000.0;
 
     // Convergence-based early termination.  The 1s budget is a *ceiling*, but on most
     // events (especially low task-frequency / long-makespan instances) the greedy
@@ -4919,47 +4919,47 @@ void Simulation::assign_repeated_hungarian_lns() {  // ! *** [S4] assign_repeate
     // converged): every accepted improvement resets the counter, so genuinely-improving
     // spins still use the full second; only wasted, converged spins exit early.  This
     // guarantees LNS(1s) always produces output while leaving accepted moves unchanged.
-    const int NO_IMPROVE_CAP = 2000;  // ! *** reimpl-only convergence guard (not in the reference)
-    int no_improve = 0, empty_streak = 0;  // ! ***
-    while (true) {  // ! ***
-        double elapsed = (double)(clock() - lns_start) / CLOCKS_PER_SEC * 1000.0;  // ! ***
-        if (elapsed >= time_limit_ms) break;  // ! ***
-        if (no_improve >= NO_IMPROVE_CAP) break;   // converged: no gain to be had  // ! ***
+    const int NO_IMPROVE_CAP = 2000;
+    int no_improve = 0, empty_streak = 0;
+    while (true) {
+        double elapsed = (double)(clock() - lns_start) / CLOCKS_PER_SEC * 1000.0;
+        if (elapsed >= time_limit_ms) break;
+        if (no_improve >= NO_IMPROVE_CAP) break;   // converged: no gain to be had
 
         // Save current assignment state
-        vector<deque<int>> saved_seqs(agents.size());  // ! ***
-        vector<int> saved_statuses(all_tasks.size());  // ! ***
-        int saved_cost = 0;  // ! ***
-        for (int i = 0; i < (int)agents.size(); i++) {  // ! ***
-            saved_seqs[i] = agents[i].task_sequence;  // ! ***
-            saved_cost += estimate_sequence_cost(i);  // ! *** -> estimate_sequence_cost()
+        vector<deque<int>> saved_seqs(agents.size());
+        vector<int> saved_statuses(all_tasks.size());
+        int saved_cost = 0;
+        for (int i = 0; i < (int)agents.size(); i++) {
+            saved_seqs[i] = agents[i].task_sequence;
+            saved_cost += estimate_sequence_cost(i);
         }
-        for (int i = 0; i < (int)all_tasks.size(); i++)  // ! ***
-            saved_statuses[i] = all_tasks[i].status;  // ! ***
+        for (int i = 0; i < (int)all_tasks.size(); i++)
+            saved_statuses[i] = all_tasks[i].status;
 
         // Destroy
-        vector<int> removed;  // ! ***
-        lns_destroy(removed);  // ! *** destroy
-        if (removed.empty()) { if (++empty_streak > 200) break; continue; }  // ! ***
-        empty_streak = 0;  // ! ***
+        vector<int> removed;
+        lns_destroy(removed);
+        if (removed.empty()) { if (++empty_streak > 200) break; continue; }
+        empty_streak = 0;
 
         // Repair
-        lns_repair(removed);  // ! *** repair
+        lns_repair(removed);
 
         // Evaluate
-        int new_cost = 0;  // ! ***
-        for (int i = 0; i < (int)agents.size(); i++)  // ! ***
-            new_cost += estimate_sequence_cost(i);  // ! *** -> estimate_sequence_cost()
+        int new_cost = 0;
+        for (int i = 0; i < (int)agents.size(); i++)
+            new_cost += estimate_sequence_cost(i);
 
-        if (new_cost >= saved_cost) {  // ! *** accept/reject on estimated cost
+        if (new_cost >= saved_cost) {
             // Reject: restore
-            for (int i = 0; i < (int)agents.size(); i++)  // ! ***
-                agents[i].task_sequence = saved_seqs[i];  // ! ***
-            for (int i = 0; i < (int)all_tasks.size(); i++)  // ! ***
-                all_tasks[i].status = saved_statuses[i];  // ! ***
-            no_improve++;  // ! ***
-        } else {  // ! ***
-            no_improve = 0;   // accepted an improvement: keep going  // ! ***
+            for (int i = 0; i < (int)agents.size(); i++)
+                agents[i].task_sequence = saved_seqs[i];
+            for (int i = 0; i < (int)all_tasks.size(); i++)
+                all_tasks[i].status = saved_statuses[i];
+            no_improve++;
+        } else {
+            no_improve = 0;   // accepted an improvement: keep going
         }
     }
 }
@@ -4970,25 +4970,25 @@ void Simulation::assign_repeated_hungarian_lns() {  // ! *** [S4] assign_repeate
 //   FLEXIBLE_PAIRWISE (wPBS): avoid only other agents' dummies
 // ============================================================
 
-int Simulation::choose_dummy_endpoint(int agent_id, int last_goal_loc,  // ! *** [S5] choose_dummy_endpoint(): STRICT for *_PBS, PAIRWISE for *_wPBS
-                                       const vector<int>& assigned_dummies,  // ! ***
-                                       bool strict) {  // ! ***
-    set<int> forbidden;  // ! ***
+int Simulation::choose_dummy_endpoint(int agent_id, int last_goal_loc,
+                                       const vector<int>& assigned_dummies,
+                                       bool strict) {
+    set<int> forbidden;
 
     // Always forbid other agents' assigned dummies (matching reference current_assigned_endpoints)
-    for (int i = 0; i < (int)assigned_dummies.size(); i++) {  // ! ***
-        if (i != agent_id && assigned_dummies[i] >= 0)  // ! ***
-            forbidden.insert(assigned_dummies[i]);  // ! ***
+    for (int i = 0; i < (int)assigned_dummies.size(); i++) {
+        if (i != agent_id && assigned_dummies[i] >= 0)
+            forbidden.insert(assigned_dummies[i]);
     }
 
     // In strict mode (PBS), also forbid all task goals in the system
-    if (strict) {  // ! ***
-        for (auto it = open_tasks_.begin(); it != open_tasks_.end(); ++it) {  // ! ***
-            for (int gloc : (*it)->goals) forbidden.insert(gloc);  // ! ***
+    if (strict) {
+        for (auto it = open_tasks_.begin(); it != open_tasks_.end(); ++it) {
+            for (int gloc : (*it)->goals) forbidden.insert(gloc);
         }
-        for (auto& ag : agents) {  // ! ***
-            for (int tid : ag.task_sequence) {  // ! ***
-                for (int gloc : all_tasks[tid].goals) forbidden.insert(gloc);  // ! ***
+        for (auto& ag : agents) {
+            for (int tid : ag.task_sequence) {
+                for (int gloc : all_tasks[tid].goals) forbidden.insert(gloc);
             }
         }
         // In strict mode, also forbid other agents' current path endpoints (where they
@@ -4998,9 +4998,9 @@ int Simulation::choose_dummy_endpoint(int agent_id, int last_goal_loc,  // ! ***
         // spot as our endpoint would make our goal permanently blocked by their old path's
         // endpoint hold — which previously produced an unreachable dummy and forced PBS to
         // commit a colliding "best-effort" plan.
-        for (int i = 0; i < (int)agents.size(); i++) {  // ! ***
-            if (i == agent_id) continue;  // ! ***
-            forbidden.insert((int)path_table_[i][(int)maxtime - 1]);  // ! ***
+        for (int i = 0; i < (int)agents.size(); i++) {
+            if (i == agent_id) continue;
+            forbidden.insert((int)path_table_[i][(int)maxtime - 1]);
         }
     }
 
@@ -5012,20 +5012,20 @@ int Simulation::choose_dummy_endpoint(int agent_id, int last_goal_loc,  // ! ***
     // skipping is redundant.  When it's NOT forbidden (e.g., a free agent at a non-task
     // endpoint), the reference allows choosing it (distance 0 = stay in place), which
     // avoids unnecessary movement that wastes resources and can block active agents.
-    int best_loc = -1;  // ! ***
-    int best_dist = INT_MAX;  // ! ***
-    for (int e = 0; e < (int)mapd_map.endpoints.size(); e++) {  // ! ***
-        int loc = mapd_map.endpoints[e].loc;  // ! ***
-        if (forbidden.count(loc)) continue;  // ! ***
-        int d = mapd_map.endpoints[e].h_val[last_goal_loc];  // ! ***
-        if (d <= best_dist) {  // ! ***
-            best_dist = d;  // ! ***
-            best_loc = loc;  // ! ***
+    int best_loc = -1;
+    int best_dist = INT_MAX;
+    for (int e = 0; e < (int)mapd_map.endpoints.size(); e++) {
+        int loc = mapd_map.endpoints[e].loc;
+        if (forbidden.count(loc)) continue;
+        int d = mapd_map.endpoints[e].h_val[last_goal_loc];
+        if (d <= best_dist) {
+            best_dist = d;
+            best_loc = loc;
         }
     }
     // Fallback: agent's initial location (matching reference fallback to agent_home_locations)
-    if (best_loc < 0) best_loc = agents[agent_id].initial_loc;  // ! ***
-    return best_loc;  // ! ***
+    if (best_loc < 0) best_loc = agents[agent_id].initial_loc;
+    return best_loc;
 }
 
 // ============================================================
@@ -5034,76 +5034,76 @@ int Simulation::choose_dummy_endpoint(int agent_id, int last_goal_loc,  // ! ***
 //   Returns goal_sequences[agent] = vector<pair<loc, release_time>>
 // ============================================================
 
-vector<vector<pair<int,int>>> Simulation::build_goal_sequences() {  // ! *** [S5] build_goal_sequences(): [pickup, delivery, dummy], task_truncated_size=1
-    int num_ag = (int)agents.size();  // ! ***
-    bool strict = (config.endpoint_strategy == EP_FLEXIBLE_STRICT);  // ! *** endpoint strategy: STRICT (PBS) vs PAIRWISE (wPBS)
-    vector<int> assigned_dummies(num_ag, -1);  // ! ***
-    vector<vector<pair<int,int>>> goal_seqs(num_ag);  // ! ***
+vector<vector<pair<int,int>>> Simulation::build_goal_sequences() {
+    int num_ag = (int)agents.size();
+    bool strict = (config.endpoint_strategy == EP_FLEXIBLE_STRICT);
+    vector<int> assigned_dummies(num_ag, -1);
+    vector<vector<pair<int,int>>> goal_seqs(num_ag);
 
     // Match reference task_truncated_size=1: each agent gets at most 1 task
     // in goal_locations. The reference KivaSystemOnline (and driver_simple)
     // hardcodes task_truncated_size=1, meaning exactly 1 task per agent.
     // The carrying-front task counts as 1, so no additional tasks are added
     // for delivering agents.
-    int task_truncated_size = 1;  // ! *** task_truncated_size = 1: at most one task per agent goes into the goal sequence
+    int task_truncated_size = 1;
 
-    for (int i = 0; i < num_ag; i++) {  // ! ***
-        int current_task_count = 0;  // ! ***
-        int prev_loc = (int)agents[i].loc;  // ! ***
-        for (int tid : agents[i].task_sequence) {  // ! ***
-            if (current_task_count >= task_truncated_size) break;  // ! ***
-            Task& task = all_tasks[tid];  // ! ***
+    for (int i = 0; i < num_ag; i++) {
+        int current_task_count = 0;
+        int prev_loc = (int)agents[i].loc;
+        for (int tid : agents[i].task_sequence) {
+            if (current_task_count >= task_truncated_size) break;
+            Task& task = all_tasks[tid];
             // Multi-goal support: use task.goals for goal sequence
             // Cap to first 2 goals per task (matches reference behavior)
-            int num_goals = min((int)task.goals.size(), 2);  // ! ***
-            bool carrying = (agents[i].status == AG_CARRYING && tid == agents[i].current_task);  // ! ***
-            if (num_goals <= 1) {  // ! ***
+            int num_goals = min((int)task.goals.size(), 2);
+            bool carrying = (agents[i].status == AG_CARRYING && tid == agents[i].current_task);
+            if (num_goals <= 1) {
                 // Single-goal task
-                if (!carrying) {  // ! ***
-                    goal_seqs[i].push_back({task.goals[0], task.release_time});  // ! ***
-                    prev_loc = task.goals[0];  // ! ***
+                if (!carrying) {
+                    goal_seqs[i].push_back({task.goals[0], task.release_time});
+                    prev_loc = task.goals[0];
                 }
-            } else {  // ! ***
+            } else {
                 // Two-goal task (pickup + delivery)
-                if (carrying) {  // ! ***
-                    goal_seqs[i].push_back({task.goals[1], 0});  // ! ***
-                    prev_loc = task.goals[1];  // ! ***
-                } else {  // ! ***
+                if (carrying) {
+                    goal_seqs[i].push_back({task.goals[1], 0});
+                    prev_loc = task.goals[1];
+                } else {
                     // Pickup goal
-                    goal_seqs[i].push_back({task.goals[0], task.release_time});  // ! ***
-                    prev_loc = task.goals[0];  // ! ***
+                    goal_seqs[i].push_back({task.goals[0], task.release_time});
+                    prev_loc = task.goals[0];
                     // Delivery goal
-                    goal_seqs[i].push_back({task.goals[1], 0});  // ! ***
-                    prev_loc = task.goals[1];  // ! ***
+                    goal_seqs[i].push_back({task.goals[1], 0});
+                    prev_loc = task.goals[1];
                 }
             }
-            current_task_count++;  // ! ***
+            current_task_count++;
         }
     }
 
     // Choose dummy endpoints — match reference ordering:
     // non-free agents (those with task goals) first, then free agents.
-    vector<int> non_free_agents, free_agent_list;  // ! ***
-    for (int i = 0; i < num_ag; i++) {  // ! ***
-        if (!goal_seqs[i].empty())  // ! ***
-            non_free_agents.push_back(i);  // ! ***
-        else  // ! ***
-            free_agent_list.push_back(i);  // ! ***
+    vector<int> non_free_agents, free_agent_list;
+    for (int i = 0; i < num_ag; i++) {
+        if (!goal_seqs[i].empty())
+            non_free_agents.push_back(i);
+        else
+            free_agent_list.push_back(i);
     }
-    for (int i : non_free_agents) {  // ! ***
-        int last_loc = goal_seqs[i].back().first;  // ! ***
-        int dummy = choose_dummy_endpoint(i, last_loc, assigned_dummies, strict);  // ! *** -> choose_dummy_endpoint()
-        assigned_dummies[i] = dummy;  // ! ***
-        goal_seqs[i].push_back({dummy, 0});  // ! ***
+    for (int i : non_free_agents) {
+        int last_loc = goal_seqs[i].back().first;
+        int dummy = choose_dummy_endpoint(i, last_loc, assigned_dummies, strict);
+        assigned_dummies[i] = dummy;
+        goal_seqs[i].push_back({dummy, 0});
     }
-    for (int i : free_agent_list) {  // ! ***
-        int last_loc = (int)agents[i].loc;  // ! ***
-        int dummy = choose_dummy_endpoint(i, last_loc, assigned_dummies, strict);  // ! *** -> choose_dummy_endpoint()
-        assigned_dummies[i] = dummy;  // ! ***
-        goal_seqs[i].push_back({dummy, 0});  // ! ***
+    for (int i : free_agent_list) {
+        int last_loc = (int)agents[i].loc;
+        int dummy = choose_dummy_endpoint(i, last_loc, assigned_dummies, strict);
+        assigned_dummies[i] = dummy;
+        goal_seqs[i].push_back({dummy, 0});
     }
 
-    return goal_seqs;  // ! ***
+    return goal_seqs;
 }
 
 // ============================================================
@@ -5113,28 +5113,28 @@ vector<vector<pair<int,int>>> Simulation::build_goal_sequences() {  // ! *** [S5
 //   Terminal: goal_id == num_goals
 // ============================================================
 
-struct MLANode {  // ! *** [S7] MLANode / CompareMLANode (focal on CAT) / pool allocator
-    int loc;  // ! ***
-    int g_val;  // ! ***
-    int h_val;  // ! ***
-    int timestep;  // ! ***
-    int goal_id;  // ! ***
-    int conflicts;   // # soft conflicts with other agents' paths (CAT) along this path  // ! ***
-    MLANode* parent;  // ! ***
+struct MLANode {
+    int loc;
+    int g_val;
+    int h_val;
+    int timestep;
+    int goal_id;
+    int conflicts;   // # soft conflicts with other agents' paths (CAT) along this path
+    MLANode* parent;
 
-    MLANode(int l, int g, int h, int t, int gi, MLANode* p)  // ! ***
-        : loc(l), g_val(g), h_val(h), timestep(t), goal_id(gi), conflicts(0), parent(p) {}  // ! ***
-    int getFVal() const { return g_val + h_val; }  // ! ***
+    MLANode(int l, int g, int h, int t, int gi, MLANode* p)
+        : loc(l), g_val(g), h_val(h), timestep(t), goal_id(gi), conflicts(0), parent(p) {}
+    int getFVal() const { return g_val + h_val; }
 };
 
-struct CompareMLANode {  // ! *** struct CompareMLANode
-    bool operator()(const MLANode* a, const MLANode* b) const {  // ! ***
-        if (a->getFVal() != b->getFVal()) return a->getFVal() > b->getFVal();  // ! ***
+struct CompareMLANode {
+    bool operator()(const MLANode* a, const MLANode* b) const {
+        if (a->getFVal() != b->getFVal()) return a->getFVal() > b->getFVal();
         // Reference StateTimeAStar uses a FOCAL search: among equal-cost (f) nodes, expand the
         // one with FEWEST soft conflicts (conflict-avoidance table), then higher goal_id, then g.
-        if (a->conflicts != b->conflicts) return a->conflicts > b->conflicts;  // ! ***
-        if (a->goal_id != b->goal_id) return a->goal_id < b->goal_id;  // ! ***
-        return a->g_val <= b->g_val;  // ! ***
+        if (a->conflicts != b->conflicts) return a->conflicts > b->conflicts;
+        if (a->goal_id != b->goal_id) return a->goal_id < b->goal_id;
+        return a->g_val <= b->g_val;
     }
 };
 
@@ -5148,54 +5148,54 @@ struct CompareMLANode {  // ! *** struct CompareMLANode
 // recycles memory — so the search result (and thus makespan/SWT) is byte-for-byte identical to
 // the default-allocator fibonacci_heap.  The retained pool is never shrunk; it is a small fixed
 // overhead (bounded by the largest single search's open list) freed at process exit.
-template <typename T>  // ! *** template typename
-struct MLAPoolAllocator {  // ! *** struct MLAPoolAllocator
-    typedef T value_type;  // ! ***
-    typedef T* pointer;  // ! ***
-    typedef const T* const_pointer;  // ! ***
-    typedef T& reference;  // ! ***
-    typedef const T& const_reference;  // ! ***
-    typedef std::size_t size_type;  // ! ***
-    typedef std::ptrdiff_t difference_type;  // ! ***
-    template <typename U> struct rebind { typedef MLAPoolAllocator<U> other; };  // ! ***
+template <typename T>
+struct MLAPoolAllocator {
+    typedef T value_type;
+    typedef T* pointer;
+    typedef const T* const_pointer;
+    typedef T& reference;
+    typedef const T& const_reference;
+    typedef std::size_t size_type;
+    typedef std::ptrdiff_t difference_type;
+    template <typename U> struct rebind { typedef MLAPoolAllocator<U> other; };
 
-    MLAPoolAllocator() noexcept {}  // ! ***
-    template <typename U> MLAPoolAllocator(const MLAPoolAllocator<U>&) noexcept {}  // ! ***
+    MLAPoolAllocator() noexcept {}
+    template <typename U> MLAPoolAllocator(const MLAPoolAllocator<U>&) noexcept {}
 
-    static std::vector<void*>& free_list() { static std::vector<void*> fl; return fl; }  // ! ***
+    static std::vector<void*>& free_list() { static std::vector<void*> fl; return fl; }
 
-    pointer allocate(size_type n) {  // ! ***
-        if (n == 1) {  // ! ***
-            auto& fl = free_list();  // ! ***
-            if (!fl.empty()) { void* p = fl.back(); fl.pop_back(); return static_cast<pointer>(p); }  // ! ***
-            return static_cast<pointer>(::operator new(sizeof(T)));  // ! ***
+    pointer allocate(size_type n) {
+        if (n == 1) {
+            auto& fl = free_list();
+            if (!fl.empty()) { void* p = fl.back(); fl.pop_back(); return static_cast<pointer>(p); }
+            return static_cast<pointer>(::operator new(sizeof(T)));
         }
-        return static_cast<pointer>(::operator new(n * sizeof(T)));  // ! ***
+        return static_cast<pointer>(::operator new(n * sizeof(T)));
     }
-    void deallocate(pointer p, size_type n) noexcept {  // ! ***
-        if (n == 1) { free_list().push_back(static_cast<void*>(p)); return; }  // ! ***
-        ::operator delete(static_cast<void*>(p));  // ! ***
+    void deallocate(pointer p, size_type n) noexcept {
+        if (n == 1) { free_list().push_back(static_cast<void*>(p)); return; }
+        ::operator delete(static_cast<void*>(p));
     }
-    template <typename U, typename... Args> void construct(U* p, Args&&... args) {  // ! ***
-        ::new (static_cast<void*>(p)) U(std::forward<Args>(args)...);  // ! ***
+    template <typename U, typename... Args> void construct(U* p, Args&&... args) {
+        ::new (static_cast<void*>(p)) U(std::forward<Args>(args)...);
     }
-    template <typename U> void destroy(U* p) { p->~U(); }  // ! ***
-    bool operator==(const MLAPoolAllocator&) const noexcept { return true; }  // ! ***
-    bool operator!=(const MLAPoolAllocator&) const noexcept { return false; }  // ! ***
+    template <typename U> void destroy(U* p) { p->~U(); }
+    bool operator==(const MLAPoolAllocator&) const noexcept { return true; }
+    bool operator!=(const MLAPoolAllocator&) const noexcept { return false; }
 };
 
-vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time,  // ! *** [S7] seq_mla_star(): multi-label A* over (loc, t, goal_id)  [MLA* methods]
-                                  const vector<pair<int,int>>& goals,  // ! ***
-                                  const vector<vector<int>>& cons_paths,  // ! ***
-                                  const vector<vector<int>>& old_paths,  // ! ***
-                                  bool use_old_paths,  // ! ***
-                                  bool skip_holding,  // ! ***
-                                  int constraint_window) {  // ! ***
-    if (goals.empty()) return {start_loc};  // ! ***
+vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time,
+                                  const vector<pair<int,int>>& goals,
+                                  const vector<vector<int>>& cons_paths,
+                                  const vector<vector<int>>& old_paths,
+                                  bool use_old_paths,
+                                  bool skip_holding,
+                                  int constraint_window) {
+    if (goals.empty()) return {start_loc};
 
-    int map_size = mapd_map.row * mapd_map.col;  // ! ***
-    int max_t = (int)maxtime;  // ! ***
-    int num_goals = (int)goals.size();  // ! ***
+    int map_size = mapd_map.row * mapd_map.col;
+    int max_t = (int)maxtime;
+    int num_goals = (int)goals.size();
 
     // --- Fast path for IDLE agents (PBS-root batch) -----------------------------------------
     // At a low task frequency most agents have no task and simply hold at their endpoint, which
@@ -5205,96 +5205,96 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
     // cell (no permanent parker, no mover passing through within the active window), the agent
     // can simply hold forever — return that path directly.  This is exact: the produced path is
     // identical to what the search would return (root pop -> goal reached -> can_hold true).
-    if (num_goals == 1 && goals[0].first == start_loc && start_time >= goals[0].second &&  // ! ***
-        constraint_window <= 0 && use_old_paths && shared_old_valid_ &&  // ! ***
-        shared_old_excl_ == agent_id && !skip_holding && cons_paths.empty()) {  // ! ***
-        bool excl_parked0 = (std::find(shared_old_movers_.begin(), shared_old_movers_.end(),  // ! ***
-                                       shared_old_excl_) == shared_old_movers_.end());  // ! ***
-        int parkers = shared_old_holdcnt_[start_loc];  // ! ***
-        if (excl_parked0 && shared_old_holds_[shared_old_excl_] == start_loc) parkers--;  // ! ***
-        bool blocked = (parkers > 0);  // ! ***
-        if (!blocked) {  // ! ***
-            int sh = shared_old_horizon_;  // ! ***
-            for (int i : shared_old_movers_) {  // ! ***
-                if (i == shared_old_excl_) continue;  // ! ***
-                for (int t = 0; t < sh && !blocked; t++)  // ! ***
-                    if (shared_old_flat_[(size_t)i * sh + t] == start_loc) blocked = true;  // ! ***
-                if (shared_old_holds_[i] == start_loc) blocked = true;  // ! ***
-                if (blocked) break;  // ! ***
+    if (num_goals == 1 && goals[0].first == start_loc && start_time >= goals[0].second &&
+        constraint_window <= 0 && use_old_paths && shared_old_valid_ &&
+        shared_old_excl_ == agent_id && !skip_holding && cons_paths.empty()) {
+        bool excl_parked0 = (std::find(shared_old_movers_.begin(), shared_old_movers_.end(),
+                                       shared_old_excl_) == shared_old_movers_.end());
+        int parkers = shared_old_holdcnt_[start_loc];
+        if (excl_parked0 && shared_old_holds_[shared_old_excl_] == start_loc) parkers--;
+        bool blocked = (parkers > 0);
+        if (!blocked) {
+            int sh = shared_old_horizon_;
+            for (int i : shared_old_movers_) {
+                if (i == shared_old_excl_) continue;
+                for (int t = 0; t < sh && !blocked; t++)
+                    if (shared_old_flat_[(size_t)i * sh + t] == start_loc) blocked = true;
+                if (shared_old_holds_[i] == start_loc) blocked = true;
+                if (blocked) break;
             }
         }
-        if (!blocked) {  // ! ***
-            vector<int> hold(max_t, start_loc);  // ! ***
-            return hold;  // ! ***
+        if (!blocked) {
+            vector<int> hold(max_t, start_loc);
+            return hold;
         }
     }
     // Match reference PBS KivaGraph: move[0]=1(EAST), move[1]=-cols(NORTH),
     // move[2]=-1(WEST), move[3]=cols(SOUTH). With WAIT first: {0,1,-col,-1,col}
-    int action[5] = {0, 1, -mapd_map.col, -1, mapd_map.col};  // ! ***
+    int action[5] = {0, 1, -mapd_map.col, -1, mapd_map.col};
 
-    int search_horizon = min(max_t, start_time + max(1000, num_goals * 40));  // ! ***
-    if (constraint_window > 0)  // ! ***
-        search_horizon = min(search_horizon, constraint_window + 200);  // ! ***
-    else  // ! ***
+    int search_horizon = min(max_t, start_time + max(1000, num_goals * 40));
+    if (constraint_window > 0)
+        search_horizon = min(search_horizon, constraint_window + 200);
+    else
         // Non-windowed PBS: the forced endpoint hold is capped at start_time+384, so a complete
         // path (reach the goal within the map diameter, then wait out the hold) never needs more
         // than ~start_time+512.  Bounding the horizon here shrinks the per-search constraint
         // arrays (old_locs is O(n_old * horizon), rebuilt every search), which is the dominant
         // cost at low task frequency / high agent count, with no effect on the result.
-        search_horizon = min(search_horizon, start_time + 512);  // ! ***
+        search_horizon = min(search_horizon, start_time + 512);
 
     // Use pre-computed endpoint h_vals where possible, otherwise compute BFS
-    vector<const vector<int>*> h_vals_ptr(num_goals, nullptr);  // ! ***
-    vector<vector<int>> h_vals_computed;  // storage for goals not matching endpoints  // ! ***
-    for (int g = 0; g < num_goals; g++) {  // ! ***
-        int gloc = goals[g].first;  // ! ***
+    vector<const vector<int>*> h_vals_ptr(num_goals, nullptr);
+    vector<vector<int>> h_vals_computed;  // storage for goals not matching endpoints
+    for (int g = 0; g < num_goals; g++) {
+        int gloc = goals[g].first;
         // Check if this location has a pre-computed endpoint h_val (O(1) via loc2ep)
-        bool found = false;  // ! ***
-        int ei = mapd_map.ep_index(gloc);  // ! ***
-        if (ei >= 0) {  // ! ***
-            h_vals_ptr[g] = &mapd_map.endpoints[ei].h_val;  // ! ***
-            found = true;  // ! ***
+        bool found = false;
+        int ei = mapd_map.ep_index(gloc);
+        if (ei >= 0) {
+            h_vals_ptr[g] = &mapd_map.endpoints[ei].h_val;
+            found = true;
         }
-        if (!found) {  // ! ***
+        if (!found) {
             // Compute BFS
-            h_vals_computed.emplace_back(map_size, INT_MAX);  // ! ***
-            auto& hv = h_vals_computed.back();  // ! ***
-            hv[gloc] = 0;  // ! ***
-            queue<int> bfs_q;  // ! ***
-            bfs_q.push(gloc);  // ! ***
-            while (!bfs_q.empty()) {  // ! ***
-                int u = bfs_q.front(); bfs_q.pop();  // ! ***
-                for (int d : {1, -1, mapd_map.col, -mapd_map.col}) {  // ! ***
-                    int v = u + d;  // ! ***
-                    if (v >= 0 && v < map_size && mapd_map.grid[v] &&  // ! ***
-                        hv[v] > hv[u] + 1) {  // ! ***
-                        hv[v] = hv[u] + 1;  // ! ***
-                        bfs_q.push(v);  // ! ***
+            h_vals_computed.emplace_back(map_size, INT_MAX);
+            auto& hv = h_vals_computed.back();
+            hv[gloc] = 0;
+            queue<int> bfs_q;
+            bfs_q.push(gloc);
+            while (!bfs_q.empty()) {
+                int u = bfs_q.front(); bfs_q.pop();
+                for (int d : {1, -1, mapd_map.col, -mapd_map.col}) {
+                    int v = u + d;
+                    if (v >= 0 && v < map_size && mapd_map.grid[v] &&
+                        hv[v] > hv[u] + 1) {
+                        hv[v] = hv[u] + 1;
+                        bfs_q.push(v);
                     }
                 }
             }
-            h_vals_ptr[g] = &h_vals_computed.back();  // ! ***
+            h_vals_ptr[g] = &h_vals_computed.back();
         }
     }
 
     // Compute heuristic: sum of distances through remaining goals
-    auto compute_h = [&](int loc, int goal_id) -> int {  // ! *** lambda compute_h()
-        if (goal_id >= num_goals) return 0;  // ! ***
-        int h = (*h_vals_ptr[goal_id])[loc];  // ! ***
-        if (h == INT_MAX) return INT_MAX;  // ! ***
-        for (int g = goal_id; g < num_goals - 1; g++) {  // ! ***
-            int d = (*h_vals_ptr[g + 1])[goals[g].first];  // ! ***
-            if (d == INT_MAX) return INT_MAX;  // ! ***
-            h += d;  // ! ***
+    auto compute_h = [&](int loc, int goal_id) -> int {
+        if (goal_id >= num_goals) return 0;
+        int h = (*h_vals_ptr[goal_id])[loc];
+        if (h == INT_MAX) return INT_MAX;
+        for (int g = goal_id; g < num_goals - 1; g++) {
+            int d = (*h_vals_ptr[g + 1])[goals[g].first];
+            if (d == INT_MAX) return INT_MAX;
+            h += d;
         }
-        return h;  // ! ***
+        return h;
     };
 
     // Pre-compute constraint bitmaps for O(1) lookup
     // ct_loc[t] = location of each constraint agent at time t
     // This avoids scanning all cons_paths per expansion
-    int n_cons = (int)cons_paths.size();  // ! ***
-    int n_old_all = use_old_paths ? (int)old_paths.size() : 0;  // ! ***
+    int n_cons = (int)cons_paths.size();
+    int n_old_all = use_old_paths ? (int)old_paths.size() : 0;
 
     // --- Active-length rebasing (matches reference reservation-table construction) ---
     // Every committed path is a short ACTIVE prefix (agent moving toward its goal) followed by
@@ -5309,116 +5309,116 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
     // Active length = 1 + index of the last MOVE, found by a FORWARD scan bounded to the search
     // horizon (paths are an active prefix + constant hold, so the active part is short; scanning
     // backward over the long constant tail would be O(max_t) and defeat the optimization).
-    auto active_len = [&](const vector<int>& p) -> int {  // ! *** lambda active_len()
-        int n = min((int)p.size(), search_horizon + 1);  // ! ***
-        int last_move = 0;  // ! ***
-        for (int t = 1; t < n; t++)  // ! ***
-            if (p[t] != p[t-1]) last_move = t;  // ! ***
-        return last_move + 1;  // ! ***
+    auto active_len = [&](const vector<int>& p) -> int {
+        int n = min((int)p.size(), search_horizon + 1);
+        int last_move = 0;
+        for (int t = 1; t < n; t++)
+            if (p[t] != p[t-1]) last_move = t;
+        return last_move + 1;
     };
-    int cons_active = 0;  // ! ***
-    for (int i = 0; i < n_cons; i++)  // ! ***
-        cons_active = max(cons_active, active_len(cons_paths[i]));  // ! ***
+    int cons_active = 0;
+    for (int i = 0; i < n_cons; i++)
+        cons_active = max(cons_active, active_len(cons_paths[i]));
 
     // Use the precomputed shared old-path table when this search is a PBS-root plan for the
     // excluded agent (avoids re-flattening every other agent's path per search).
-    bool use_shared_old = use_old_paths && constraint_window <= 0 &&  // ! ***
-                          shared_old_valid_ && shared_old_excl_ == agent_id;  // ! ***
+    bool use_shared_old = use_old_paths && constraint_window <= 0 &&
+                          shared_old_valid_ && shared_old_excl_ == agent_id;
     // Windowed (wPBS) mode reads the shared table as a SOFT conflict-avoidance table (focal
     // tie-break) only — never as a hard constraint — gated independently of use_shared_old.
-    bool soft_use_shared = constraint_window > 0 &&  // ! ***
-                           shared_old_valid_ && shared_old_excl_ == agent_id;  // ! ***
-    int old_active = 0;  // ! ***
-    if (use_shared_old) {  // ! ***
-        old_active = shared_old_horizon_;  // already the global active length  // ! ***
-    } else {  // ! ***
-        for (int i = 0; i < n_old_all; i++)  // ! ***
-            old_active = max(old_active, active_len(old_paths[i]));  // ! ***
+    bool soft_use_shared = constraint_window > 0 &&
+                           shared_old_valid_ && shared_old_excl_ == agent_id;
+    int old_active = 0;
+    if (use_shared_old) {
+        old_active = shared_old_horizon_;  // already the global active length
+    } else {
+        for (int i = 0; i < n_old_all; i++)
+            old_active = max(old_active, active_len(old_paths[i]));
     }
 
     // ct_horizon: extends to cover permanent holds if any cons_path reaches max_t
-    int ct_horizon;  // ! ***
-    if (constraint_window > 0) {  // ! ***
+    int ct_horizon;
+    if (constraint_window > 0) {
         // wPBS: hard constraints only within the window (matching reference insertPath2CT truncation)
-        ct_horizon = min(constraint_window + 1, search_horizon);  // ! ***
-    } else {  // ! ***
+        ct_horizon = min(constraint_window + 1, search_horizon);
+    } else {
         // Non-windowed: bound to the active length of the constraint paths (their constant tails
         // are enforced via permanent endpoint holds below), not the full search horizon.
-        ct_horizon = min(search_horizon, cons_active + 1);  // ! ***
+        ct_horizon = min(search_horizon, cons_active + 1);
     }
-    int old_path_horizon = (constraint_window > 0) ? constraint_window : search_horizon;  // ! ***
-    int n_old = use_shared_old ? 0 : n_old_all;  // shared table handled separately below  // ! ***
-    int op_horizon = (constraint_window > 0)  // ! ***
-        ? min(old_path_horizon + 1, search_horizon)  // ! ***
-        : min(search_horizon, old_active + 1);  // ! ***
+    int old_path_horizon = (constraint_window > 0) ? constraint_window : search_horizon;
+    int n_old = use_shared_old ? 0 : n_old_all;  // shared table handled separately below
+    int op_horizon = (constraint_window > 0)
+        ? min(old_path_horizon + 1, search_horizon)
+        : min(search_horizon, old_active + 1);
     // Shared-table parameters (meaningful when use_shared_old OR soft_use_shared).
-    bool any_shared = use_shared_old || soft_use_shared;  // ! ***
-    int sh_num = any_shared ? (int)agents.size() : 0;  // ! ***
-    int sh_hor = any_shared ? shared_old_horizon_ : 0;  // ! ***
-    (void)sh_num;  // ! ***
+    bool any_shared = use_shared_old || soft_use_shared;
+    int sh_num = any_shared ? (int)agents.size() : 0;
+    int sh_hor = any_shared ? shared_old_horizon_ : 0;
+    (void)sh_num;
     // Is the excluded (self) agent itself a parked agent counted in shared_old_holdcnt_?
-    bool excl_parked = false;  // ! ***
-    if (any_shared) {  // ! ***
-        excl_parked = (std::find(shared_old_movers_.begin(), shared_old_movers_.end(),  // ! ***
-                                 shared_old_excl_) == shared_old_movers_.end());  // ! ***
+    bool excl_parked = false;
+    if (any_shared) {
+        excl_parked = (std::find(shared_old_movers_.begin(), shared_old_movers_.end(),
+                                 shared_old_excl_) == shared_old_movers_.end());
     }
 
     // Flatten: cons_locs[agent_idx * ct_horizon + t] = location at time t
-    vector<int> cons_locs(n_cons * ct_horizon);  // ! ***
+    vector<int> cons_locs(n_cons * ct_horizon);
     // Pre-compute endpoint holds: location each constraint agent holds beyond ct_horizon
     // Matches reference insertPath2CT which adds ct[path.back().location] = (back_timestep, INTERVAL_MAX)
-    vector<int> cons_endpoint_holds(n_cons, -1);  // ! ***
-    for (int i = 0; i < n_cons; i++) {  // ! ***
-        for (int t = 0; t < ct_horizon; t++) {  // ! ***
-            cons_locs[i * ct_horizon + t] = (t < (int)cons_paths[i].size()) ?  // ! ***
-                cons_paths[i][t] : cons_paths[i].back();  // ! ***
+    vector<int> cons_endpoint_holds(n_cons, -1);
+    for (int i = 0; i < n_cons; i++) {
+        for (int t = 0; t < ct_horizon; t++) {
+            cons_locs[i * ct_horizon + t] = (t < (int)cons_paths[i].size()) ?
+                cons_paths[i][t] : cons_paths[i].back();
         }
-        if (ct_horizon > 0) {  // ! ***
+        if (ct_horizon > 0) {
             // The agent's final (held) position is occupied permanently.  In windowed mode this
             // is the window-boundary cell; in non-windowed mode it is the path's last cell after
             // its active prefix (the constant hold tail).  Enforced for abs_t >= ct_horizon.
-            cons_endpoint_holds[i] = (int)cons_paths[i].back();  // ! ***
+            cons_endpoint_holds[i] = (int)cons_paths[i].back();
         }
     }
-    vector<int> old_locs;  // ! ***
-    vector<int> old_endpoint_holds;  // ! ***
-    if (n_old > 0) {  // ! ***
-        old_locs.resize(n_old * op_horizon);  // ! ***
-        old_endpoint_holds.assign(n_old, -1);  // ! ***
-        for (int i = 0; i < n_old; i++) {  // ! ***
-            for (int t = 0; t < op_horizon; t++) {  // ! ***
-                old_locs[i * op_horizon + t] = (t < (int)old_paths[i].size()) ?  // ! ***
-                    old_paths[i][t] : old_paths[i].back();  // ! ***
+    vector<int> old_locs;
+    vector<int> old_endpoint_holds;
+    if (n_old > 0) {
+        old_locs.resize(n_old * op_horizon);
+        old_endpoint_holds.assign(n_old, -1);
+        for (int i = 0; i < n_old; i++) {
+            for (int t = 0; t < op_horizon; t++) {
+                old_locs[i * op_horizon + t] = (t < (int)old_paths[i].size()) ?
+                    old_paths[i][t] : old_paths[i].back();
             }
-            old_endpoint_holds[i] = (int)old_paths[i].back();  // ! ***
+            old_endpoint_holds[i] = (int)old_paths[i].back();
         }
     }
 
-    auto is_constrained_hard = [&](int curr_loc, int next_loc, int abs_t) -> bool {  // ! *** lambda is_constrained_hard()
-        if (!mapd_map.grid[next_loc]) return true;  // ! ***
-        if (abs_t >= ct_horizon) {  // ! ***
+    auto is_constrained_hard = [&](int curr_loc, int next_loc, int abs_t) -> bool {
+        if (!mapd_map.grid[next_loc]) return true;
+        if (abs_t >= ct_horizon) {
             // Beyond the active prefix: only the permanent endpoint holds remain.
             // Matches reference insertPath2CT: ct[path.back().location].emplace_back(back_ts, INTERVAL_MAX).
             // Enforced for BOTH windowed and non-windowed: a cell occupied forever by a parked
             // higher-priority agent is blocked at every later timestep (the old code materialized
             // this same hold explicitly out to max_t; this is the compact equivalent).
-            for (int i = 0; i < n_cons; i++) {  // ! ***
-                if (cons_endpoint_holds[i] == next_loc) return true;  // ! ***
+            for (int i = 0; i < n_cons; i++) {
+                if (cons_endpoint_holds[i] == next_loc) return true;
             }
-            return false;  // ! ***
+            return false;
         }
-        for (int i = 0; i < n_cons; i++) {  // ! ***
-            int cl = cons_locs[i * ct_horizon + abs_t];  // ! ***
-            if (cl == next_loc) return true;  // ! ***
-            if (abs_t > 0) {  // ! ***
-                int cl_prev = cons_locs[i * ct_horizon + abs_t - 1];  // ! ***
-                if (cl == curr_loc && cl_prev == next_loc) return true;  // ! ***
+        for (int i = 0; i < n_cons; i++) {
+            int cl = cons_locs[i * ct_horizon + abs_t];
+            if (cl == next_loc) return true;
+            if (abs_t > 0) {
+                int cl_prev = cons_locs[i * ct_horizon + abs_t - 1];
+                if (cl == curr_loc && cl_prev == next_loc) return true;
             }
         }
-        return false;  // ! ***
+        return false;
     };
 
-    auto is_constrained_old = [&](int curr_loc, int next_loc, int abs_t) -> bool {  // ! *** lambda is_constrained_old()
+    auto is_constrained_old = [&](int curr_loc, int next_loc, int abs_t) -> bool {
         // In windowed (wPBS) mode, OLD paths must NOT be hard constraints.  The reference
         // PBS builds its reservation table only from HIGHER-PRIORITY current paths
         // (get_reachable_nodes) plus the dummy-endpoint initial_constraints — it never
@@ -5428,59 +5428,59 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
         // agent doing so the root has no conflicts, PBS commits the all-hold plan, and the
         // whole system deadlocks (never finishing tasks -> hits maxtime).  Genuine collisions
         // are still caught by PBS conflict detection / cascade and the final deconfliction.
-        if (constraint_window > 0) return false;  // ! ***
+        if (constraint_window > 0) return false;
         // Shared old-path table (PBS-root batch): read the precomputed flat table, skip self.
-        if (use_shared_old) {  // ! ***
+        if (use_shared_old) {
             // PARKED agents (constant hold at one cell for all time) are checked in O(1) via the
             // hold count; only the (few) MOVING agents need a per-timestep table scan.  Note:
             // shared_old_holdcnt_ counts ONLY parked agents, so it is exact at every timestep
             // (a parked agent sits on its cell forever).  The excluded (self) agent is removed
             // from the count only if it is itself parked there.
-            int cnt = shared_old_holdcnt_[next_loc];  // ! ***
-            if (cnt > 0) {  // ! ***
+            int cnt = shared_old_holdcnt_[next_loc];
+            if (cnt > 0) {
                 // remove self only if self is a parked agent sitting on next_loc
-                bool self_parked_here = excl_parked &&  // ! ***
-                    (shared_old_holds_[shared_old_excl_] == next_loc);  // ! ***
-                if (!(self_parked_here && cnt == 1)) return true;  // ! ***
+                bool self_parked_here = excl_parked &&
+                    (shared_old_holds_[shared_old_excl_] == next_loc);
+                if (!(self_parked_here && cnt == 1)) return true;
             }
-            if (abs_t < sh_hor) {  // ! ***
+            if (abs_t < sh_hor) {
                 // active window: movers are at their actual flat positions
-                for (int i : shared_old_movers_) {  // ! ***
-                    if (i == shared_old_excl_) continue;  // ! ***
-                    int ol = shared_old_flat_[(size_t)i * sh_hor + abs_t];  // ! ***
-                    if (ol == next_loc) return true;  // ! ***
-                    if (abs_t > 0) {  // ! ***
-                        int ol_prev = shared_old_flat_[(size_t)i * sh_hor + abs_t - 1];  // ! ***
-                        if (ol == curr_loc && ol_prev == next_loc) return true;  // ! ***
+                for (int i : shared_old_movers_) {
+                    if (i == shared_old_excl_) continue;
+                    int ol = shared_old_flat_[(size_t)i * sh_hor + abs_t];
+                    if (ol == next_loc) return true;
+                    if (abs_t > 0) {
+                        int ol_prev = shared_old_flat_[(size_t)i * sh_hor + abs_t - 1];
+                        if (ol == curr_loc && ol_prev == next_loc) return true;
                     }
                 }
-            } else {  // ! ***
+            } else {
                 // beyond the active window every mover has reached its final hold cell
-                for (int i : shared_old_movers_) {  // ! ***
-                    if (i == shared_old_excl_) continue;  // ! ***
-                    if (shared_old_holds_[i] == next_loc) return true;  // ! ***
+                for (int i : shared_old_movers_) {
+                    if (i == shared_old_excl_) continue;
+                    if (shared_old_holds_[i] == next_loc) return true;
                 }
             }
-            return false;  // ! ***
+            return false;
         }
-        if (n_old == 0) return false;  // ! ***
-        if (abs_t >= op_horizon) {  // ! ***
+        if (n_old == 0) return false;
+        if (abs_t >= op_horizon) {
             // Beyond the active prefix: enforce the permanent endpoint hold (the old path's
             // last cell, occupied forever).  This preserves the previous behavior (which
             // materialized this constant tail explicitly) at a fraction of the cost.
-            for (int i = 0; i < n_old; i++)  // ! ***
-                if (old_endpoint_holds[i] == next_loc) return true;  // ! ***
-            return false;  // ! ***
+            for (int i = 0; i < n_old; i++)
+                if (old_endpoint_holds[i] == next_loc) return true;
+            return false;
         }
-        for (int i = 0; i < n_old; i++) {  // ! ***
-            int ol = old_locs[i * op_horizon + abs_t];  // ! ***
-            if (ol == next_loc) return true;  // ! ***
-            if (abs_t > 0) {  // ! ***
-                int ol_prev = old_locs[i * op_horizon + abs_t - 1];  // ! ***
-                if (ol == curr_loc && ol_prev == next_loc) return true;  // ! ***
+        for (int i = 0; i < n_old; i++) {
+            int ol = old_locs[i * op_horizon + abs_t];
+            if (ol == next_loc) return true;
+            if (abs_t > 0) {
+                int ol_prev = old_locs[i * op_horizon + abs_t - 1];
+                if (ol == curr_loc && ol_prev == next_loc) return true;
             }
         }
-        return false;  // ! ***
+        return false;
     };
 
     // Soft-conflict counter for the windowed (wPBS) focal low level.  Counts (vertex + edge)
@@ -5488,35 +5488,35 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
     // Replicates the reference conflict-avoidance table so the +10-truncated search picks the
     // equal-cost prefix that collides LEAST, instead of an arbitrary one that PBS must then
     // deconflict with extra waiting (the source of the windowed-mode SWT inflation at mid demand).
-    auto count_soft_old = [&](int curr_loc, int next_loc, int abs_t) -> int {  // ! *** lambda count_soft_old()
-        if (!soft_use_shared) return 0;  // ! ***
-        int cnt = shared_old_holdcnt_[next_loc];  // ! ***
-        bool self_parked_here = excl_parked && (shared_old_holds_[shared_old_excl_] == next_loc);  // ! ***
-        if (self_parked_here && cnt > 0) cnt--;  // do not count self  // ! ***
-        if (abs_t < sh_hor) {  // ! ***
-            for (int i : shared_old_movers_) {  // ! ***
-                if (i == shared_old_excl_) continue;  // ! ***
-                int ol = shared_old_flat_[(size_t)i * sh_hor + abs_t];  // ! ***
-                if (ol == next_loc) cnt++;  // ! ***
-                if (abs_t > 0) {  // ! ***
-                    int ol_prev = shared_old_flat_[(size_t)i * sh_hor + abs_t - 1];  // ! ***
-                    if (ol == curr_loc && ol_prev == next_loc) cnt++;  // ! ***
+    auto count_soft_old = [&](int curr_loc, int next_loc, int abs_t) -> int {
+        if (!soft_use_shared) return 0;
+        int cnt = shared_old_holdcnt_[next_loc];
+        bool self_parked_here = excl_parked && (shared_old_holds_[shared_old_excl_] == next_loc);
+        if (self_parked_here && cnt > 0) cnt--;  // do not count self
+        if (abs_t < sh_hor) {
+            for (int i : shared_old_movers_) {
+                if (i == shared_old_excl_) continue;
+                int ol = shared_old_flat_[(size_t)i * sh_hor + abs_t];
+                if (ol == next_loc) cnt++;
+                if (abs_t > 0) {
+                    int ol_prev = shared_old_flat_[(size_t)i * sh_hor + abs_t - 1];
+                    if (ol == curr_loc && ol_prev == next_loc) cnt++;
                 }
             }
-        } else {  // ! ***
-            for (int i : shared_old_movers_) {  // ! ***
-                if (i == shared_old_excl_) continue;  // ! ***
-                if (shared_old_holds_[i] == next_loc) cnt++;  // ! ***
+        } else {
+            for (int i : shared_old_movers_) {
+                if (i == shared_old_excl_) continue;
+                if (shared_old_holds_[i] == next_loc) cnt++;
             }
         }
-        return cnt;  // ! ***
+        return cnt;
     };
 
     // Get earliest holding time from constraints.
     // Always scan to search_horizon (not limited by constraint_window)
     // so endpoint holds are properly detected even in windowed mode.
-    int last_goal_loc = goals.back().first;  // ! ***
-    int earliest_holding = 0;  // ! ***
+    int last_goal_loc = goals.back().first;
+    int earliest_holding = 0;
     // Cap how far into the future we force the agent to "hold" (wait for its goal to free).
     // The reference operates in a per-solve REBASED time frame with SHORT remaining paths,
     // so its endpoint-holding time is naturally bounded by actual path lengths.  In this
@@ -5526,49 +5526,49 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
     // correctness-preserving: if the agent occupies its goal "too early" and a later-arriving
     // agent conflicts, PBS detects that conflict and resolves it by priority, exactly as for
     // any other conflict.
-    int holding_cap = start_time + 384;  // ! ***
-    if (!skip_holding) {  // ! ***
-        for (auto& cp : cons_paths) {  // ! ***
-            int scan_limit = min((int)cp.size(), search_horizon);  // ! ***
-            for (int t = scan_limit - 1; t >= 0; t--) {  // ! ***
-                if (cp[t] == last_goal_loc) {  // ! ***
-                    earliest_holding = max(earliest_holding, t + 1);  // ! ***
-                    break;  // ! ***
+    int holding_cap = start_time + 384;
+    if (!skip_holding) {
+        for (auto& cp : cons_paths) {
+            int scan_limit = min((int)cp.size(), search_horizon);
+            for (int t = scan_limit - 1; t >= 0; t--) {
+                if (cp[t] == last_goal_loc) {
+                    earliest_holding = max(earliest_holding, t + 1);
+                    break;
                 }
             }
         }
-        if (use_shared_old) {  // ! ***
+        if (use_shared_old) {
             // Compact equivalent of scanning every other agent's old path for the last occurrence
             // of last_goal_loc.  PARKED agents (the majority) are checked in O(1) via the hold
             // count: a non-self agent permanently parked on the goal occupies it up to the horizon.
-            int park_cnt = shared_old_holdcnt_[last_goal_loc];  // ! ***
-            if (excl_parked && shared_old_holds_[shared_old_excl_] == last_goal_loc) park_cnt--;  // ! ***
-            if (park_cnt > 0)  // ! ***
-                earliest_holding = max(earliest_holding,  // ! ***
-                                       min(search_horizon, old_path_horizon + 1));  // ! ***
+            int park_cnt = shared_old_holdcnt_[last_goal_loc];
+            if (excl_parked && shared_old_holds_[shared_old_excl_] == last_goal_loc) park_cnt--;
+            if (park_cnt > 0)
+                earliest_holding = max(earliest_holding,
+                                       min(search_horizon, old_path_horizon + 1));
             // Only the (few) MOVING agents need a per-timestep scan.
-            for (int i : shared_old_movers_) {  // ! ***
-                if (i == shared_old_excl_) continue;  // ! ***
-                for (int t = sh_hor - 1; t >= 0; t--) {  // ! ***
-                    if (shared_old_flat_[(size_t)i * sh_hor + t] == last_goal_loc) {  // ! ***
-                        earliest_holding = max(earliest_holding, t + 1);  // ! ***
-                        break;  // ! ***
+            for (int i : shared_old_movers_) {
+                if (i == shared_old_excl_) continue;
+                for (int t = sh_hor - 1; t >= 0; t--) {
+                    if (shared_old_flat_[(size_t)i * sh_hor + t] == last_goal_loc) {
+                        earliest_holding = max(earliest_holding, t + 1);
+                        break;
                     }
                 }
             }
-        } else if (use_old_paths) {  // ! ***
-            for (auto& op : old_paths) {  // ! ***
-                int scan_limit = min({(int)op.size(), search_horizon, old_path_horizon + 1});  // ! ***
-                for (int t = scan_limit - 1; t >= 0; t--) {  // ! ***
-                    if (op[t] == last_goal_loc) {  // ! ***
-                        earliest_holding = max(earliest_holding, t + 1);  // ! ***
-                        break;  // ! ***
+        } else if (use_old_paths) {
+            for (auto& op : old_paths) {
+                int scan_limit = min({(int)op.size(), search_horizon, old_path_horizon + 1});
+                for (int t = scan_limit - 1; t >= 0; t--) {
+                    if (op[t] == last_goal_loc) {
+                        earliest_holding = max(earliest_holding, t + 1);
+                        break;
                     }
                 }
             }
         }
-        if (earliest_holding > holding_cap)  // ! ***
-            earliest_holding = holding_cap;  // ! ***
+        if (earliest_holding > holding_cap)
+            earliest_holding = holding_cap;
     }
 
     // Fast hopeless-search detection: if the FINAL goal location is permanently occupied
@@ -5592,34 +5592,34 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
     // is the common reason a low-priority agent's search would otherwise exhaust the node
     // cap.  We deliberately do NOT bail on OLD-path occupancy: an old path belongs to an
     // agent PBS may replan to move aside, so it is not a permanent block.
-    if (start_loc != last_goal_loc) {  // ! ***
-        bool goal_permanently_blocked = false;  // ! ***
-        for (int i = 0; i < n_cons && !goal_permanently_blocked; i++)  // ! ***
-            if (!cons_paths[i].empty() && cons_paths[i].back() == last_goal_loc)  // ! ***
-                goal_permanently_blocked = true;  // ! ***
-        if (goal_permanently_blocked)  // ! ***
-            return {};  // ! ***
+    if (start_loc != last_goal_loc) {
+        bool goal_permanently_blocked = false;
+        for (int i = 0; i < n_cons && !goal_permanently_blocked; i++)
+            if (!cons_paths[i].empty() && cons_paths[i].back() == last_goal_loc)
+                goal_permanently_blocked = true;
+        if (goal_permanently_blocked)
+            return {};
     }
 
-    typedef boost::heap::fibonacci_heap<MLANode*, boost::heap::compare<CompareMLANode>,  // ! ***
-            boost::heap::allocator<MLAPoolAllocator<MLANode*>>> mla_heap_t;  // ! ***
-    mla_heap_t open_list;  // ! ***
+    typedef boost::heap::fibonacci_heap<MLANode*, boost::heap::compare<CompareMLANode>,
+            boost::heap::allocator<MLAPoolAllocator<MLANode*>>> mla_heap_t;
+    mla_heap_t open_list;
 
     // Use unordered_map with fast hash for (loc, goal_id, g_val) dedup.
     // RETAINED across calls (static; seq_mla_star is non-reentrant) and cleared per call so the
     // bucket array is reused instead of reallocated on every one of the hundreds of thousands of
     // windowed searches — removing per-call map construction/rehash churn from the low-level loop.
-    struct KeyHash {  // ! ***
-        size_t operator()(uint64_t k) const { return k * 2654435761ULL; }  // ! ***
+    struct KeyHash {
+        size_t operator()(uint64_t k) const { return k * 2654435761ULL; }
     };
-    static unordered_map<uint64_t, MLANode*, KeyHash> allNodes;  // ! ***
-    allNodes.clear();  // ! ***
-    auto make_key = [&](int loc, int gi, int g) -> uint64_t {  // ! *** lambda make_key()
-        return ((uint64_t)loc << 32) | ((uint64_t)gi << 20) | (uint64_t)g;  // ! ***
+    static unordered_map<uint64_t, MLANode*, KeyHash> allNodes;
+    allNodes.clear();
+    auto make_key = [&](int loc, int gi, int g) -> uint64_t {
+        return ((uint64_t)loc << 32) | ((uint64_t)gi << 20) | (uint64_t)g;
     };
 
-    int init_h = compute_h(start_loc, 0);  // ! ***
-    if (init_h == INT_MAX) return {};  // ! ***
+    int init_h = compute_h(start_loc, 0);
+    if (init_h == INT_MAX) return {};
 
     // Node-expansion cap for the low-level MLA* search.  A* finds any REAL path in far
     // fewer than map_size*depth nodes; a search that exhausts a large multiple of the map
@@ -5630,81 +5630,81 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
     // heuristic still finds every reachable path quickly, and the genuinely-infeasible
     // ones fall back exactly as before.  Previously this was 500000, which made each
     // hopeless root search burn ~0.15s and blew the runtime budget ~20x.
-    int mla_max_nodes = min(500000, map_size * 20);  // ! ***
+    int mla_max_nodes = min(500000, map_size * 20);
 
     // Reset the node arena for this search (chunks retained; only the bump cursor is rewound).
-    mla_arena_used_chunk_ = 0;  // ! ***
-    mla_arena_used_in_chunk_ = 0;  // ! ***
-    auto alloc_node = [&](int l, int g, int h, int t, int gi, MLANode* p) -> MLANode* {  // ! *** lambda alloc_node()
-        if (mla_arena_used_chunk_ >= (int)mla_arena_chunks_.size()) {  // ! ***
-            mla_arena_chunks_.push_back(  // ! ***
-                ::operator new(sizeof(MLANode) * (size_t)MLA_ARENA_CHUNK));  // ! ***
+    mla_arena_used_chunk_ = 0;
+    mla_arena_used_in_chunk_ = 0;
+    auto alloc_node = [&](int l, int g, int h, int t, int gi, MLANode* p) -> MLANode* {
+        if (mla_arena_used_chunk_ >= (int)mla_arena_chunks_.size()) {
+            mla_arena_chunks_.push_back(
+                ::operator new(sizeof(MLANode) * (size_t)MLA_ARENA_CHUNK));
         }
-        MLANode* chunk = static_cast<MLANode*>(mla_arena_chunks_[mla_arena_used_chunk_]);  // ! ***
-        MLANode* node = &chunk[mla_arena_used_in_chunk_];  // ! ***
-        if (++mla_arena_used_in_chunk_ >= MLA_ARENA_CHUNK) {  // ! ***
-            mla_arena_used_chunk_++;  // ! ***
-            mla_arena_used_in_chunk_ = 0;  // ! ***
+        MLANode* chunk = static_cast<MLANode*>(mla_arena_chunks_[mla_arena_used_chunk_]);
+        MLANode* node = &chunk[mla_arena_used_in_chunk_];
+        if (++mla_arena_used_in_chunk_ >= MLA_ARENA_CHUNK) {
+            mla_arena_used_chunk_++;
+            mla_arena_used_in_chunk_ = 0;
         }
-        return new (node) MLANode(l, g, h, t, gi, p);  // ! ***
+        return new (node) MLANode(l, g, h, t, gi, p);
     };
 
-    MLANode* root = alloc_node(start_loc, 0, init_h, start_time, 0, nullptr);  // ! ***
-    open_list.push(root);  // ! ***
-    allNodes[make_key(start_loc, 0, 0)] = root;  // ! ***
+    MLANode* root = alloc_node(start_loc, 0, init_h, start_time, 0, nullptr);
+    open_list.push(root);
+    allNodes[make_key(start_loc, 0, 0)] = root;
 
-    MLANode* solution = nullptr;  // ! ***
-    int mla_expanded = 0;  // ! ***
+    MLANode* solution = nullptr;
+    int mla_expanded = 0;
 
     // wPBS: match reference StateTimeAStar which terminates at start + 10 (hardcoded)
     // Reference line 103: if (curr->goal_id == goal_size || curr->timestep >= start + 10)
     // The reference uses a hardcoded 10-step search truncation, NOT planning_window.
-    int wpbs_path_cutoff = (constraint_window > 0) ? (start_time + 10) : -1;  // ! ***
+    int wpbs_path_cutoff = (constraint_window > 0) ? (start_time + 10) : -1;
 
-    while (!open_list.empty() && mla_expanded < mla_max_nodes) {  // ! ***
-        MLANode* curr = open_list.top();  // ! ***
-        open_list.pop();  // ! ***
+    while (!open_list.empty() && mla_expanded < mla_max_nodes) {
+        MLANode* curr = open_list.top();
+        open_list.pop();
 
         // Skip stale lazy-deleted duplicates (a lower-conflict path repointed allNodes[key]).
-        if (soft_use_shared) {  // ! ***
-            auto itc = allNodes.find(make_key(curr->loc, curr->goal_id, curr->g_val));  // ! ***
-            if (itc != allNodes.end() && itc->second != curr) continue;  // ! ***
+        if (soft_use_shared) {
+            auto itc = allNodes.find(make_key(curr->loc, curr->goal_id, curr->g_val));
+            if (itc != allNodes.end() && itc->second != curr) continue;
         }
-        mla_expanded++;  // ! ***
+        mla_expanded++;
 
         // Advance goal_id if at current goal and past release time
-        int gi = curr->goal_id;  // ! ***
-        if (gi < num_goals && curr->loc == goals[gi].first) {  // ! ***
-            int rel = goals[gi].second;  // ! ***
-            if (curr->timestep >= rel) {  // ! ***
-                if (gi == num_goals - 1 && curr->timestep < earliest_holding) {}  // ! ***
-                else gi++;  // ! ***
+        int gi = curr->goal_id;
+        if (gi < num_goals && curr->loc == goals[gi].first) {
+            int rel = goals[gi].second;
+            if (curr->timestep >= rel) {
+                if (gi == num_goals - 1 && curr->timestep < earliest_holding) {}
+                else gi++;
             }
         }
 
         // wPBS: terminate at window boundary even if not all goals reached
         // This matches reference StateTimeAStar: return path at start + 10
-        if (gi >= num_goals || (wpbs_path_cutoff >= 0 && curr->timestep >= wpbs_path_cutoff)) {  // ! ***
-            solution = curr;  // ! ***
-            break;  // ! ***
+        if (gi >= num_goals || (wpbs_path_cutoff >= 0 && curr->timestep >= wpbs_path_cutoff)) {
+            solution = curr;
+            break;
         }
 
-        if (curr->timestep >= search_horizon - 1) continue;  // ! ***
+        if (curr->timestep >= search_horizon - 1) continue;
 
-        int child_gi = gi;  // ! ***
+        int child_gi = gi;
 
-        for (int i = 0; i < 5; i++) {  // ! ***
-            int next_loc = curr->loc + action[i];  // ! ***
-            int next_t = curr->timestep + 1;  // ! ***
+        for (int i = 0; i < 5; i++) {
+            int next_loc = curr->loc + action[i];
+            int next_t = curr->timestep + 1;
 
-            if (next_loc < 0 || next_loc >= map_size) continue;  // ! ***
-            if (abs(next_loc % mapd_map.col - curr->loc % mapd_map.col) > 1) continue;  // ! ***
-            if (is_constrained_hard(curr->loc, next_loc, next_t)) continue;  // ! ***
-            if (is_constrained_old(curr->loc, next_loc, next_t)) continue;  // ! ***
+            if (next_loc < 0 || next_loc >= map_size) continue;
+            if (abs(next_loc % mapd_map.col - curr->loc % mapd_map.col) > 1) continue;
+            if (is_constrained_hard(curr->loc, next_loc, next_t)) continue;
+            if (is_constrained_old(curr->loc, next_loc, next_t)) continue;
 
-            int next_g = curr->g_val + 1;  // ! ***
-            int next_h = compute_h(next_loc, child_gi);  // ! ***
-            if (next_h == INT_MAX) continue;  // ! ***
+            int next_g = curr->g_val + 1;
+            int next_h = compute_h(next_loc, child_gi);
+            if (next_h == INT_MAX) continue;
 
             // Deadline-aware heuristic (matches the reference StateTimeAStar idea of
             // h = max(h, holding_deadline - elapsed)).  The agent cannot finish before
@@ -5723,44 +5723,44 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
             // (never finishing tasks, hitting maxtime).  Only apply the deadline trick in the
             // non-windowed PBS path, where it prevents the 500k-node low-level blowup at low
             // task frequencies / huge makespans.
-            if (earliest_holding > 0 && wpbs_path_cutoff < 0) {  // ! ***
-                int deadline_h = earliest_holding - next_t;  // ! ***
-                if (deadline_h > next_h) next_h = deadline_h;  // ! ***
+            if (earliest_holding > 0 && wpbs_path_cutoff < 0) {
+                int deadline_h = earliest_holding - next_t;
+                if (deadline_h > next_h) next_h = deadline_h;
             }
 
-            int next_conf = curr->conflicts + count_soft_old(curr->loc, next_loc, next_t);  // ! ***
+            int next_conf = curr->conflicts + count_soft_old(curr->loc, next_loc, next_t);
 
-            auto key = make_key(next_loc, child_gi, next_g);  // ! ***
-            auto itn = allNodes.find(key);  // ! ***
-            if (itn == allNodes.end()) {  // ! ***
-                MLANode* next_node = alloc_node(next_loc, next_g, next_h, next_t,  // ! ***
-                                                child_gi, curr);  // ! ***
-                next_node->conflicts = next_conf;  // ! ***
-                allNodes[key] = next_node;  // ! ***
-                open_list.push(next_node);  // ! ***
-            } else if (next_conf < itn->second->conflicts) {  // ! ***
+            auto key = make_key(next_loc, child_gi, next_g);
+            auto itn = allNodes.find(key);
+            if (itn == allNodes.end()) {
+                MLANode* next_node = alloc_node(next_loc, next_g, next_h, next_t,
+                                                child_gi, curr);
+                next_node->conflicts = next_conf;
+                allNodes[key] = next_node;
+                open_list.push(next_node);
+            } else if (next_conf < itn->second->conflicts) {
                 // Same (loc,goal_id,g) state reached via a lower-conflict path (same f) — a pure
                 // focal improvement.  Push a fresh node and repoint the map; the stale higher-
                 // conflict entry is skipped at pop time.  (Mutating a heap node in place would
                 // corrupt the fibonacci heap ordering, so we don't.)
-                MLANode* next_node = alloc_node(next_loc, next_g, next_h, next_t,  // ! ***
-                                                child_gi, curr);  // ! ***
-                next_node->conflicts = next_conf;  // ! ***
-                allNodes[key] = next_node;  // ! ***
-                open_list.push(next_node);  // ! ***
+                MLANode* next_node = alloc_node(next_loc, next_g, next_h, next_t,
+                                                child_gi, curr);
+                next_node->conflicts = next_conf;
+                allNodes[key] = next_node;
+                open_list.push(next_node);
             }
         }
     }
 
-    vector<int> result;  // ! ***
-    if (solution) {  // ! ***
-        vector<int> path_locs;  // ! ***
-        MLANode* node = solution;  // ! ***
-        while (node != nullptr) {  // ! ***
-            path_locs.push_back(node->loc);  // ! ***
-            node = node->parent;  // ! ***
+    vector<int> result;
+    if (solution) {
+        vector<int> path_locs;
+        MLANode* node = solution;
+        while (node != nullptr) {
+            path_locs.push_back(node->loc);
+            node = node->parent;
         }
-        reverse(path_locs.begin(), path_locs.end());  // ! ***
+        reverse(path_locs.begin(), path_locs.end());
 
         // In windowed (wPBS) mode the committed plan is only read over the short working window
         // (pbs_core's work_len = timestep + replan_window - 1), and the result is a constant hold
@@ -5769,26 +5769,26 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
         // that dominated the windowed low-level cost.  The consumers index result[t] only for
         // t < work_len, so any length >= start_time + path length (and >= work_len) is exact; the
         // trailing constant hold is reconstructed downstream (commit_node / caller's hold loops).
-        int res_len = max_t;  // ! ***
-        if (constraint_window > 0) {  // ! ***
+        int res_len = max_t;
+        if (constraint_window > 0) {
             // work_len = timestep + replan_window - 1; +8 margin keeps boundary-hold reads valid.
-            int needed = start_time + (int)path_locs.size();  // ! ***
-            res_len = min(max_t, max(needed + 1, constraint_window + 8));  // ! ***
+            int needed = start_time + (int)path_locs.size();
+            res_len = min(max_t, max(needed + 1, constraint_window + 8));
         }
-        result.resize(res_len);  // ! ***
-        for (int t = 0; t < start_time && t < res_len; t++)  // ! ***
-            result[t] = start_loc;  // ! ***
-        for (int i = 0; i < (int)path_locs.size(); i++) {  // ! ***
-            int t = start_time + i;  // ! ***
-            if (t < res_len) result[t] = path_locs[i];  // ! ***
+        result.resize(res_len);
+        for (int t = 0; t < start_time && t < res_len; t++)
+            result[t] = start_loc;
+        for (int i = 0; i < (int)path_locs.size(); i++) {
+            int t = start_time + i;
+            if (t < res_len) result[t] = path_locs[i];
         }
-        int last_loc = path_locs.back();  // ! ***
-        for (int t = start_time + (int)path_locs.size(); t < res_len; t++)  // ! ***
-            result[t] = last_loc;  // ! ***
+        int last_loc = path_locs.back();
+        for (int t = start_time + (int)path_locs.size(); t < res_len; t++)
+            result[t] = last_loc;
     }
 
     // Nodes live in the retained arena (trivially destructible POD); no per-node delete needed.
-    return result;  // ! ***
+    return result;
 }
 
 // ============================================================
@@ -5797,26 +5797,26 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
 //   State: (location, interval_index, goal_id)
 // ============================================================
 
-vector<int> Simulation::sipp_search(int agent_id, int start_loc, int start_time,  // ! *** [S7] sipp_search(): safe-interval multi-label search        [MLSIPP methods]
-                                     const vector<pair<int,int>>& goals,  // ! ***
-                                     const vector<vector<int>>& cons_paths,  // ! ***
-                                     const vector<vector<int>>& old_paths,  // ! ***
-                                     bool use_old_paths,  // ! ***
-                                     bool skip_holding,  // ! ***
-                                     int constraint_window) {  // ! ***
-#ifdef SIPP_PROF  // ! ***
-    static long long g_calls=0, g_setup_ns=0, g_loop_ns=0, g_recon_ns=0, g_exp=0, g_edge=0, g_bail=0;  // ! ***
-    static bool g_reg=false;  // ! ***
-    if (!g_reg){ g_reg=true; atexit([](){ fprintf(stderr,"[SIPPPROF] calls=%lld bail=%lld exp=%lld edgecalls=%lld setup=%.1fms loop=%.1fms recon=%.1fms\n", g_calls,g_bail,g_exp,g_edge,g_setup_ns/1e6,g_loop_ns/1e6,g_recon_ns/1e6);}); }  // ! ***
-    g_calls++;  // ! ***
-    auto __t0 = std::chrono::high_resolution_clock::now();  // ! ***
-#endif  // ! ***
-    if (goals.empty()) return vector<int>((int)maxtime, start_loc);  // ! ***
+vector<int> Simulation::sipp_search(int agent_id, int start_loc, int start_time,
+                                     const vector<pair<int,int>>& goals,
+                                     const vector<vector<int>>& cons_paths,
+                                     const vector<vector<int>>& old_paths,
+                                     bool use_old_paths,
+                                     bool skip_holding,
+                                     int constraint_window) {
+#ifdef SIPP_PROF
+    static long long g_calls=0, g_setup_ns=0, g_loop_ns=0, g_recon_ns=0, g_exp=0, g_edge=0, g_bail=0;
+    static bool g_reg=false;
+    if (!g_reg){ g_reg=true; atexit([](){ fprintf(stderr,"[SIPPPROF] calls=%lld bail=%lld exp=%lld edgecalls=%lld setup=%.1fms loop=%.1fms recon=%.1fms\n", g_calls,g_bail,g_exp,g_edge,g_setup_ns/1e6,g_loop_ns/1e6,g_recon_ns/1e6);}); }
+    g_calls++;
+    auto __t0 = std::chrono::high_resolution_clock::now();
+#endif
+    if (goals.empty()) return vector<int>((int)maxtime, start_loc);
 
-    int map_size = mapd_map.row * mapd_map.col;  // ! ***
-    int max_t = (int)maxtime;  // ! ***
-    int cols = mapd_map.col;  // ! ***
-    int num_goals = (int)goals.size();  // ! ***
+    int map_size = mapd_map.row * mapd_map.col;
+    int max_t = (int)maxtime;
+    int cols = mapd_map.col;
+    int num_goals = (int)goals.size();
     // Windowed (wPBS) mode: the reference StateTimeA* truncates the low-level search at start+10
     // and treats the result as a partial path (the path is returned even if not all goals are
     // reached).  seq_mla_star mirrors this with wpbs_path_cutoff = start+10.  Previously
@@ -5830,32 +5830,32 @@ vector<int> Simulation::sipp_search(int agent_id, int start_loc, int start_time,
     // committing), restoring path quality (SWT/makespan) in dense high-agent scenes without slowing
     // things much — SIPP is efficient and the search is still bounded.  +10 alone was too greedy
     // (inflated SWT at ag40-50 / freq 2-10); a wider lookahead matches the reference MLA* low-level.
-    bool windowed = (constraint_window > 0);  // ! ***
-    int win_look = 0;  // ! ***
-    if (windowed) {  // ! ***
-        const char* e = getenv("SIPP_WIN_LOOK");  // ! ***
-        win_look = e ? atoi(e) : 16;  // ! ***
+    bool windowed = (constraint_window > 0);
+    int win_look = 0;
+    if (windowed) {
+        const char* e = getenv("SIPP_WIN_LOOK");
+        win_look = e ? atoi(e) : 16;
     }
-    int wpbs_cutoff = windowed ? (start_time + win_look) : INT_MAX;  // ! ***
-    int horizon = min(max_t, start_time + max(1000, num_goals * 40));  // ! ***
-    if (windowed) horizon = min(horizon, start_time + win_look + 2);  // ! ***
+    int wpbs_cutoff = windowed ? (start_time + win_look) : INT_MAX;
+    int horizon = min(max_t, start_time + max(1000, num_goals * 40));
+    if (windowed) horizon = min(horizon, start_time + win_look + 2);
 
     // Heuristics (O(1) endpoint lookup via loc2ep)
-    auto h_for = [&](int loc, int gloc) -> int {  // ! *** lambda h_for()
-        int ei = mapd_map.ep_index(gloc);  // ! ***
-        if (ei >= 0) return mapd_map.endpoints[ei].h_val[loc];  // ! ***
-        return INT_MAX;  // ! ***
+    auto h_for = [&](int loc, int gloc) -> int {
+        int ei = mapd_map.ep_index(gloc);
+        if (ei >= 0) return mapd_map.endpoints[ei].h_val[loc];
+        return INT_MAX;
     };
-    auto sum_h = [&](int loc, int gi) -> int {  // ! *** lambda sum_h()
-        if (gi >= num_goals) return 0;  // ! ***
-        int h = h_for(loc, goals[gi].first);  // ! ***
-        if (h == INT_MAX) return INT_MAX;  // ! ***
-        for (int g = gi; g < num_goals - 1; g++) {  // ! ***
-            int d = h_for(goals[g].first, goals[g+1].first);  // ! ***
-            if (d == INT_MAX) return INT_MAX;  // ! ***
-            h += d;  // ! ***
+    auto sum_h = [&](int loc, int gi) -> int {
+        if (gi >= num_goals) return 0;
+        int h = h_for(loc, goals[gi].first);
+        if (h == INT_MAX) return INT_MAX;
+        for (int g = gi; g < num_goals - 1; g++) {
+            int d = h_for(goals[g].first, goals[g+1].first);
+            if (d == INT_MAX) return INT_MAX;
+            h += d;
         }
-        return h;  // ! ***
+        return h;
     };
 
     // At the PBS root the shared old-path table (built once per solve) is available; use it to
@@ -5863,8 +5863,8 @@ vector<int> Simulation::sipp_search(int agent_id, int start_loc, int start_time,
     // at a low task frequency).  This is behaviour-preserving: parked agents never move, so they
     // never contribute an edge (swap) conflict.  The vertex constraints (CT ranges) and the
     // earliest-holding scan still use the real old_paths, so results are unchanged.
-    bool use_shared_old_edges = use_old_paths && shared_old_valid_ &&  // ! ***
-                                shared_old_excl_ == agent_id && cons_paths.empty();  // ! ***
+    bool use_shared_old_edges = use_old_paths && shared_old_valid_ &&
+                                shared_old_excl_ == agent_id && cons_paths.empty();
 
     // Build CT ranges from cons_paths (compress consecutive same-loc into ranges).
     // Active-length rebasing (matches seq_mla_star's reservation-table construction): every
@@ -5875,157 +5875,157 @@ vector<int> Simulation::sipp_search(int agent_id, int start_loc, int start_time,
     // we find the active length by a FORWARD scan that STOPS at the last change, then emit a single
     // hold range [last_change, horizon] for the constant tail.  Result is identical: a constant
     // path still produces exactly one range covering [first, horizon] at its held cell.
-#ifdef SIPP_PROF  // ! ***
-    static long long g_ct_ns=0; static bool g_ctreg=false;  // ! ***
-    if(!g_ctreg){g_ctreg=true; atexit([](){fprintf(stderr,"[SIPPPROF] ct_build=%.1fms\n", g_ct_ns/1e6);});}  // ! ***
-    auto __tc0 = std::chrono::high_resolution_clock::now();  // ! ***
-#endif  // ! ***
+#ifdef SIPP_PROF
+    static long long g_ct_ns=0; static bool g_ctreg=false;
+    if(!g_ctreg){g_ctreg=true; atexit([](){fprintf(stderr,"[SIPPPROF] ct_build=%.1fms\n", g_ct_ns/1e6);});}
+    auto __tc0 = std::chrono::high_resolution_clock::now();
+#endif
     // Persistent scratch buffers (sized once, cleared per call in O(touched cells)).
-    if ((int)sipp_ct_.size() != map_size) {  // ! ***
-        sipp_ct_.assign(map_size, {});  // ! ***
-        sipp_has_ct_.assign(map_size, 0);  // ! ***
-        sipp_sit_.assign(map_size, {});  // ! ***
-        sipp_sit_done_.assign(map_size, 0);  // ! ***
+    if ((int)sipp_ct_.size() != map_size) {
+        sipp_ct_.assign(map_size, {});
+        sipp_has_ct_.assign(map_size, 0);
+        sipp_sit_.assign(map_size, {});
+        sipp_sit_done_.assign(map_size, 0);
     }
-    auto& ct_ranges = sipp_ct_;  // ! ***
-    auto& has_ct = sipp_has_ct_;  // ! ***
-    sipp_ct_touched_.clear();  // ! ***
-    sipp_sit_touched_.clear();  // ! ***
-    auto touch_ct = [&](int loc) {  // ! *** lambda touch_ct()
-        if (!has_ct[loc]) { has_ct[loc] = 1; sipp_ct_touched_.push_back(loc); ct_ranges[loc].clear(); }  // ! ***
+    auto& ct_ranges = sipp_ct_;
+    auto& has_ct = sipp_has_ct_;
+    sipp_ct_touched_.clear();
+    sipp_sit_touched_.clear();
+    auto touch_ct = [&](int loc) {
+        if (!has_ct[loc]) { has_ct[loc] = 1; sipp_ct_touched_.push_back(loc); ct_ranges[loc].clear(); }
     };
     // Reset persistent buffers' dirty flags for touched cells only (keeps sub-vector capacity).
-    auto reset_scratch = [&]() {  // ! *** lambda reset_scratch()
-        for (int c : sipp_ct_touched_) has_ct[c] = 0;  // ! ***
-        for (int c : sipp_sit_touched_) sipp_sit_done_[c] = 0;  // ! ***
+    auto reset_scratch = [&]() {
+        for (int c : sipp_ct_touched_) has_ct[c] = 0;
+        for (int c : sipp_sit_touched_) sipp_sit_done_[c] = 0;
     };
 
     // Per-cons_path active metadata: (last_change index within window, held tail location).
     // Captured during the single forward CT scan and REUSED for earliest_hold below, so the
     // long constant tails of parking/arrived constraints are never re-scanned a second time.
-    int n_cons_ = (int)cons_paths.size();  // ! ***
-    vector<int> cons_lastchg(n_cons_, 0), cons_tail(n_cons_, -1);  // ! ***
-    auto add_path = [&](const vector<int>& path, int idx) {  // ! *** lambda add_path()
-        int psz = (int)path.size();  // ! ***
-        if (psz == 0) return;  // ! ***
-        int len = min(psz, horizon);  // ! ***
+    int n_cons_ = (int)cons_paths.size();
+    vector<int> cons_lastchg(n_cons_, 0), cons_tail(n_cons_, -1);
+    auto add_path = [&](const vector<int>& path, int idx) {
+        int psz = (int)path.size();
+        if (psz == 0) return;
+        int len = min(psz, horizon);
         // active length = 1 + index of last change within the window (constant tail excluded).
         // Scan BACKWARD from the end so the long CONSTANT tail (the common case: parked agents and
         // arrived agents hold one cell for the whole remaining horizon) is skipped in a tight loop
         // that stops at the active/tail boundary, instead of a forward scan that must traverse the
         // entire tail.  Exact: last_change is the index of the last cell that differs from its
         // predecessor within the window.
-        int last_change = 0;  // ! ***
-        for (int t = len - 1; t >= 1; t--)  // ! ***
-            if (path[t] != path[t-1]) { last_change = t; break; }  // ! ***
+        int last_change = 0;
+        for (int t = len - 1; t >= 1; t--)
+            if (path[t] != path[t-1]) { last_change = t; break; }
         // emit ranges over the active prefix [0, last_change], then the held tail to horizon
-        int ss = 0, sl = path[0];  // ! ***
-        for (int t = 1; t <= last_change; t++) {  // ! ***
-            if (path[t] != sl) {  // ! ***
-                touch_ct(sl); ct_ranges[sl].push_back({ss, t});  // ! ***
-                sl = path[t]; ss = t;  // ! ***
+        int ss = 0, sl = path[0];
+        for (int t = 1; t <= last_change; t++) {
+            if (path[t] != sl) {
+                touch_ct(sl); ct_ranges[sl].push_back({ss, t});
+                sl = path[t]; ss = t;
             }
         }
-        touch_ct(sl); ct_ranges[sl].push_back({ss, horizon});  // ! ***
-        if (idx >= 0) { cons_lastchg[idx] = last_change; cons_tail[idx] = sl; }  // ! ***
+        touch_ct(sl); ct_ranges[sl].push_back({ss, horizon});
+        if (idx >= 0) { cons_lastchg[idx] = last_change; cons_tail[idx] = sl; }
     };
-    for (int i = 0; i < n_cons_; i++) add_path(cons_paths[i], i);  // ! ***
+    for (int i = 0; i < n_cons_; i++) add_path(cons_paths[i], i);
     // Use precompressed shared old-path CT ranges at the PBS root (built once per solve), which
     // removes the per-search O(num_ag * old_h) compression — the dominant SIPP cost at low task
     // frequency.  Equivalent to the per-search compression: ranges are clamped to this search's
     // old_h, so vertex constraints are identical.
-    bool use_shared_old_ct = use_old_paths && shared_old_valid_ &&  // ! ***
-                             shared_old_excl_ == agent_id && cons_paths.empty() &&  // ! ***
-                             (int)shared_old_sipp_ranges_.size() == (int)agents.size();  // ! ***
-    if (use_shared_old_ct) {  // ! ***
-        int old_h = min(start_time + 300, horizon);  // ! ***
-        for (int j = 0; j < (int)shared_old_sipp_ranges_.size(); j++) {  // ! ***
-            if (j == shared_old_excl_) continue;  // ! ***
-            for (auto& r : shared_old_sipp_ranges_[j]) {  // ! ***
-                int loc = std::get<0>(r), s = std::get<1>(r), e = std::get<2>(r);  // ! ***
-                if (s >= old_h) continue;          // range starts beyond this search's window  // ! ***
-                if (e > old_h) e = old_h;          // clamp to this search's old_h  // ! ***
-                if (loc < 0 || loc >= map_size) continue;  // ! ***
-                touch_ct(loc); ct_ranges[loc].push_back({s, e});  // ! ***
+    bool use_shared_old_ct = use_old_paths && shared_old_valid_ &&
+                             shared_old_excl_ == agent_id && cons_paths.empty() &&
+                             (int)shared_old_sipp_ranges_.size() == (int)agents.size();
+    if (use_shared_old_ct) {
+        int old_h = min(start_time + 300, horizon);
+        for (int j = 0; j < (int)shared_old_sipp_ranges_.size(); j++) {
+            if (j == shared_old_excl_) continue;
+            for (auto& r : shared_old_sipp_ranges_[j]) {
+                int loc = std::get<0>(r), s = std::get<1>(r), e = std::get<2>(r);
+                if (s >= old_h) continue;          // range starts beyond this search's window
+                if (e > old_h) e = old_h;          // clamp to this search's old_h
+                if (loc < 0 || loc >= map_size) continue;
+                touch_ct(loc); ct_ranges[loc].push_back({s, e});
             }
         }
-    } else if (use_old_paths) {  // ! ***
-        int old_h = min(start_time + 300, horizon);  // ! ***
-        for (auto& op : old_paths) {  // ! ***
-            int len = min((int)op.size(), old_h);  // ! ***
-            if (len == 0) continue;  // ! ***
-            int ss = 0, sl = op[0];  // ! ***
-            for (int t = 1; t < len; t++) {  // ! ***
-                if (op[t] != sl) {  // ! ***
-                    touch_ct(sl); ct_ranges[sl].push_back({ss, t});  // ! ***
-                    sl = op[t]; ss = t;  // ! ***
+    } else if (use_old_paths) {
+        int old_h = min(start_time + 300, horizon);
+        for (auto& op : old_paths) {
+            int len = min((int)op.size(), old_h);
+            if (len == 0) continue;
+            int ss = 0, sl = op[0];
+            for (int t = 1; t < len; t++) {
+                if (op[t] != sl) {
+                    touch_ct(sl); ct_ranges[sl].push_back({ss, t});
+                    sl = op[t]; ss = t;
                 }
             }
-            touch_ct(sl); ct_ranges[sl].push_back({ss, old_h});  // ! ***
+            touch_ct(sl); ct_ranges[sl].push_back({ss, old_h});
         }
     }
 
-#ifdef SIPP_PROF  // ! ***
-    { auto __tc1 = std::chrono::high_resolution_clock::now();  // ! ***
-      g_ct_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(__tc1-__tc0).count(); }  // ! ***
-#endif  // ! ***
+#ifdef SIPP_PROF
+    { auto __tc1 = std::chrono::high_resolution_clock::now();
+      g_ct_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(__tc1-__tc0).count(); }
+#endif
     // Lazy SIT cache (persistent per-cell buffers; computed at most once per cell per call).
-    auto& sit = sipp_sit_;  // ! ***
-    auto& sit_done = sipp_sit_done_;  // ! ***
-    auto get_sit = [&](int loc) -> const vector<pair<int,int>>& {  // ! *** lambda get_sit()
-        if (sit_done[loc]) return sit[loc];  // ! ***
-        sit_done[loc] = 1; sipp_sit_touched_.push_back(loc);  // ! ***
-        auto& ivs = sit[loc]; ivs.clear();  // ! ***
-        if (!has_ct[loc]) return ivs;  // ! ***
+    auto& sit = sipp_sit_;
+    auto& sit_done = sipp_sit_done_;
+    auto get_sit = [&](int loc) -> const vector<pair<int,int>>& {
+        if (sit_done[loc]) return sit[loc];
+        sit_done[loc] = 1; sipp_sit_touched_.push_back(loc);
+        auto& ivs = sit[loc]; ivs.clear();
+        if (!has_ct[loc]) return ivs;
         // merge CT ranges (don't clip — hold ranges extend to horizon), then invert to free intervals
-        auto& rs = ct_ranges[loc];  // ! ***
-        sort(rs.begin(), rs.end());  // ! ***
-        int p = 0;  // ! ***
-        int cs = -1, ce = -1; // current merged range  // ! ***
-        for (auto& [s,e] : rs) {  // ! ***
-            if (cs < 0) { cs = s; ce = e; continue; }  // ! ***
-            if (s <= ce) { if (e > ce) ce = e; }  // ! ***
-            else { if (cs > p) ivs.push_back({p, cs}); p = ce; cs = s; ce = e; }  // ! ***
+        auto& rs = ct_ranges[loc];
+        sort(rs.begin(), rs.end());
+        int p = 0;
+        int cs = -1, ce = -1; // current merged range
+        for (auto& [s,e] : rs) {
+            if (cs < 0) { cs = s; ce = e; continue; }
+            if (s <= ce) { if (e > ce) ce = e; }
+            else { if (cs > p) ivs.push_back({p, cs}); p = ce; cs = s; ce = e; }
         }
-        if (cs >= 0) { if (cs > p) ivs.push_back({p, cs}); p = ce; }  // ! ***
-        if (p < horizon) ivs.push_back({p, horizon});  // ! ***
-        return ivs;  // ! ***
+        if (cs >= 0) { if (cs > p) ivs.push_back({p, cs}); p = ce; }
+        if (p < horizon) ivs.push_back({p, horizon});
+        return ivs;
     };
 
     // Edge constraint
-    auto edge_blocked = [&](int from, int to, int t) -> bool {  // ! *** lambda edge_blocked()
-        if (t <= 0 || t >= horizon) return false;  // ! ***
-        for (auto& cp : cons_paths) {  // ! ***
-            int len = (int)cp.size();  // ! ***
-            int ct = (t < len) ? cp[t] : cp[len-1];  // ! ***
-            int cp_ = (t-1 < len) ? cp[t-1] : cp[len-1];  // ! ***
-            if (ct == from && cp_ == to) return true;  // ! ***
+    auto edge_blocked = [&](int from, int to, int t) -> bool {
+        if (t <= 0 || t >= horizon) return false;
+        for (auto& cp : cons_paths) {
+            int len = (int)cp.size();
+            int ct = (t < len) ? cp[t] : cp[len-1];
+            int cp_ = (t-1 < len) ? cp[t-1] : cp[len-1];
+            if (ct == from && cp_ == to) return true;
         }
-        if (use_shared_old_edges) {  // ! ***
+        if (use_shared_old_edges) {
             // Only moving old agents can swap; use the shared flat table (active window only).
             // Bound to min(active horizon, start+300) to match the original old-edge window.
-            int stride = shared_old_horizon_;  // ! ***
-            int lim = min(stride, start_time + 301);  // ! ***
-            if (t < lim) {  // ! ***
-                for (int i : shared_old_movers_) {  // ! ***
-                    if (i == shared_old_excl_) continue;  // ! ***
-                    int ot = shared_old_flat_[(size_t)i * stride + t];  // ! ***
-                    int op_ = shared_old_flat_[(size_t)i * stride + (t-1)];  // ! ***
-                    if (ot == from && op_ == to) return true;  // ! ***
+            int stride = shared_old_horizon_;
+            int lim = min(stride, start_time + 301);
+            if (t < lim) {
+                for (int i : shared_old_movers_) {
+                    if (i == shared_old_excl_) continue;
+                    int ot = shared_old_flat_[(size_t)i * stride + t];
+                    int op_ = shared_old_flat_[(size_t)i * stride + (t-1)];
+                    if (ot == from && op_ == to) return true;
                 }
             }
-        } else if (use_old_paths) {  // ! ***
-            int old_h = start_time + 300;  // ! ***
-            if (t <= old_h) {  // ! ***
-                for (auto& op : old_paths) {  // ! ***
-                    int len = (int)op.size();  // ! ***
-                    int ot = (t < len) ? op[t] : op[len-1];  // ! ***
-                    int op_ = (t-1 < len) ? op[t-1] : op[len-1];  // ! ***
-                    if (ot == from && op_ == to) return true;  // ! ***
+        } else if (use_old_paths) {
+            int old_h = start_time + 300;
+            if (t <= old_h) {
+                for (auto& op : old_paths) {
+                    int len = (int)op.size();
+                    int ot = (t < len) ? op[t] : op[len-1];
+                    int op_ = (t-1 < len) ? op[t-1] : op[len-1];
+                    if (ot == from && op_ == to) return true;
                 }
             }
         }
-        return false;  // ! ***
+        return false;
     };
 
     // Earliest holding — match MLA* behavior: latest time any constraint occupies last_goal.
@@ -6034,26 +6034,26 @@ vector<int> Simulation::sipp_search(int agent_id, int start_loc, int start_time,
     // the short active prefix [0, last_change] is scanned.  Identical result to the old O(horizon)
     // backward scan: a constant path equal to last_goal occupied it at every t, so its last
     // occurrence is horizon-1 (-> earliest_hold = horizon).
-    int last_goal = goals.back().first;  // ! ***
-    int earliest_hold = 0;  // ! ***
-    if (!skip_holding) {  // ! ***
-        for (int i = 0; i < n_cons_; i++) {  // ! ***
-            const auto& cp = cons_paths[i];  // ! ***
-            if ((int)cp.size() == 0) continue;  // ! ***
-            if (cons_tail[i] == last_goal) {            // held at last_goal through the window  // ! ***
-                earliest_hold = max(earliest_hold, horizon);  // ! ***
-                continue;  // ! ***
+    int last_goal = goals.back().first;
+    int earliest_hold = 0;
+    if (!skip_holding) {
+        for (int i = 0; i < n_cons_; i++) {
+            const auto& cp = cons_paths[i];
+            if ((int)cp.size() == 0) continue;
+            if (cons_tail[i] == last_goal) {            // held at last_goal through the window
+                earliest_hold = max(earliest_hold, horizon);
+                continue;
             }
-            int lim = min(cons_lastchg[i], min((int)cp.size(), horizon) - 1);  // ! ***
-            for (int t = lim; t >= 0; t--) {  // ! ***
-                if (cp[t] == last_goal) { earliest_hold = max(earliest_hold, t+1); break; }  // ! ***
+            int lim = min(cons_lastchg[i], min((int)cp.size(), horizon) - 1);
+            for (int t = lim; t >= 0; t--) {
+                if (cp[t] == last_goal) { earliest_hold = max(earliest_hold, t+1); break; }
             }
         }
-        if (use_old_paths) {  // ! ***
-            for (auto& op : old_paths) {  // ! ***
-                int lim = min({(int)op.size(), horizon, start_time+301});  // ! ***
-                for (int t = lim-1; t >= 0; t--)  // ! ***
-                    if (op[t] == last_goal) { earliest_hold = max(earliest_hold, t+1); break; }  // ! ***
+        if (use_old_paths) {
+            for (auto& op : old_paths) {
+                int lim = min({(int)op.size(), horizon, start_time+301});
+                for (int t = lim-1; t >= 0; t--)
+                    if (op[t] == last_goal) { earliest_hold = max(earliest_hold, t+1); break; }
             }
         }
     }
@@ -6069,10 +6069,10 @@ vector<int> Simulation::sipp_search(int agent_id, int start_loc, int start_time,
     // (Skip in windowed wPBS mode: there the search truncates at start+10 and returns a PARTIAL
     // path even if the goal is unreachable, so a permanently-blocked final goal must NOT short-
     // circuit to an empty result — the agent still makes its windowed progress.)
-    if (!windowed && start_loc != last_goal) {  // ! ***
-        for (auto& cp : cons_paths)  // ! ***
-            if (!cp.empty() && cp.back() == last_goal)  // ! ***
-                { reset_scratch(); return {}; }  // ! ***
+    if (!windowed && start_loc != last_goal) {
+        for (auto& cp : cons_paths)
+            if (!cp.empty() && cp.back() == last_goal)
+                { reset_scratch(); return {}; }
     }
 
     // ---- Windowed (wPBS) time-expanded search -------------------------------------------------
@@ -6083,65 +6083,65 @@ vector<int> Simulation::sipp_search(int agent_id, int start_loc, int start_time,
     // search but using SIPP's O(1) constraint structures (has_ct/get_sit for vertex checks,
     // edge_blocked for swaps), so windowed --sipp matches the MLA* low-level's paths while staying
     // fast.  The interval-SIPP path below is used only for the (cheaper, optimal) NON-windowed mode.
-    if (windowed) {  // ! ***
+    if (windowed) {
         // vertex free? cell loc unoccupied at absolute time t
-        auto vfree = [&](int loc, int t) -> bool {  // ! *** lambda vfree()
-            if (!has_ct[loc]) return true;  // ! ***
-            const auto& iv = get_sit(loc);  // ! ***
-            for (auto& r : iv) if (r.first <= t && t < r.second) return true;  // ! ***
-            return false;  // ! ***
+        auto vfree = [&](int loc, int t) -> bool {
+            if (!has_ct[loc]) return true;
+            const auto& iv = get_sit(loc);
+            for (auto& r : iv) if (r.first <= t && t < r.second) return true;
+            return false;
         };
-        struct WN { int loc, g, h, t, gi; WN* parent; int f() const { return g+h; } };  // ! ***
-        struct CmpWN { bool operator()(const WN* a, const WN* b) const {  // ! ***
-            if (a->f() != b->f()) return a->f() > b->f();  // ! ***
-            return a->g <= b->g; } };  // ! ***
-        boost::heap::fibonacci_heap<WN*, boost::heap::compare<CmpWN>> wopen;  // ! ***
-        struct WHash { size_t operator()(uint64_t k) const { return k * 2654435761ULL; } };  // ! ***
-        unordered_map<uint64_t,int,WHash> wclosed;  // ! ***
-        vector<WN*> wnodes;  // ! ***
-        auto wkey = [](int loc, int gi, int t) -> uint64_t {  // ! *** lambda wkey()
-            return ((uint64_t)loc << 32) | ((uint64_t)(gi & 0xFFFF) << 16) | (uint32_t)(t & 0xFFFF);  // ! ***
+        struct WN { int loc, g, h, t, gi; WN* parent; int f() const { return g+h; } };
+        struct CmpWN { bool operator()(const WN* a, const WN* b) const {
+            if (a->f() != b->f()) return a->f() > b->f();
+            return a->g <= b->g; } };
+        boost::heap::fibonacci_heap<WN*, boost::heap::compare<CmpWN>> wopen;
+        struct WHash { size_t operator()(uint64_t k) const { return k * 2654435761ULL; } };
+        unordered_map<uint64_t,int,WHash> wclosed;
+        vector<WN*> wnodes;
+        auto wkey = [](int loc, int gi, int t) -> uint64_t {
+            return ((uint64_t)loc << 32) | ((uint64_t)(gi & 0xFFFF) << 16) | (uint32_t)(t & 0xFFFF);
         };
-        int ih = sum_h(start_loc, 0);  // ! ***
-        if (ih == INT_MAX) { reset_scratch(); return {}; }  // ! ***
-        WN* root = new WN{start_loc, 0, ih, start_time, 0, nullptr};  // ! ***
-        wopen.push(root); wnodes.push_back(root);  // ! ***
-        wclosed[wkey(start_loc, 0, start_time)] = 0;  // ! ***
-        int wmoves[5] = {0, 1, -cols, -1, cols};  // ! ***
-        WN* wsol = nullptr;  // ! ***
-        while (!wopen.empty()) {  // ! ***
-            WN* cur = wopen.top(); wopen.pop();  // ! ***
-            int gi = cur->gi;  // ! ***
-            if (gi < num_goals && cur->loc == goals[gi].first && cur->t >= goals[gi].second) {  // ! ***
-                if (gi == num_goals-1 && cur->t < earliest_hold) {} else gi++;  // ! ***
+        int ih = sum_h(start_loc, 0);
+        if (ih == INT_MAX) { reset_scratch(); return {}; }
+        WN* root = new WN{start_loc, 0, ih, start_time, 0, nullptr};
+        wopen.push(root); wnodes.push_back(root);
+        wclosed[wkey(start_loc, 0, start_time)] = 0;
+        int wmoves[5] = {0, 1, -cols, -1, cols};
+        WN* wsol = nullptr;
+        while (!wopen.empty()) {
+            WN* cur = wopen.top(); wopen.pop();
+            int gi = cur->gi;
+            if (gi < num_goals && cur->loc == goals[gi].first && cur->t >= goals[gi].second) {
+                if (gi == num_goals-1 && cur->t < earliest_hold) {} else gi++;
             }
-            if (gi >= num_goals || cur->t >= wpbs_cutoff) { wsol = cur; break; }  // ! ***
-            if (cur->t >= horizon - 1) continue;  // ! ***
-            for (int d = 0; d < 5; d++) {  // ! ***
-                int nl = cur->loc + wmoves[d];  // ! ***
-                if (nl < 0 || nl >= map_size || !mapd_map.grid[nl]) continue;  // ! ***
-                if (d != 0 && abs(nl % cols - cur->loc % cols) > 1) continue;  // ! ***
-                int nt = cur->t + 1;  // ! ***
-                if (!vfree(nl, nt)) continue;  // ! ***
-                if (d != 0 && edge_blocked(cur->loc, nl, nt)) continue;  // ! ***
-                int ngi = gi;  // ! ***
-                if (ngi < num_goals && nl == goals[ngi].first && nt >= goals[ngi].second)  // ! ***
-                    { if (ngi == num_goals-1 && nt < earliest_hold) {} else ngi++; }  // ! ***
-                int nh = sum_h(nl, ngi); if (nh == INT_MAX) continue;  // ! ***
-                int ng = nt - start_time;  // ! ***
-                auto nk = wkey(nl, ngi, nt);  // ! ***
-                if (!wclosed.count(nk) || wclosed[nk] > ng) {  // ! ***
-                    wclosed[nk] = ng;  // ! ***
-                    WN* nd = new WN{nl, ng, nh, nt, ngi, cur};  // ! ***
-                    wopen.push(nd); wnodes.push_back(nd);  // ! ***
+            if (gi >= num_goals || cur->t >= wpbs_cutoff) { wsol = cur; break; }
+            if (cur->t >= horizon - 1) continue;
+            for (int d = 0; d < 5; d++) {
+                int nl = cur->loc + wmoves[d];
+                if (nl < 0 || nl >= map_size || !mapd_map.grid[nl]) continue;
+                if (d != 0 && abs(nl % cols - cur->loc % cols) > 1) continue;
+                int nt = cur->t + 1;
+                if (!vfree(nl, nt)) continue;
+                if (d != 0 && edge_blocked(cur->loc, nl, nt)) continue;
+                int ngi = gi;
+                if (ngi < num_goals && nl == goals[ngi].first && nt >= goals[ngi].second)
+                    { if (ngi == num_goals-1 && nt < earliest_hold) {} else ngi++; }
+                int nh = sum_h(nl, ngi); if (nh == INT_MAX) continue;
+                int ng = nt - start_time;
+                auto nk = wkey(nl, ngi, nt);
+                if (!wclosed.count(nk) || wclosed[nk] > ng) {
+                    wclosed[nk] = ng;
+                    WN* nd = new WN{nl, ng, nh, nt, ngi, cur};
+                    wopen.push(nd); wnodes.push_back(nd);
                 }
             }
         }
-        vector<int> result;  // ! ***
-        if (wsol) {  // ! ***
-            vector<int> locs;  // ! ***
-            for (WN* n = wsol; n; n = n->parent) locs.push_back(n->loc);  // ! ***
-            reverse(locs.begin(), locs.end());  // ! ***
+        vector<int> result;
+        if (wsol) {
+            vector<int> locs;
+            for (WN* n = wsol; n; n = n->parent) locs.push_back(n->loc);
+            reverse(locs.begin(), locs.end());
             // COMMIT-WINDOW TRUNCATION (correctness): the wider win_look (16) lookahead is used only
             // to make a better first-window DECISION; only the first replan_window steps are actually
             // executed before the next replan.  The windowed PBS machinery (conflict_horizon =
@@ -6152,132 +6152,132 @@ vector<int> Simulation::sipp_search(int agent_id, int start_loc, int start_time,
             // work_len) gap) yet get committed and executed -> head-on corridor collisions that only
             // --sipp+wPBS hit (MLA*'s start+10 cutoff never produced them).  Truncate the committed
             // path to active<=start+replan_window then hold, exactly matching the MLA* low-level.
-            int commit_len = min((int)locs.size(), config.replan_window + 1);  // ! ***
-            result.assign(max_t, start_loc);  // ! ***
-            for (int i = 0; i < commit_len; i++) {  // ! ***
-                int t = start_time + i; if (t < max_t) result[t] = locs[i];  // ! ***
+            int commit_len = min((int)locs.size(), config.replan_window + 1);
+            result.assign(max_t, start_loc);
+            for (int i = 0; i < commit_len; i++) {
+                int t = start_time + i; if (t < max_t) result[t] = locs[i];
             }
-            int last = locs[commit_len - 1];  // ! ***
-            for (int t = start_time + commit_len; t < max_t; t++) result[t] = last;  // ! ***
+            int last = locs[commit_len - 1];
+            for (int t = start_time + commit_len; t < max_t; t++) result[t] = last;
         }
-        for (auto* n : wnodes) delete n;  // ! ***
-        reset_scratch();  // ! ***
-        return result;  // ! ***
+        for (auto* n : wnodes) delete n;
+        reset_scratch();
+        return result;
     }
 
     // SIPP node
-    struct SN {  // ! ***
-        int loc, g, h, t, gi, iv, conflicts;  // ! ***
-        SN* parent;  // ! ***
-        SN(int l,int g_,int h_,int t_,int gi_,int ii,int c,SN* p)  // ! ***
-            :loc(l),g(g_),h(h_),t(t_),gi(gi_),iv(ii),conflicts(c),parent(p){}  // ! ***
-        int f() const { return g+h; }  // ! ***
+    struct SN {
+        int loc, g, h, t, gi, iv, conflicts;
+        SN* parent;
+        SN(int l,int g_,int h_,int t_,int gi_,int ii,int c,SN* p)
+            :loc(l),g(g_),h(h_),t(t_),gi(gi_),iv(ii),conflicts(c),parent(p){}
+        int f() const { return g+h; }
     };
-    struct CmpSN {  // ! ***
-        bool operator()(const SN* a, const SN* b) const {  // ! ***
-            if (a->f() != b->f()) return a->f() > b->f();  // ! ***
-            if (a->conflicts != b->conflicts) return a->conflicts > b->conflicts;  // ! ***
-            return a->g <= b->g;  // ! ***
+    struct CmpSN {
+        bool operator()(const SN* a, const SN* b) const {
+            if (a->f() != b->f()) return a->f() > b->f();
+            if (a->conflicts != b->conflicts) return a->conflicts > b->conflicts;
+            return a->g <= b->g;
         }
     };
 
-    boost::heap::fibonacci_heap<SN*, boost::heap::compare<CmpSN>> open;  // ! ***
-    struct KeyHash { size_t operator()(uint64_t k) const { return k * 2654435761ULL; } };  // ! ***
-    unordered_map<uint64_t, int, KeyHash> closed;  // ! ***
-    vector<SN*> nodes;  // ! ***
-    auto mk = [&](int l, int iv, int gi, int g) -> uint64_t {  // ! *** lambda mk()
-        (void)g;  // ! ***
-        return ((uint64_t)l << 32) | ((uint64_t)(iv & 0xFFFF) << 16) | (gi & 0xFFFF);  // ! ***
+    boost::heap::fibonacci_heap<SN*, boost::heap::compare<CmpSN>> open;
+    struct KeyHash { size_t operator()(uint64_t k) const { return k * 2654435761ULL; } };
+    unordered_map<uint64_t, int, KeyHash> closed;
+    vector<SN*> nodes;
+    auto mk = [&](int l, int iv, int gi, int g) -> uint64_t {
+        (void)g;
+        return ((uint64_t)l << 32) | ((uint64_t)(iv & 0xFFFF) << 16) | (gi & 0xFFFF);
     };
 
-    int ih = sum_h(start_loc, 0);  // ! ***
-    if (ih == INT_MAX) { reset_scratch(); return {}; }  // ! ***
+    int ih = sum_h(start_loc, 0);
+    if (ih == INT_MAX) { reset_scratch(); return {}; }
 
-    int s_iv = 0;  // ! ***
-    auto& ss = get_sit(start_loc);  // ! ***
-    if (!ss.empty())  // ! ***
-        for (int i = 0; i < (int)ss.size(); i++)  // ! ***
-            if (ss[i].first <= start_time && start_time < ss[i].second) { s_iv = i; break; }  // ! ***
+    int s_iv = 0;
+    auto& ss = get_sit(start_loc);
+    if (!ss.empty())
+        for (int i = 0; i < (int)ss.size(); i++)
+            if (ss[i].first <= start_time && start_time < ss[i].second) { s_iv = i; break; }
 
-    auto* root = new SN(start_loc, 0, ih, start_time, 0, s_iv, 0, nullptr);  // ! ***
-    open.push(root); nodes.push_back(root);  // ! ***
-    closed[mk(start_loc, s_iv, 0, 0)] = 0;  // ! ***
+    auto* root = new SN(start_loc, 0, ih, start_time, 0, s_iv, 0, nullptr);
+    open.push(root); nodes.push_back(root);
+    closed[mk(start_loc, s_iv, 0, 0)] = 0;
 
-    SN* sol = nullptr;  // ! ***
-    int exp = 0;  // ! ***
-#ifdef SIPP_PROF  // ! ***
-    auto __t1 = std::chrono::high_resolution_clock::now();  // ! ***
-    g_setup_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(__t1-__t0).count();  // ! ***
-#endif  // ! ***
+    SN* sol = nullptr;
+    int exp = 0;
+#ifdef SIPP_PROF
+    auto __t1 = std::chrono::high_resolution_clock::now();
+    g_setup_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(__t1-__t0).count();
+#endif
     // Expansion cap (mirrors seq_mla_star's tight cap).  A genuine path through the SIPP state
     // space (loc x interval x goal) is found in far fewer expansions than this; a search that
     // exhausts it has no valid path within the horizon (the early-bail above already removes the
     // common permanently-blocked-goal case, so this is only a safety net).  Capping low keeps
     // hopeless searches cheap at low task frequency WITHOUT changing makespan/SWT.  Previously
     // 500000, which made each hopeless root search burn ~0.1s and blew the runtime budget.
-    int max_exp = min(500000, map_size * 20 * max(1, num_goals));  // ! ***
-    while (!open.empty() && exp < max_exp) {  // ! ***
-        SN* cur = open.top(); open.pop();  // ! ***
-        int gi = cur->gi;  // ! ***
-        if (gi < num_goals && cur->loc == goals[gi].first && cur->t >= goals[gi].second) {  // ! ***
-            if (gi == num_goals-1 && cur->t < earliest_hold) {} else gi++;  // ! ***
+    int max_exp = min(500000, map_size * 20 * max(1, num_goals));
+    while (!open.empty() && exp < max_exp) {
+        SN* cur = open.top(); open.pop();
+        int gi = cur->gi;
+        if (gi < num_goals && cur->loc == goals[gi].first && cur->t >= goals[gi].second) {
+            if (gi == num_goals-1 && cur->t < earliest_hold) {} else gi++;
         }
         // Windowed (wPBS) mode: terminate at the window boundary even if not all goals are
         // reached, returning the partial path (matches reference StateTimeA* / seq_mla_star).
-        if (gi >= num_goals || (windowed && cur->t >= wpbs_cutoff)) { sol = cur; break; }  // ! ***
-        auto ck = mk(cur->loc, cur->iv, gi, cur->g);  // ! ***
-        if (closed.count(ck) && closed[ck] < cur->g) continue;  // ! ***
-        exp++;  // ! ***
-        if (cur->t >= horizon - 1) continue;  // ! ***
+        if (gi >= num_goals || (windowed && cur->t >= wpbs_cutoff)) { sol = cur; break; }
+        auto ck = mk(cur->loc, cur->iv, gi, cur->g);
+        if (closed.count(ck) && closed[ck] < cur->g) continue;
+        exp++;
+        if (cur->t >= horizon - 1) continue;
 
-        auto& sc = get_sit(cur->loc);  // ! ***
-        int civ_end = horizon;  // ! ***
-        if (!sc.empty() && cur->iv < (int)sc.size()) civ_end = sc[cur->iv].second;  // ! ***
+        auto& sc = get_sit(cur->loc);
+        int civ_end = horizon;
+        if (!sc.empty() && cur->iv < (int)sc.size()) civ_end = sc[cur->iv].second;
 
         // Match reference PBS KivaGraph move order: {1(E), -cols(N), -1(W), cols(S)}
-        int dirs[4] = {1, -cols, -1, cols};  // ! ***
-        for (int d = 0; d < 4; d++) {  // ! ***
-            int nl = cur->loc + dirs[d];  // ! ***
-            if (nl < 0 || nl >= map_size || !mapd_map.grid[nl]) continue;  // ! ***
-            if (abs(nl % cols - cur->loc % cols) > 1) continue;  // ! ***
-            int mt = cur->t + 1;  // ! ***
-            auto& sn = get_sit(nl);  // ! ***
-            if (sn.empty() && has_ct[nl]) continue; // fully blocked  // ! ***
-            if (sn.empty()) {  // ! ***
+        int dirs[4] = {1, -cols, -1, cols};
+        for (int d = 0; d < 4; d++) {
+            int nl = cur->loc + dirs[d];
+            if (nl < 0 || nl >= map_size || !mapd_map.grid[nl]) continue;
+            if (abs(nl % cols - cur->loc % cols) > 1) continue;
+            int mt = cur->t + 1;
+            auto& sn = get_sit(nl);
+            if (sn.empty() && has_ct[nl]) continue; // fully blocked
+            if (sn.empty()) {
                 // Truly unconstrained
-                if (mt < horizon && !edge_blocked(cur->loc, nl, mt)) {  // ! ***
-                    int ngi = gi;  // ! ***
-                    if (ngi < num_goals && nl == goals[ngi].first && mt >= goals[ngi].second)  // ! ***
-                        { if (ngi == num_goals-1 && mt < earliest_hold) {} else ngi++; }  // ! ***
-                    int nh = sum_h(nl, ngi); if (nh == INT_MAX) continue;  // ! ***
-                    int ng = mt - start_time;  // ! ***
-                    auto nk = mk(nl, 0, ngi, ng);  // ! ***
-                    if (!closed.count(nk) || closed[nk] > ng) {  // ! ***
-                        closed[nk] = ng;  // ! ***
-                        auto* nd = new SN(nl, ng, nh, mt, ngi, 0, cur->conflicts, cur);  // ! ***
-                        open.push(nd); nodes.push_back(nd);  // ! ***
+                if (mt < horizon && !edge_blocked(cur->loc, nl, mt)) {
+                    int ngi = gi;
+                    if (ngi < num_goals && nl == goals[ngi].first && mt >= goals[ngi].second)
+                        { if (ngi == num_goals-1 && mt < earliest_hold) {} else ngi++; }
+                    int nh = sum_h(nl, ngi); if (nh == INT_MAX) continue;
+                    int ng = mt - start_time;
+                    auto nk = mk(nl, 0, ngi, ng);
+                    if (!closed.count(nk) || closed[nk] > ng) {
+                        closed[nk] = ng;
+                        auto* nd = new SN(nl, ng, nh, mt, ngi, 0, cur->conflicts, cur);
+                        open.push(nd); nodes.push_back(nd);
                     }
                 }
-            } else {  // ! ***
-                for (int iv = 0; iv < (int)sn.size(); iv++) {  // ! ***
-                    if (sn[iv].second <= mt) continue;  // ! ***
-                    int arr = max(mt, sn[iv].first);  // ! ***
-                    if (arr >= horizon || arr > civ_end) continue;  // ! ***
+            } else {
+                for (int iv = 0; iv < (int)sn.size(); iv++) {
+                    if (sn[iv].second <= mt) continue;
+                    int arr = max(mt, sn[iv].first);
+                    if (arr >= horizon || arr > civ_end) continue;
                     // Advance arrival within interval to find non-edge-blocked time
-                    while (arr < sn[iv].second && arr <= civ_end && arr < horizon &&  // ! ***
-                           edge_blocked(cur->loc, nl, arr))  // ! ***
-                        arr++;  // ! ***
-                    if (arr >= sn[iv].second || arr >= horizon || arr > civ_end) continue;  // ! ***
-                    int ngi = gi;  // ! ***
-                    if (ngi < num_goals && nl == goals[ngi].first && arr >= goals[ngi].second)  // ! ***
-                        { if (ngi == num_goals-1 && arr < earliest_hold) {} else ngi++; }  // ! ***
-                    int nh = sum_h(nl, ngi); if (nh == INT_MAX) continue;  // ! ***
-                    int ng = arr - start_time;  // ! ***
-                    auto nk = mk(nl, iv, ngi, ng);  // ! ***
-                    if (!closed.count(nk) || closed[nk] > ng) {  // ! ***
-                        closed[nk] = ng;  // ! ***
-                        auto* nd = new SN(nl, ng, nh, arr, ngi, iv, cur->conflicts, cur);  // ! ***
-                        open.push(nd); nodes.push_back(nd);  // ! ***
+                    while (arr < sn[iv].second && arr <= civ_end && arr < horizon &&
+                           edge_blocked(cur->loc, nl, arr))
+                        arr++;
+                    if (arr >= sn[iv].second || arr >= horizon || arr > civ_end) continue;
+                    int ngi = gi;
+                    if (ngi < num_goals && nl == goals[ngi].first && arr >= goals[ngi].second)
+                        { if (ngi == num_goals-1 && arr < earliest_hold) {} else ngi++; }
+                    int nh = sum_h(nl, ngi); if (nh == INT_MAX) continue;
+                    int ng = arr - start_time;
+                    auto nk = mk(nl, iv, ngi, ng);
+                    if (!closed.count(nk) || closed[nk] > ng) {
+                        closed[nk] = ng;
+                        auto* nd = new SN(nl, ng, nh, arr, ngi, iv, cur->conflicts, cur);
+                        open.push(nd); nodes.push_back(nd);
                     }
                 }
             }
@@ -6299,22 +6299,22 @@ vector<int> Simulation::sipp_search(int agent_id, int start_loc, int start_time,
         // collision with the higher-priority agent (the SIPP --sipp collision bug).  Since
         // this reimplementation has no soft/CAT intervals, hard-constrained SITs never have
         // contiguous neighbours, so in practice this successor is correctly never taken.
-        if (!sc.empty() && cur->iv + 1 < (int)sc.size()) {  // ! ***
-            int iv = cur->iv + 1;  // ! ***
-            if (sc[iv].first == sc[cur->iv].second) {  // contiguous only  // ! ***
-                int arr = sc[iv].first;  // ! ***
-                if (arr < horizon) {  // ! ***
-                    int ngi = gi;  // ! ***
-                    if (ngi < num_goals && cur->loc == goals[ngi].first && arr >= goals[ngi].second)  // ! ***
-                        { if (ngi == num_goals-1 && arr < earliest_hold) {} else ngi++; }  // ! ***
-                    int nh = sum_h(cur->loc, ngi);  // ! ***
-                    if (nh != INT_MAX) {  // ! ***
-                        int ng = arr - start_time;  // ! ***
-                        auto nk = mk(cur->loc, iv, ngi, ng);  // ! ***
-                        if (!closed.count(nk) || closed[nk] > ng) {  // ! ***
-                            closed[nk] = ng;  // ! ***
-                            auto* nd = new SN(cur->loc, ng, nh, arr, ngi, iv, cur->conflicts, cur);  // ! ***
-                            open.push(nd); nodes.push_back(nd);  // ! ***
+        if (!sc.empty() && cur->iv + 1 < (int)sc.size()) {
+            int iv = cur->iv + 1;
+            if (sc[iv].first == sc[cur->iv].second) {  // contiguous only
+                int arr = sc[iv].first;
+                if (arr < horizon) {
+                    int ngi = gi;
+                    if (ngi < num_goals && cur->loc == goals[ngi].first && arr >= goals[ngi].second)
+                        { if (ngi == num_goals-1 && arr < earliest_hold) {} else ngi++; }
+                    int nh = sum_h(cur->loc, ngi);
+                    if (nh != INT_MAX) {
+                        int ng = arr - start_time;
+                        auto nk = mk(cur->loc, iv, ngi, ng);
+                        if (!closed.count(nk) || closed[nk] > ng) {
+                            closed[nk] = ng;
+                            auto* nd = new SN(cur->loc, ng, nh, arr, ngi, iv, cur->conflicts, cur);
+                            open.push(nd); nodes.push_back(nd);
                         }
                     }
                 }
@@ -6322,221 +6322,221 @@ vector<int> Simulation::sipp_search(int agent_id, int start_loc, int start_time,
         }
     }
 
-#ifdef SIPP_PROF  // ! ***
-    auto __t2 = std::chrono::high_resolution_clock::now();  // ! ***
-    g_loop_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(__t2-__t1).count();  // ! ***
-    g_exp += exp;  // ! ***
-    if (!sol) g_bail++;  // ! ***
-#endif  // ! ***
+#ifdef SIPP_PROF
+    auto __t2 = std::chrono::high_resolution_clock::now();
+    g_loop_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(__t2-__t1).count();
+    g_exp += exp;
+    if (!sol) g_bail++;
+#endif
     // Reconstruct
-    vector<int> result;  // ! ***
-    if (sol) {  // ! ***
-        vector<SN*> pn;  // ! ***
-        for (SN* n = sol; n; n = n->parent) pn.push_back(n);  // ! ***
-        reverse(pn.begin(), pn.end());  // ! ***
-        vector<int> locs;  // ! ***
-        for (int i = 0; i < (int)pn.size(); i++) {  // ! ***
-            if (i == 0) { locs.push_back(pn[0]->loc); continue; }  // ! ***
-            for (int t = pn[i-1]->t + 1; t < pn[i]->t; t++) locs.push_back(pn[i-1]->loc);  // ! ***
-            locs.push_back(pn[i]->loc);  // ! ***
+    vector<int> result;
+    if (sol) {
+        vector<SN*> pn;
+        for (SN* n = sol; n; n = n->parent) pn.push_back(n);
+        reverse(pn.begin(), pn.end());
+        vector<int> locs;
+        for (int i = 0; i < (int)pn.size(); i++) {
+            if (i == 0) { locs.push_back(pn[0]->loc); continue; }
+            for (int t = pn[i-1]->t + 1; t < pn[i]->t; t++) locs.push_back(pn[i-1]->loc);
+            locs.push_back(pn[i]->loc);
         }
-        result.resize(max_t);  // ! ***
-        for (int t = 0; t < start_time && t < max_t; t++) result[t] = start_loc;  // ! ***
-        for (int i = 0; i < (int)locs.size(); i++) {  // ! ***
-            int t = start_time + i;  // ! ***
-            if (t < max_t) result[t] = locs[i];  // ! ***
+        result.resize(max_t);
+        for (int t = 0; t < start_time && t < max_t; t++) result[t] = start_loc;
+        for (int i = 0; i < (int)locs.size(); i++) {
+            int t = start_time + i;
+            if (t < max_t) result[t] = locs[i];
         }
-        int last = locs.back();  // ! ***
-        for (int t = start_time + (int)locs.size(); t < max_t; t++) result[t] = last;  // ! ***
+        int last = locs.back();
+        for (int t = start_time + (int)locs.size(); t < max_t; t++) result[t] = last;
 
         // (validation removed — conflicts handled at caller level)
     }
-    for (auto* n : nodes) delete n;  // ! ***
-    reset_scratch();  // ! ***
-#ifdef SIPP_PROF  // ! ***
-    auto __t3 = std::chrono::high_resolution_clock::now();  // ! ***
-    g_recon_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(__t3-__t2).count();  // ! ***
-#endif  // ! ***
-    return result;  // ! ***
+    for (auto* n : nodes) delete n;
+    reset_scratch();
+#ifdef SIPP_PROF
+    auto __t3 = std::chrono::high_resolution_clock::now();
+    g_recon_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(__t3-__t2).count();
+#endif
+    return result;
 }
 
 // ============================================================
 // Section 32b: Split Goal Sequence into Per-Task Groups
 // ============================================================
 
-vector<vector<pair<int,int>>> Simulation::split_into_task_groups(  // ! *** [S5] split_into_task_groups(): max 2 tasks (LNS) / 3 tasks (Hungarian)
-    int agent_id,  // ! ***
-    const vector<pair<int,int>>& goal_seq) const  // ! ***
+vector<vector<pair<int,int>>> Simulation::split_into_task_groups(
+    int agent_id,
+    const vector<pair<int,int>>& goal_seq) const
 {
-    vector<vector<pair<int,int>>> groups;  // ! ***
-    int idx = 0;  // ! ***
-    int max_tasks = (config.assign_method == AM_REPEATED_HUNGARIAN_LNS) ? 2 : 3;  // ! *** the only Hungarian-vs-LNS difference in path planning
-    int count = 0;  // ! ***
+    vector<vector<pair<int,int>>> groups;
+    int idx = 0;
+    int max_tasks = (config.assign_method == AM_REPEATED_HUNGARIAN_LNS) ? 2 : 3;
+    int count = 0;
 
-    for (int tid : agents[agent_id].task_sequence) {  // ! ***
-        if (count >= max_tasks) break;  // ! ***
-        const Task& task = all_tasks[tid];  // ! ***
-        int num_goals = min((int)task.goals.size(), 2);  // ! ***
-        bool carrying = (agents[agent_id].status == AG_CARRYING &&  // ! ***
-                          tid == agents[agent_id].current_task);  // ! ***
+    for (int tid : agents[agent_id].task_sequence) {
+        if (count >= max_tasks) break;
+        const Task& task = all_tasks[tid];
+        int num_goals = min((int)task.goals.size(), 2);
+        bool carrying = (agents[agent_id].status == AG_CARRYING &&
+                          tid == agents[agent_id].current_task);
 
-        vector<pair<int,int>> group;  // ! ***
-        if (num_goals <= 1) {  // ! ***
-            if (!carrying && idx < (int)goal_seq.size())  // ! ***
-                group.push_back(goal_seq[idx++]);  // ! ***
-        } else {  // ! ***
-            if (carrying) {  // ! ***
-                if (idx < (int)goal_seq.size())  // ! ***
-                    group.push_back(goal_seq[idx++]);  // ! ***
-            } else {  // ! ***
-                if (idx < (int)goal_seq.size())  // ! ***
-                    group.push_back(goal_seq[idx++]);  // ! ***
-                if (idx < (int)goal_seq.size())  // ! ***
-                    group.push_back(goal_seq[idx++]);  // ! ***
+        vector<pair<int,int>> group;
+        if (num_goals <= 1) {
+            if (!carrying && idx < (int)goal_seq.size())
+                group.push_back(goal_seq[idx++]);
+        } else {
+            if (carrying) {
+                if (idx < (int)goal_seq.size())
+                    group.push_back(goal_seq[idx++]);
+            } else {
+                if (idx < (int)goal_seq.size())
+                    group.push_back(goal_seq[idx++]);
+                if (idx < (int)goal_seq.size())
+                    group.push_back(goal_seq[idx++]);
             }
         }
-        if (!group.empty())  // ! ***
-            groups.push_back(group);  // ! ***
-        count++;  // ! ***
+        if (!group.empty())
+            groups.push_back(group);
+        count++;
     }
 
-    if (idx < (int)goal_seq.size())  // ! ***
-        groups.push_back({goal_seq[idx]});  // ! ***
+    if (idx < (int)goal_seq.size())
+        groups.push_back({goal_seq[idx]});
 
-    return groups;  // ! ***
+    return groups;
 }
 
 // ============================================================
 // Section 32c: Task-by-Task MLA* — Plans Each Task Separately
 // ============================================================
 
-vector<int> Simulation::mla_star_taskwise(  // ! *** [S7] mla_star_taskwise(): default mla_mode, one search per task group
-    int agent_id, int start_loc, int start_time,  // ! ***
-    const vector<vector<pair<int,int>>>& task_groups,  // ! ***
-    const vector<vector<int>>& cons_paths,  // ! ***
-    const vector<vector<int>>& old_paths,  // ! ***
-    bool use_old_paths,  // ! ***
-    int constraint_window)  // ! ***
+vector<int> Simulation::mla_star_taskwise(
+    int agent_id, int start_loc, int start_time,
+    const vector<vector<pair<int,int>>>& task_groups,
+    const vector<vector<int>>& cons_paths,
+    const vector<vector<int>>& old_paths,
+    bool use_old_paths,
+    int constraint_window)
 {
-    if (task_groups.empty()) return {start_loc};  // ! ***
+    if (task_groups.empty()) return {start_loc};
 
-    int max_t = (int)maxtime;  // ! ***
+    int max_t = (int)maxtime;
     // Windowed (wPBS): the committed plan is only read over the short working window, and
     // seq_mla_star returns a window-bounded segment (constant hold after).  Size full_path to
     // a tight window-covering length instead of the full horizon (max_t ~5000) to avoid a
     // ~max_t/window-fold per-call allocation + segment copy that dominated windowed solve cost.
     // out_len bounds every t-loop below; segment[t] is read only within its own length.
-    int out_len = max_t;  // ! ***
-    if (constraint_window > 0)  // ! ***
-        out_len = min(max_t, constraint_window + 8);  // ! ***
-    vector<int> full_path(out_len, start_loc);  // ! ***
-    for (int t = 0; t < min(start_time, out_len); t++)  // ! ***
-        full_path[t] = start_loc;  // ! ***
+    int out_len = max_t;
+    if (constraint_window > 0)
+        out_len = min(max_t, constraint_window + 8);
+    vector<int> full_path(out_len, start_loc);
+    for (int t = 0; t < min(start_time, out_len); t++)
+        full_path[t] = start_loc;
 
-    int cur_loc = start_loc;  // ! ***
-    int cur_time = start_time;  // ! ***
+    int cur_loc = start_loc;
+    int cur_time = start_time;
 
-    for (int g = 0; g < (int)task_groups.size(); g++) {  // ! ***
-        const auto& goals = task_groups[g];  // ! ***
-        if (goals.empty()) continue;  // ! ***
+    for (int g = 0; g < (int)task_groups.size(); g++) {
+        const auto& goals = task_groups[g];
+        if (goals.empty()) continue;
 
-        bool is_last = (g == (int)task_groups.size() - 1);  // ! ***
+        bool is_last = (g == (int)task_groups.size() - 1);
 
-        vector<int> segment = seq_mla_star(agent_id, cur_loc, cur_time,  // ! *** -> seq_mla_star()
-                                            goals, cons_paths, old_paths,  // ! ***
-                                            use_old_paths, !is_last,  // ! ***
-                                            constraint_window);  // ! ***
-        if (segment.empty()) return {};  // ! ***
+        vector<int> segment = seq_mla_star(agent_id, cur_loc, cur_time,
+                                            goals, cons_paths, old_paths,
+                                            use_old_paths, !is_last,
+                                            constraint_window);
+        if (segment.empty()) return {};
 
-        int seg_n = (int)segment.size();  // ! ***
-        int seg_back = seg_n ? segment[seg_n - 1] : cur_loc;  // ! ***
-        for (int t = cur_time; t < out_len; t++)  // ! ***
-            full_path[t] = (t < seg_n) ? segment[t] : seg_back;  // ! ***
+        int seg_n = (int)segment.size();
+        int seg_back = seg_n ? segment[seg_n - 1] : cur_loc;
+        for (int t = cur_time; t < out_len; t++)
+            full_path[t] = (t < seg_n) ? segment[t] : seg_back;
 
         // Find where last goal was reached using goal advancement
-        int gi = 0;  // ! ***
-        bool found = false;  // ! ***
-        for (int t = cur_time; t < out_len && gi < (int)goals.size(); t++) {  // ! ***
-            if (full_path[t] == goals[gi].first && t >= goals[gi].second) {  // ! ***
-                gi++;  // ! ***
-                if (gi == (int)goals.size()) {  // ! ***
-                    cur_loc = goals.back().first;  // ! ***
-                    cur_time = t;  // ! ***
-                    found = true;  // ! ***
-                    break;  // ! ***
+        int gi = 0;
+        bool found = false;
+        for (int t = cur_time; t < out_len && gi < (int)goals.size(); t++) {
+            if (full_path[t] == goals[gi].first && t >= goals[gi].second) {
+                gi++;
+                if (gi == (int)goals.size()) {
+                    cur_loc = goals.back().first;
+                    cur_time = t;
+                    found = true;
+                    break;
                 }
             }
         }
-        if (!found) {  // ! ***
+        if (!found) {
             // wPBS: path may be truncated at window boundary without reaching all goals.
             // Accept partial path (matches reference truncated search behavior).
-            if (constraint_window > 0) {  // ! ***
-                return full_path;  // ! ***
+            if (constraint_window > 0) {
+                return full_path;
             }
-            return {};  // ! ***
+            return {};
         }
     }
 
-    return full_path;  // ! ***
+    return full_path;
 }
 
 // ============================================================
 // Section 33: PBS — Find Earliest Conflict Between Two Paths
 // ============================================================
 
-bool Simulation::pbs_find_conflict(const vector<int>& p1, const vector<int>& p2,  // ! *** [S6] pbs_find_conflict(): earliest vertex/edge conflict between two paths
-                                    int a1, int a2,  // ! ***
-                                    tuple<int,int,int,int,int>& conflict) {  // ! ***
-    int max_len = (int)max(p1.size(), p2.size());  // ! ***
+bool Simulation::pbs_find_conflict(const vector<int>& p1, const vector<int>& p2,
+                                    int a1, int a2,
+                                    tuple<int,int,int,int,int>& conflict) {
+    int max_len = (int)max(p1.size(), p2.size());
 
-    for (int t = 0; t < max_len; t++) {  // ! ***
-        int loc1 = (t < (int)p1.size()) ? p1[t] : p1.back();  // ! ***
-        int loc2 = (t < (int)p2.size()) ? p2[t] : p2.back();  // ! ***
+    for (int t = 0; t < max_len; t++) {
+        int loc1 = (t < (int)p1.size()) ? p1[t] : p1.back();
+        int loc2 = (t < (int)p2.size()) ? p2[t] : p2.back();
 
-        if (loc1 == loc2) {  // ! ***
-            conflict = make_tuple(a1, a2, loc1, -1, t);  // ! ***
-            return true;  // ! ***
+        if (loc1 == loc2) {
+            conflict = make_tuple(a1, a2, loc1, -1, t);
+            return true;
         }
 
-        if (t > 0) {  // ! ***
-            int prev_loc1 = (t - 1 < (int)p1.size()) ? p1[t-1] : p1.back();  // ! ***
-            int prev_loc2 = (t - 1 < (int)p2.size()) ? p2[t-1] : p2.back();  // ! ***
-            if (loc1 == prev_loc2 && loc2 == prev_loc1) {  // ! ***
-                conflict = make_tuple(a1, a2, loc1, loc2, t);  // ! ***
-                return true;  // ! ***
+        if (t > 0) {
+            int prev_loc1 = (t - 1 < (int)p1.size()) ? p1[t-1] : p1.back();
+            int prev_loc2 = (t - 1 < (int)p2.size()) ? p2[t-1] : p2.back();
+            if (loc1 == prev_loc2 && loc2 == prev_loc1) {
+                conflict = make_tuple(a1, a2, loc1, loc2, t);
+                return true;
             }
         }
     }
-    return false;  // ! ***
+    return false;
 }
 
 // ============================================================
 // Section 34: PBS Core — Shared DFS-Based Search
 // ============================================================
 
-bool Simulation::pbs_core(bool windowed) {  // ! *** [S6] pbs_core(): root batch, DFS over priorities, cascade, nogoods, commit
-    int num_ag = (int)agents.size();  // ! ***
-    int max_t = (int)maxtime;  // ! ***
+bool Simulation::pbs_core(bool windowed) {
+    int num_ag = (int)agents.size();
+    int max_t = (int)maxtime;
 
-    vector<vector<pair<int,int>>> goal_seqs = build_goal_sequences();  // ! *** assignment -> goals handoff
+    vector<vector<pair<int,int>>> goal_seqs = build_goal_sequences();
 
-    bool use_seq_sta = (config.mla_mode == MLA_SEQ_STA);  // ! ***
-    bool use_taskwise = (!use_seq_sta && config.mla_mode != MLA_SEQ);  // ! ***
-    vector<vector<vector<pair<int,int>>>> all_task_groups;  // ! ***
-    if (use_taskwise) {  // ! ***
-        all_task_groups.resize(num_ag);  // ! ***
-        for (int i = 0; i < num_ag; i++)  // ! ***
-            all_task_groups[i] = split_into_task_groups(i, goal_seqs[i]);  // ! *** -> split_into_task_groups()
+    bool use_seq_sta = (config.mla_mode == MLA_SEQ_STA);
+    bool use_taskwise = (!use_seq_sta && config.mla_mode != MLA_SEQ);
+    vector<vector<vector<pair<int,int>>>> all_task_groups;
+    if (use_taskwise) {
+        all_task_groups.resize(num_ag);
+        for (int i = 0; i < num_ag; i++)
+            all_task_groups[i] = split_into_task_groups(i, goal_seqs[i]);
     }
 
     // Match reference: wPBS constraint window = replan_window (not 3x).
     // Reference: solver.window = planning_window = 10.
     // Constraints are only inserted for timesteps up to window.
-    int cons_window = windowed ? (int)cur_time_ + config.replan_window : -1;  // ! *** wPBS: constraints only inserted up to cur_time_+replan_window
+    int cons_window = windowed ? (int)cur_time_ + config.replan_window : -1;
 
     // Sequential single-goal A* (matches reference StateTimeA*):
     // plan to each goal one at a time, concatenate paths
-    auto seq_sta_plan = [&](int aid, int loc, int time,  // ! (not-LNS) seq_sta_plan lambda: only with --mla_mode sta, which none of the 10 methods pass
+    auto seq_sta_plan = [&](int aid, int loc, int time,
                             const vector<pair<int,int>>& goals,
                             const vector<vector<int>>& cons,
                             const vector<vector<int>>& old,
@@ -6572,24 +6572,24 @@ bool Simulation::pbs_core(bool windowed) {  // ! *** [S6] pbs_core(): root batch
         return result;
     };
 
-    auto plan_agent = [&](int aid, int loc, int time,  // ! *** lambda plan_agent()
-                          const vector<vector<int>>& cons,  // ! ***
-                          const vector<vector<int>>& old,  // ! ***
-                          bool use_old) -> vector<int> {  // ! ***
-        if (config.use_sipp)  // ! *** MLSIPP methods
-            return sipp_search(aid, loc, time, goal_seqs[aid], cons, old, use_old,  // ! *** -> sipp_search()
-                               false, cons_window);  // ! ***
-        if (use_seq_sta)  // ! *** --mla_mode sta
-            return seq_sta_plan(aid, loc, time, goal_seqs[aid], cons, old, use_old);  // ! (not-LNS) --mla_mode sta only
-        if (use_taskwise)  // ! *** DEFAULT for MLA* methods
-            return mla_star_taskwise(aid, loc, time, all_task_groups[aid],  // ! *** -> mla_star_taskwise()
-                                      cons, old, use_old, cons_window);  // ! ***
-        return seq_mla_star(aid, loc, time, goal_seqs[aid], cons, old, use_old,  // ! (not-LNS) --mla_mode seq only
+    auto plan_agent = [&](int aid, int loc, int time,
+                          const vector<vector<int>>& cons,
+                          const vector<vector<int>>& old,
+                          bool use_old) -> vector<int> {
+        if (config.use_sipp)
+            return sipp_search(aid, loc, time, goal_seqs[aid], cons, old, use_old,
+                               false, cons_window);
+        if (use_seq_sta)
+            return seq_sta_plan(aid, loc, time, goal_seqs[aid], cons, old, use_old);
+        if (use_taskwise)
+            return mla_star_taskwise(aid, loc, time, all_task_groups[aid],
+                                      cons, old, use_old, cons_window);
+        return seq_mla_star(aid, loc, time, goal_seqs[aid], cons, old, use_old,
                              false, cons_window);
     };
 
     // Limit path copy to relevant horizon (from current timestep + search horizon)
-    int path_horizon = min(max_t, (int)cur_time_ + 1200);  // ! ***
+    int path_horizon = min(max_t, (int)cur_time_ + 1200);
 
     // Working path length for PBS bookkeeping.
     //   Windowed wPBS: the low-level search is hard-capped at start+10, so every plan is a
@@ -6599,14 +6599,14 @@ bool Simulation::pbs_core(bool windowed) {  // ! *** [S6] pbs_core(): root batch
     //   and is what makes windowed wPBS tractable at high agent counts.  Beyond work_len every
     //   agent is frozen at work_len-1, so it is reconstructed (as a hold) only when committing.
     //   Non-windowed PBS keeps the full horizon (its committed plan runs to each goal).
-    int work_len = max_t;  // ! ***
-    if (windowed) {  // ! ***
+    int work_len = max_t;
+    if (windowed) {
         // The windowed low-level search is hard-capped at start+10, so every plan is at most
         // ~10 active steps; +4 margin covers the boundary hold (where same-cell rests must
         // still be detected as conflicts).  A tighter work_len shrinks both the per-node path
         // copy and the O(num_ag^2 * work_len) conflict detection.
-        work_len = min(max_t, (int)cur_time_ + 14);  // ! ***
-    } else {  // ! ***
+        work_len = min(max_t, (int)cur_time_ + 14);
+    } else {
         // Non-windowed PBS: the low-level search horizon is hard-capped at start+512 (see
         // seq_mla_star), so every committed plan is fully active within [timestep, timestep+512]
         // and constant (held at its goal) afterwards.  Sizing the PBS node path tables to that
@@ -6615,7 +6615,7 @@ bool Simulation::pbs_core(bool windowed) {  // ! *** [S6] pbs_core(): root batch
         // with no effect on the result: commit_node extends every agent's final hold cell out to
         // max_t, and conflict detection is bounded by settle_time <= work_len.  +16 margin covers
         // the boundary hold so same-cell rests at the window edge are still detected as conflicts.
-        work_len = min(max_t, (int)cur_time_ + 512 + 16);  // ! ***
+        work_len = min(max_t, (int)cur_time_ + 512 + 16);
     }
 
     // Save old paths (only up to path_horizon).
@@ -6623,16 +6623,16 @@ bool Simulation::pbs_core(bool windowed) {  // ! *** [S6] pbs_core(): root batch
     // no-op there) nor used by the reference at all, so skip building/copying them entirely —
     // at low task frequencies path_horizon is ~1200+ and copying it for every agent on every
     // one of the many windowed solves was a large, pointless cost.
-    vector<vector<int>> old_paths;  // ! ***
-    if (!windowed) {  // ! ***
-        old_paths.resize(num_ag);  // ! ***
-        for (int i = 0; i < num_ag; i++) {  // ! ***
-            old_paths[i].resize(path_horizon);  // ! ***
-            for (int t = 0; t < path_horizon; t++)  // ! ***
-                old_paths[i][t] = (int)path_table_[i][t];  // ! ***
+    vector<vector<int>> old_paths;
+    if (!windowed) {
+        old_paths.resize(num_ag);
+        for (int i = 0; i < num_ag; i++) {
+            old_paths[i].resize(path_horizon);
+            for (int t = 0; t < path_horizon; t++)
+                old_paths[i][t] = (int)path_table_[i][t];
         }
     }
-    bool use_old_in_pbs = !windowed;  // ! ***
+    bool use_old_in_pbs = !windowed;
 
     // --- Build the shared old-path constraint table ONCE for the whole root batch -------------
     // All num_ag root searches use the SAME old paths (each excluding only itself).  Flattening
@@ -6640,77 +6640,77 @@ bool Simulation::pbs_core(bool windowed) {  // ! *** [S6] pbs_core(): root batch
     // O(num_ag^2 * horizon) per-solve cost at low task frequency.  The table is sized to the
     // GLOBAL active prefix length; each agent's constant hold tail is carried by shared_old_holds_
     // and enforced as a permanent endpoint hold inside seq_mla_star.
-    shared_old_valid_ = false;  // ! ***
-    if (use_old_in_pbs) {  // ! ***
+    shared_old_valid_ = false;
+    if (use_old_in_pbs) {
         // The per-search horizon cap is start_time + 512 (see seq_mla_star); never need more.
-        int cap = min(path_horizon, (int)cur_time_ + 513);  // ! ***
-        int g_active = 1;  // ! ***
-        for (int i = 0; i < num_ag; i++) {  // ! ***
-            const auto& p = old_paths[i];  // ! ***
-            int n = min((int)p.size(), cap);  // ! ***
-            int last_move = 0;  // ! ***
-            for (int t = 1; t < n; t++)  // ! ***
-                if (p[t] != p[t-1]) last_move = t;  // ! ***
-            if (last_move + 1 > g_active) g_active = last_move + 1;  // ! ***
+        int cap = min(path_horizon, (int)cur_time_ + 513);
+        int g_active = 1;
+        for (int i = 0; i < num_ag; i++) {
+            const auto& p = old_paths[i];
+            int n = min((int)p.size(), cap);
+            int last_move = 0;
+            for (int t = 1; t < n; t++)
+                if (p[t] != p[t-1]) last_move = t;
+            if (last_move + 1 > g_active) g_active = last_move + 1;
         }
-        shared_old_horizon_ = g_active;  // ! ***
-        shared_old_flat_.assign((size_t)num_ag * g_active, 0);  // ! ***
-        shared_old_holds_.assign(num_ag, 0);  // ! ***
-        shared_old_holdcnt_.assign((size_t)mapd_map.row * mapd_map.col, 0);  // ! ***
-        shared_old_movers_.clear();  // ! ***
-        for (int i = 0; i < num_ag; i++) {  // ! ***
-            const auto& p = old_paths[i];  // ! ***
-            int back = p.empty() ? (int)agents[i].loc : p.back();  // ! ***
+        shared_old_horizon_ = g_active;
+        shared_old_flat_.assign((size_t)num_ag * g_active, 0);
+        shared_old_holds_.assign(num_ag, 0);
+        shared_old_holdcnt_.assign((size_t)mapd_map.row * mapd_map.col, 0);
+        shared_old_movers_.clear();
+        for (int i = 0; i < num_ag; i++) {
+            const auto& p = old_paths[i];
+            int back = p.empty() ? (int)agents[i].loc : p.back();
             // does this agent move within the active window?
-            bool moves = false;  // ! ***
-            int n = min((int)p.size(), g_active);  // ! ***
-            for (int t = 1; t < n; t++) if (p[t] != p[t-1]) { moves = true; break; }  // ! ***
-            for (int t = 0; t < g_active; t++)  // ! ***
-                shared_old_flat_[(size_t)i * g_active + t] =  // ! ***
-                    (t < (int)p.size()) ? p[t] : back;  // ! ***
-            shared_old_holds_[i] = back;  // ! ***
-            if (moves) {  // ! ***
-                shared_old_movers_.push_back(i);  // ! ***
-            } else if (back >= 0 && back < (int)shared_old_holdcnt_.size()) {  // ! ***
+            bool moves = false;
+            int n = min((int)p.size(), g_active);
+            for (int t = 1; t < n; t++) if (p[t] != p[t-1]) { moves = true; break; }
+            for (int t = 0; t < g_active; t++)
+                shared_old_flat_[(size_t)i * g_active + t] =
+                    (t < (int)p.size()) ? p[t] : back;
+            shared_old_holds_[i] = back;
+            if (moves) {
+                shared_old_movers_.push_back(i);
+            } else if (back >= 0 && back < (int)shared_old_holdcnt_.size()) {
                 // PARKED agent: occupies its single cell at EVERY timestep (counted here so the
                 // per-expansion check is O(1) for the common parked majority).
-                shared_old_holdcnt_[back]++;  // ! ***
+                shared_old_holdcnt_[back]++;
             }
         }
         // SIPP analog: precompress each old path into CT ranges once (reused by sipp_search at the
         // root).  Compress to cur_time_+300, the same old-path window sipp_search uses; the
         // per-search clamps each range to its own old_h, so this is exactly equivalent.
-        if (config.use_sipp) {  // ! ***
-            int sipp_h = min(path_horizon, (int)cur_time_ + 300);  // ! ***
-            shared_old_sipp_h_ = sipp_h;  // ! ***
-            shared_old_sipp_ranges_.assign(num_ag, {});  // ! ***
-            for (int i = 0; i < num_ag; i++) {  // ! ***
-                const auto& op = old_paths[i];  // ! ***
-                int len = min((int)op.size(), sipp_h);  // ! ***
-                if (len == 0) continue;  // ! ***
-                auto& out = shared_old_sipp_ranges_[i];  // ! ***
-                int ss = 0, sl = op[0];  // ! ***
-                for (int t = 1; t < len; t++) {  // ! ***
-                    if (op[t] != sl) { out.emplace_back(sl, ss, t); sl = op[t]; ss = t; }  // ! ***
+        if (config.use_sipp) {
+            int sipp_h = min(path_horizon, (int)cur_time_ + 300);
+            shared_old_sipp_h_ = sipp_h;
+            shared_old_sipp_ranges_.assign(num_ag, {});
+            for (int i = 0; i < num_ag; i++) {
+                const auto& op = old_paths[i];
+                int len = min((int)op.size(), sipp_h);
+                if (len == 0) continue;
+                auto& out = shared_old_sipp_ranges_[i];
+                int ss = 0, sl = op[0];
+                for (int t = 1; t < len; t++) {
+                    if (op[t] != sl) { out.emplace_back(sl, ss, t); sl = op[t]; ss = t; }
                 }
-                out.emplace_back(sl, ss, sipp_h);  // ! ***
+                out.emplace_back(sl, ss, sipp_h);
             }
         }
-        shared_old_valid_ = true;  // ! ***
+        shared_old_valid_ = true;
     }
 
-    PBSNode* root = new PBSNode();  // ! ***
-    root->paths.resize(num_ag);  // ! ***
+    PBSNode* root = new PBSNode();
+    root->paths.resize(num_ag);
 
-    for (int i = 0; i < num_ag; i++) {  // ! ***
-        root->paths[i].resize(work_len);  // ! ***
-        for (int t = 0; t < work_len; t++)  // ! ***
-            root->paths[i][t] = (int)path_table_[i][t];  // ! ***
+    for (int i = 0; i < num_ag; i++) {
+        root->paths[i].resize(work_len);
+        for (int t = 0; t < work_len; t++)
+            root->paths[i][t] = (int)path_table_[i][t];
     }
 
     // Match reference generate_root_node: plan all agents against old_paths only
     // (no sequential dependencies), then resolve via find_consistent_paths cascade.
-    int trunc = min(path_horizon, (int)cur_time_ + 1000);  // ! ***
+    int trunc = min(path_horizon, (int)cur_time_ + 1000);
 
     // --- Windowed (wPBS) root: SEQUENTIAL prioritized planning with a conflict-avoidance table.
     // The reference PBS::generate_root_node plans agents one by one, each avoiding (SOFT) the NEW
@@ -6719,80 +6719,80 @@ bool Simulation::pbs_core(bool windowed) {  // ! *** [S6] pbs_core(): root batch
     // new paths of 0..i-1, so agent i (focal low-level) routes around them.  Without this the +10
     // search picks arbitrary equal-cost prefixes that collide, and PBS adds waiting -> the wPBS
     // SWT/makespan inflation at mid task demand.  (Soft only: never a hard constraint.)
-    auto cat_fill = [&](int idx) {  // ! *** lambda cat_fill()
-        const int hor = shared_old_horizon_;  // ! ***
-        bool moves = false;  // ! ***
-        for (int t = 1; t < hor; t++)  // ! ***
-            if (root->paths[idx][t] != root->paths[idx][t-1]) { moves = true; break; }  // ! ***
-        for (int t = 0; t < hor; t++)  // ! ***
-            shared_old_flat_[(size_t)idx * hor + t] = root->paths[idx][t];  // ! ***
-        int back = root->paths[idx][hor - 1];  // ! ***
-        shared_old_holds_[idx] = back;  // ! ***
-        if (moves) shared_old_movers_.push_back(idx);  // ! ***
-        else if (back >= 0 && back < (int)shared_old_holdcnt_.size()) shared_old_holdcnt_[back]++;  // ! ***
+    auto cat_fill = [&](int idx) {
+        const int hor = shared_old_horizon_;
+        bool moves = false;
+        for (int t = 1; t < hor; t++)
+            if (root->paths[idx][t] != root->paths[idx][t-1]) { moves = true; break; }
+        for (int t = 0; t < hor; t++)
+            shared_old_flat_[(size_t)idx * hor + t] = root->paths[idx][t];
+        int back = root->paths[idx][hor - 1];
+        shared_old_holds_[idx] = back;
+        if (moves) shared_old_movers_.push_back(idx);
+        else if (back >= 0 && back < (int)shared_old_holdcnt_.size()) shared_old_holdcnt_[back]++;
     };
-    if (windowed) {  // ! ***
-        shared_old_horizon_ = work_len;  // ! ***
-        shared_old_flat_.assign((size_t)num_ag * work_len, 0);  // ! ***
-        shared_old_holds_.assign(num_ag, -1);  // ! ***
-        shared_old_holdcnt_.assign((size_t)mapd_map.row * mapd_map.col, 0);  // ! ***
-        shared_old_movers_.clear();  // ! ***
-        shared_old_valid_ = true;  // soft CAT only (gated by constraint_window>0 in seq_mla_star)  // ! ***
+    if (windowed) {
+        shared_old_horizon_ = work_len;
+        shared_old_flat_.assign((size_t)num_ag * work_len, 0);
+        shared_old_holds_.assign(num_ag, -1);
+        shared_old_holdcnt_.assign((size_t)mapd_map.row * mapd_map.col, 0);
+        shared_old_movers_.clear();
+        shared_old_valid_ = true;  // soft CAT only (gated by constraint_window>0 in seq_mla_star)
     }
 
-    for (int i = 0; i < num_ag; i++) {  // ! *** PBS root: plan every agent against the others' committed old paths
+    for (int i = 0; i < num_ag; i++) {
         // Constraint list: old_paths for ALL other agents (matching reference initial_rt).  For
         // the MLA* low level the old paths come from the precomputed shared table (shared_old_*),
         // so old_buf is left empty and seq_mla_star reads the shared table while excluding agent
         // i.  The SIPP low level does NOT use the shared table, so it still needs old_buf built.
-        vector<vector<int>> cons_buf;  // empty: no priority constraints at root  // ! ***
-        vector<vector<int>> old_buf;  // ! ***
-        if (use_old_in_pbs && config.use_sipp) {  // ! ***
-            old_buf.reserve(num_ag);  // ! ***
-            for (int j = 0; j < num_ag; j++) {  // ! ***
-                if (j == i) continue;  // ! ***
-                old_buf.emplace_back(old_paths[j].begin(),  // ! ***
-                                     old_paths[j].begin() + min(trunc, (int)old_paths[j].size()));  // ! ***
+        vector<vector<int>> cons_buf;  // empty: no priority constraints at root
+        vector<vector<int>> old_buf;
+        if (use_old_in_pbs && config.use_sipp) {
+            old_buf.reserve(num_ag);
+            for (int j = 0; j < num_ag; j++) {
+                if (j == i) continue;
+                old_buf.emplace_back(old_paths[j].begin(),
+                                     old_paths[j].begin() + min(trunc, (int)old_paths[j].size()));
             }
         }
 
-        shared_old_excl_ = i;  // ! ***
-        vector<int> path = plan_agent(i, (int)agents[i].loc, (int)cur_time_,  // ! *** -> plan_agent()
-                                       cons_buf, old_buf, use_old_in_pbs);  // ! ***
-        shared_old_excl_ = -1;  // ! ***
-        if (path.empty()) {  // ! ***
-            path = plan_agent(i, (int)agents[i].loc, (int)cur_time_,  // ! *** -> plan_agent()
-                               cons_buf, {}, false);  // ! ***
-            if (path.empty()) {  // ! ***
-                for (int t = (int)cur_time_; t < work_len; t++)  // ! ***
-                    root->paths[i][t] = (int)agents[i].loc;  // ! ***
-            } else {  // ! ***
-                for (int t = (int)cur_time_; t < work_len; t++)  // ! ***
-                    root->paths[i][t] = path[t];  // ! ***
+        shared_old_excl_ = i;
+        vector<int> path = plan_agent(i, (int)agents[i].loc, (int)cur_time_,
+                                       cons_buf, old_buf, use_old_in_pbs);
+        shared_old_excl_ = -1;
+        if (path.empty()) {
+            path = plan_agent(i, (int)agents[i].loc, (int)cur_time_,
+                               cons_buf, {}, false);
+            if (path.empty()) {
+                for (int t = (int)cur_time_; t < work_len; t++)
+                    root->paths[i][t] = (int)agents[i].loc;
+            } else {
+                for (int t = (int)cur_time_; t < work_len; t++)
+                    root->paths[i][t] = path[t];
             }
-        } else {  // ! ***
-            for (int t = (int)cur_time_; t < work_len; t++)  // ! ***
-                root->paths[i][t] = path[t];  // ! ***
+        } else {
+            for (int t = (int)cur_time_; t < work_len; t++)
+                root->paths[i][t] = path[t];
         }
         // Add agent i's NEW path to the CAT so subsequent root agents avoid it (windowed only).
-        if (windowed) cat_fill(i);  // ! *** -> cat_fill()
+        if (windowed) cat_fill(i);
     }
 
     // Compute PBS node cost (f_val): sum of path costs for all agents
     // Matching reference get_path_cost: sum of edge weights (= number of moves)
-    auto compute_node_cost = [&](PBSNode* node) -> int {  // ! *** lambda compute_node_cost()
-        int total = 0;  // ! ***
-        for (int i = 0; i < num_ag; i++) {  // ! ***
-            int lim = min((int)node->paths[i].size(), max_t) - 1;  // ! ***
-            for (int t = (int)cur_time_; t < lim; t++) {  // ! ***
-                if (node->paths[i][t] != node->paths[i][t+1])  // ! ***
-                    total++;  // ! ***
+    auto compute_node_cost = [&](PBSNode* node) -> int {
+        int total = 0;
+        for (int i = 0; i < num_ag; i++) {
+            int lim = min((int)node->paths[i].size(), max_t) - 1;
+            for (int t = (int)cur_time_; t < lim; t++) {
+                if (node->paths[i][t] != node->paths[i][t+1])
+                    total++;
             }
         }
-        return total;  // ! ***
+        return total;
     };
 
-    root->cost = compute_node_cost(root);  // ! *** -> compute_node_cost()
+    root->cost = compute_node_cost(root);
 
     // Conflict-detection horizon: detect conflicts across the whole committed path.  The
     // held tail of a windowed plan can still pile agents onto the same boundary cell and that
@@ -6808,15 +6808,15 @@ bool Simulation::pbs_core(bool windowed) {  // ! *** [S6] pbs_core(): root batch
     // there.  Bounding the scan to (last move time + 1) is therefore EXACT (no missed
     // collisions) while shrinking the scan from ~5000 to ~the makespan-window.  Recomputed
     // per node since replanning can shift the settle time.
-    auto settle_time = [&](const vector<vector<int>>& P) -> int {  // ! *** lambda settle_time()
-        int last_move = (int)cur_time_;  // ! ***
-        for (int i = 0; i < num_ag; i++) {  // ! ***
-            int li = (int)P[i].size() - 1;  // ! ***
+    auto settle_time = [&](const vector<vector<int>>& P) -> int {
+        int last_move = (int)cur_time_;
+        for (int i = 0; i < num_ag; i++) {
+            int li = (int)P[i].size() - 1;
             // walk back over the trailing hold to find this agent's last actual move
-            while (li > (int)cur_time_ && P[i][li] == P[i][li-1]) li--;  // ! ***
-            if (li > last_move) last_move = li;  // ! ***
+            while (li > (int)cur_time_ && P[i][li] == P[i][li-1]) li--;
+            if (li > last_move) last_move = li;
         }
-        return last_move;  // ! ***
+        return last_move;
     };
     // In windowed mode, match the reference PBS (PBS.cpp:134 size=min(window+1,len)): detect
     // conflicts ONLY within the EXECUTED window [cur_time_, cur_time_+replan_window].
@@ -6829,65 +6829,65 @@ bool Simulation::pbs_core(bool windowed) {  // ! *** [S6] pbs_core(): root batch
     // that were valid for the in-window resolution -> spurious nogoods -> residual in-window
     // conflicts the deconfliction patch had to mask.  In non-windowed mode bound to the settle
     // time (exact, see note above) to skip the long constant-hold tail.
-    int conflict_horizon = windowed  // ! ***
-        ? min(max_t, (int)cur_time_ + config.replan_window + 1)  // ! ***
-        : min(max_t, settle_time(root->paths) + 1);  // ! *** -> settle_time()
-    for (int a1 = 0; a1 < num_ag; a1++) {  // ! ***
-        for (int a2 = a1 + 1; a2 < num_ag; a2++) {  // ! ***
+    int conflict_horizon = windowed
+        ? min(max_t, (int)cur_time_ + config.replan_window + 1)
+        : min(max_t, settle_time(root->paths) + 1);
+    for (int a1 = 0; a1 < num_ag; a1++) {
+        for (int a2 = a1 + 1; a2 < num_ag; a2++) {
             // Check conflicts only within horizon
-            for (int t = (int)cur_time_; t < conflict_horizon && t < max_t; t++) {  // ! ***
-                int loc1 = (t < (int)root->paths[a1].size()) ? root->paths[a1][t] : root->paths[a1].back();  // ! ***
-                int loc2 = (t < (int)root->paths[a2].size()) ? root->paths[a2][t] : root->paths[a2].back();  // ! ***
-                if (loc1 == loc2) {  // ! ***
-                    root->conflicts.emplace_back(a1, a2, loc1, -1, t);  // ! ***
-                    break;  // ! ***
+            for (int t = (int)cur_time_; t < conflict_horizon && t < max_t; t++) {
+                int loc1 = (t < (int)root->paths[a1].size()) ? root->paths[a1][t] : root->paths[a1].back();
+                int loc2 = (t < (int)root->paths[a2].size()) ? root->paths[a2][t] : root->paths[a2].back();
+                if (loc1 == loc2) {
+                    root->conflicts.emplace_back(a1, a2, loc1, -1, t);
+                    break;
                 }
-                if (t > 0) {  // ! ***
-                    int pl1 = (t-1 < (int)root->paths[a1].size()) ? root->paths[a1][t-1] : root->paths[a1].back();  // ! ***
-                    int pl2 = (t-1 < (int)root->paths[a2].size()) ? root->paths[a2][t-1] : root->paths[a2].back();  // ! ***
-                    if (loc1 == pl2 && loc2 == pl1) {  // ! ***
-                        root->conflicts.emplace_back(a1, a2, loc1, loc2, t);  // ! ***
-                        break;  // ! ***
+                if (t > 0) {
+                    int pl1 = (t-1 < (int)root->paths[a1].size()) ? root->paths[a1][t-1] : root->paths[a1].back();
+                    int pl2 = (t-1 < (int)root->paths[a2].size()) ? root->paths[a2][t-1] : root->paths[a2].back();
+                    if (loc1 == pl2 && loc2 == pl1) {
+                        root->conflicts.emplace_back(a1, a2, loc1, loc2, t);
+                        break;
                     }
                 }
             }
         }
     }
-    root->num_collisions = (int)root->conflicts.size();  // ! ***
+    root->num_collisions = (int)root->conflicts.size();
 
     // Commit a node's (possibly work_len-bounded) path table to the global token/agents
     // paths, extending the trailing hold out to max_t.
-    auto commit_node = [&](PBSNode* node) {  // ! *** lambda commit_node()
-        for (int i = 0; i < num_ag; i++) {  // ! ***
-            int plen = (int)node->paths[i].size();  // ! ***
-            int hold = node->paths[i][min(plen, (int)max_t) - 1];  // ! ***
-            for (int t = 0; t < max_t; t++) {  // ! ***
-                int v = (t < plen) ? node->paths[i][t] : hold;  // ! ***
-                path_table_[i][t] = v;  // ! ***
-                agents[i].path[t] = v;  // ! ***
+    auto commit_node = [&](PBSNode* node) {
+        for (int i = 0; i < num_ag; i++) {
+            int plen = (int)node->paths[i].size();
+            int hold = node->paths[i][min(plen, (int)max_t) - 1];
+            for (int t = 0; t < max_t; t++) {
+                int v = (t < plen) ? node->paths[i][t] : hold;
+                path_table_[i][t] = v;
+                agents[i].path[t] = v;
             }
         }
     };
 
-    if (root->conflicts.empty()) {  // ! ***
-        commit_node(root);  // ! *** -> commit_node()
-        delete root;  // ! ***
-        shared_old_valid_ = false;  // ! ***
-        return true;  // ! ***
+    if (root->conflicts.empty()) {
+        commit_node(root);
+        delete root;
+        shared_old_valid_ = false;
+        return true;
     }
 
-    vector<PBSNode*> all_nodes;  // ! ***
-    stack<PBSNode*> dfs_stack;  // ! ***
-    dfs_stack.push(root);  // ! ***
-    PBSNode* best_node = root;  // ! ***
-    best_node->conflict = root->conflicts.front();  // ! ***
-    for (auto& c : root->conflicts) {  // ! ***
-        if (get<4>(c) < get<4>(best_node->conflict))  // ! ***
-            best_node->conflict = c;  // ! ***
+    vector<PBSNode*> all_nodes;
+    stack<PBSNode*> dfs_stack;
+    dfs_stack.push(root);
+    PBSNode* best_node = root;
+    best_node->conflict = root->conflicts.front();
+    for (auto& c : root->conflicts) {
+        if (get<4>(c) < get<4>(best_node->conflict))
+            best_node->conflict = c;
     }
-    best_node->earliest_collision = get<4>(best_node->conflict);  // ! ***
-    int hl_expanded = 0;  // ! ***
-    int max_hl = (num_ag > 30) ? 5000 : 50000;  // ! ***
+    best_node->earliest_collision = get<4>(best_node->conflict);
+    int hl_expanded = 0;
+    int max_hl = (num_ag > 30) ? 5000 : 50000;
 
     // --- nogood set (matches reference PBS) ------------------------------------------------
     // When BOTH children of a chosen conflict are invalid (neither agent can be made to yield
@@ -6898,100 +6898,100 @@ bool Simulation::pbs_core(bool windowed) {  // ! *** [S6] pbs_core(): root batch
     // this, the DFS expanded ~50k HL nodes (half of them producing two invalid children) where
     // the reference needs only ~4k — this single mechanism is the dominant tree-size gap at
     // 30ag/mid task frequency.  Replicated exactly (earliest-conflict default, nogood override).
-    std::set<std::pair<int,int>> nogood;  // ! *** nogood set (matches the reference PBS)
+    std::set<std::pair<int,int>> nogood;
 
-    while (!dfs_stack.empty() && hl_expanded < max_hl) {  // ! *** PBS high-level DFS
-        PBSNode* curr = dfs_stack.top();  // ! ***
-        dfs_stack.pop();  // ! ***
+    while (!dfs_stack.empty() && hl_expanded < max_hl) {
+        PBSNode* curr = dfs_stack.top();
+        dfs_stack.pop();
 
-        if (curr->conflicts.empty()) {  // ! ***
-            best_node = curr;  // ! ***
-            break;  // ! ***
+        if (curr->conflicts.empty()) {
+            best_node = curr;
+            break;
         }
 
-        auto chosen = curr->conflicts.front();  // ! ***
-        for (auto& c : curr->conflicts) {  // ! ***
-            if (get<4>(c) < get<4>(chosen))  // ! ***
-                chosen = c;  // ! ***
+        auto chosen = curr->conflicts.front();
+        for (auto& c : curr->conflicts) {
+            if (get<4>(c) < get<4>(chosen))
+                chosen = c;
         }
-        curr->earliest_collision = get<4>(chosen);  // ! ***
+        curr->earliest_collision = get<4>(chosen);
         // nogood override (reference choose_conflict): if any conflict's agent pair is a known
         // dead end, resolve THAT conflict first so the branch is pruned immediately.
-        if (!nogood.empty()) {  // ! ***
-            for (auto& c : curr->conflicts) {  // ! ***
-                int ca = get<0>(c), cb = get<1>(c);  // ! ***
-                if (nogood.count({ca, cb}) || nogood.count({cb, ca})) {  // ! ***
-                    chosen = c;  // ! ***
-                    break;  // ! ***
+        if (!nogood.empty()) {
+            for (auto& c : curr->conflicts) {
+                int ca = get<0>(c), cb = get<1>(c);
+                if (nogood.count({ca, cb}) || nogood.count({cb, ca})) {
+                    chosen = c;
+                    break;
                 }
             }
         }
-        curr->conflict = chosen;  // ! ***
+        curr->conflict = chosen;
 
-        if (curr->earliest_collision > best_node->earliest_collision ||  // ! ***
-            (curr->earliest_collision == best_node->earliest_collision &&  // ! ***
-             curr->cost < best_node->cost)) {  // ! ***
-            best_node = curr;  // ! ***
+        if (curr->earliest_collision > best_node->earliest_collision ||
+            (curr->earliest_collision == best_node->earliest_collision &&
+             curr->cost < best_node->cost)) {
+            best_node = curr;
         }
 
-        hl_expanded++;  // ! ***
+        hl_expanded++;
 
-        int a1 = get<0>(chosen);  // ! ***
-        int a2 = get<1>(chosen);  // ! ***
+        int a1 = get<0>(chosen);
+        int a2 = get<1>(chosen);
 
-        PBSNode* children[2];  // ! ***
-        bool child_valid[2] = {true, true};  // ! ***
+        PBSNode* children[2];
+        bool child_valid[2] = {true, true};
 
-        for (int c = 0; c < 2; c++) {  // ! ***
-            children[c] = new PBSNode();  // ! ***
-            children[c]->parent = curr;  // ! ***
-            children[c]->priorities.copy(curr->priorities);  // ! ***
-            children[c]->paths = curr->paths;  // ! ***
+        for (int c = 0; c < 2; c++) {
+            children[c] = new PBSNode();
+            children[c]->parent = curr;
+            children[c]->priorities.copy(curr->priorities);
+            children[c]->paths = curr->paths;
 
-            int lower = (c == 0) ? a1 : a2;  // ! ***
-            int higher = (c == 0) ? a2 : a1;  // ! ***
+            int lower = (c == 0) ? a1 : a2;
+            int higher = (c == 0) ? a2 : a1;
 
-            if (children[c]->priorities.connected(higher, lower)) {  // ! ***
-                child_valid[c] = false;  // ! ***
-                delete children[c];  // ! ***
-                children[c] = nullptr;  // ! ***
-                continue;  // ! ***
+            if (children[c]->priorities.connected(higher, lower)) {
+                child_valid[c] = false;
+                delete children[c];
+                children[c] = nullptr;
+                continue;
             }
 
-            children[c]->priorities.add(lower, higher);  // ! ***
-            children[c]->priority = {lower, higher};  // ! ***
+            children[c]->priorities.add(lower, higher);
+            children[c]->priority = {lower, higher};
 
-            set<int> higher_set = children[c]->priorities.get_higher_priority(lower);  // ! ***
-            vector<vector<int>> cons;  // ! ***
-            vector<vector<int>> old_for_agent;  // ! ***
+            set<int> higher_set = children[c]->priorities.get_higher_priority(lower);
+            vector<vector<int>> cons;
+            vector<vector<int>> old_for_agent;
 
-            for (int hp : higher_set)  // ! ***
-                cons.push_back(children[c]->paths[hp]);  // ! ***
+            for (int hp : higher_set)
+                cons.push_back(children[c]->paths[hp]);
 
             // Match reference: old_paths for ALL non-self agents (including high-priority).
             // Reference find_path() inserts old_paths[j] for all j!=agent into initial_rt,
             // then rt.build() adds high-priority current paths on top.  (Skipped in windowed
             // mode where old paths are unused.)
-            if (use_old_in_pbs) {  // ! ***
-                for (int j = 0; j < num_ag; j++) {  // ! ***
-                    if (j == lower) continue;  // ! ***
-                    old_for_agent.push_back(old_paths[j]);  // ! ***
+            if (use_old_in_pbs) {
+                for (int j = 0; j < num_ag; j++) {
+                    if (j == lower) continue;
+                    old_for_agent.push_back(old_paths[j]);
                 }
             }
 
-            vector<int> new_path = plan_agent(lower, (int)agents[lower].loc,  // ! *** low-level replan of the yielding agent
-                                              (int)cur_time_,  // ! ***
-                                              cons, old_for_agent, use_old_in_pbs);  // ! ***
-            if (new_path.empty()) {  // ! ***
-                child_valid[c] = false;  // ! ***
-                delete children[c];  // ! ***
-                children[c] = nullptr;  // ! ***
-                continue;  // ! ***
+            vector<int> new_path = plan_agent(lower, (int)agents[lower].loc,
+                                              (int)cur_time_,
+                                              cons, old_for_agent, use_old_in_pbs);
+            if (new_path.empty()) {
+                child_valid[c] = false;
+                delete children[c];
+                children[c] = nullptr;
+                continue;
             }
 
             // Only update from current timestep onward (bounded to the working window)
-            for (int t = (int)cur_time_; t < work_len; t++)  // ! ***
-                children[c]->paths[lower][t] = new_path[t];  // ! ***
+            for (int t = (int)cur_time_; t < work_len; t++)
+                children[c]->paths[lower][t] = new_path[t];
 
             // --- find_consistent_paths cascade (matching reference PBS) ---
             // After replanning 'lower', iteratively replan any agent whose
@@ -7001,26 +7001,26 @@ bool Simulation::pbs_core(bool windowed) {  // ! *** [S6] pbs_core(): root batch
                 // the timestep at which the last agent in THIS child stops moving.  Recomputed
                 // here because replanning 'lower' (and cascade replans) can extend the active
                 // portion beyond the root's settle time.
-                int child_conf_horizon = windowed  // ! ***
-                    ? min(max_t, (int)cur_time_ + config.replan_window + 1)  // ! ***
-                    : min(max_t, settle_time(children[c]->paths) + 1);  // ! *** -> settle_time()
+                int child_conf_horizon = windowed
+                    ? min(max_t, (int)cur_time_ + config.replan_window + 1)
+                    : min(max_t, settle_time(children[c]->paths) + 1);
                 // Helper: detect conflicts involving a specific agent
-                auto detect_conflicts_for = [&](int ag_id, list<tuple<int,int,int,int,int>>& out) {  // ! *** lambda detect_conflicts_for()
-                    for (int j = 0; j < num_ag; j++) {  // ! ***
-                        if (j == ag_id) continue;  // ! ***
-                        for (int t = (int)cur_time_; t < child_conf_horizon && t < max_t; t++) {  // ! ***
-                            int la = (t < (int)children[c]->paths[ag_id].size()) ? children[c]->paths[ag_id][t] : children[c]->paths[ag_id].back();  // ! ***
-                            int lj = (t < (int)children[c]->paths[j].size()) ? children[c]->paths[j][t] : children[c]->paths[j].back();  // ! ***
-                            if (la == lj) {  // ! ***
-                                out.emplace_back(ag_id, j, la, -1, t);  // ! ***
-                                break;  // ! ***
+                auto detect_conflicts_for = [&](int ag_id, list<tuple<int,int,int,int,int>>& out) {
+                    for (int j = 0; j < num_ag; j++) {
+                        if (j == ag_id) continue;
+                        for (int t = (int)cur_time_; t < child_conf_horizon && t < max_t; t++) {
+                            int la = (t < (int)children[c]->paths[ag_id].size()) ? children[c]->paths[ag_id][t] : children[c]->paths[ag_id].back();
+                            int lj = (t < (int)children[c]->paths[j].size()) ? children[c]->paths[j][t] : children[c]->paths[j].back();
+                            if (la == lj) {
+                                out.emplace_back(ag_id, j, la, -1, t);
+                                break;
                             }
-                            if (t > 0) {  // ! ***
-                                int pa = (t-1 < (int)children[c]->paths[ag_id].size()) ? children[c]->paths[ag_id][t-1] : children[c]->paths[ag_id].back();  // ! ***
-                                int pj = (t-1 < (int)children[c]->paths[j].size()) ? children[c]->paths[j][t-1] : children[c]->paths[j].back();  // ! ***
-                                if (la == pj && lj == pa) {  // ! ***
-                                    out.emplace_back(ag_id, j, la, lj, t);  // ! ***
-                                    break;  // ! ***
+                            if (t > 0) {
+                                int pa = (t-1 < (int)children[c]->paths[ag_id].size()) ? children[c]->paths[ag_id][t-1] : children[c]->paths[ag_id].back();
+                                int pj = (t-1 < (int)children[c]->paths[j].size()) ? children[c]->paths[j][t-1] : children[c]->paths[j].back();
+                                if (la == pj && lj == pa) {
+                                    out.emplace_back(ag_id, j, la, lj, t);
+                                    break;
                                 }
                             }
                         }
@@ -7028,33 +7028,33 @@ bool Simulation::pbs_core(bool windowed) {  // ! *** [S6] pbs_core(): root batch
                 };
 
                 // Helper: find agents that need replanning based on priority consistency
-                auto find_replan_agents = [&](const list<tuple<int,int,int,int,int>>& conflicts,  // ! *** lambda find_replan_agents()
-                                              unordered_set<int>& replan) {  // ! ***
-                    for (auto& conf : conflicts) {  // ! ***
-                        int ca = get<0>(conf);  // ! ***
-                        int cb = get<1>(conf);  // ! ***
-                        if (replan.count(ca) || replan.count(cb)) continue;  // ! ***
-                        if (children[c]->priorities.connected(ca, cb)) {  // ! ***
-                            replan.insert(ca);  // ca yields to cb, so replan ca  // ! ***
-                        } else if (children[c]->priorities.connected(cb, ca)) {  // ! ***
-                            replan.insert(cb);  // cb yields to ca, so replan cb  // ! ***
+                auto find_replan_agents = [&](const list<tuple<int,int,int,int,int>>& conflicts,
+                                              unordered_set<int>& replan) {
+                    for (auto& conf : conflicts) {
+                        int ca = get<0>(conf);
+                        int cb = get<1>(conf);
+                        if (replan.count(ca) || replan.count(cb)) continue;
+                        if (children[c]->priorities.connected(ca, cb)) {
+                            replan.insert(ca);  // ca yields to cb, so replan ca
+                        } else if (children[c]->priorities.connected(cb, ca)) {
+                            replan.insert(cb);  // cb yields to ca, so replan cb
                         }
                     }
                 };
 
                 // Build initial conflict list and find agents to replan
-                children[c]->conflicts.clear();  // ! ***
-                detect_conflicts_for(lower, children[c]->conflicts);  // ! *** -> detect_conflicts_for()
+                children[c]->conflicts.clear();
+                detect_conflicts_for(lower, children[c]->conflicts);
                 // Also keep non-lower conflicts from parent
-                for (auto& conf : curr->conflicts) {  // ! ***
-                    if (get<0>(conf) != lower && get<1>(conf) != lower)  // ! ***
-                        children[c]->conflicts.push_back(conf);  // ! ***
+                for (auto& conf : curr->conflicts) {
+                    if (get<0>(conf) != lower && get<1>(conf) != lower)
+                        children[c]->conflicts.push_back(conf);
                 }
 
-                unordered_set<int> replan;  // ! ***
-                find_replan_agents(children[c]->conflicts, replan);  // ! *** -> find_replan_agents()
+                unordered_set<int> replan;
+                find_replan_agents(children[c]->conflicts, replan);
 
-                int cascade_count = 0;  // ! ***
+                int cascade_count = 0;
                 // Match reference find_consistent_paths exactly:
                 //   while (!replan.empty()) {
                 //       if (count > node->paths.size() * 5) return false; // child INVALID
@@ -7072,76 +7072,76 @@ bool Simulation::pbs_core(bool windowed) {  // ! *** [S6] pbs_core(): root batch
                 // CRITICAL: if the cascade still cannot make all priority-connected conflicts
                 // consistent within this budget, the child is INVALID (pruned), not kept with
                 // leftover conflicts (keeping it caused infinite DFS re-expansion at depth 1).
-                const int cascade_budget = num_ag * 5;  // ! ***
-                while (!replan.empty()) {  // ! *** find_consistent_paths cascade
-                    if (cascade_count > cascade_budget) {  // ! ***
-                        child_valid[c] = false;  // ! ***
-                        delete children[c];  // ! ***
-                        children[c] = nullptr;  // ! ***
-                        break;  // ! ***
+                const int cascade_budget = num_ag * 5;
+                while (!replan.empty()) {
+                    if (cascade_count > cascade_budget) {
+                        child_valid[c] = false;
+                        delete children[c];
+                        children[c] = nullptr;
+                        break;
                     }
-                    int a = *replan.begin();  // ! ***
-                    replan.erase(replan.begin());  // ! ***
-                    cascade_count++;  // ! ***
+                    int a = *replan.begin();
+                    replan.erase(replan.begin());
+                    cascade_count++;
 
-                    set<int> hp = children[c]->priorities.get_higher_priority(a);  // ! ***
-                    vector<vector<int>> a_cons;  // ! ***
-                    vector<vector<int>> a_old;  // ! ***
-                    for (int h : hp) a_cons.push_back(children[c]->paths[h]);  // ! ***
+                    set<int> hp = children[c]->priorities.get_higher_priority(a);
+                    vector<vector<int>> a_cons;
+                    vector<vector<int>> a_old;
+                    for (int h : hp) a_cons.push_back(children[c]->paths[h]);
                     // Match reference: old_paths for ALL non-self agents (skipped in windowed)
-                    if (use_old_in_pbs) {  // ! ***
-                        for (int j = 0; j < num_ag; j++) {  // ! ***
-                            if (j == a) continue;  // ! ***
-                            a_old.push_back(old_paths[j]);  // ! ***
+                    if (use_old_in_pbs) {
+                        for (int j = 0; j < num_ag; j++) {
+                            if (j == a) continue;
+                            a_old.push_back(old_paths[j]);
                         }
                     }
 
-                    auto np = plan_agent(a, (int)agents[a].loc, (int)cur_time_,  // ! *** -> plan_agent()
-                                          a_cons, a_old, use_old_in_pbs);  // ! ***
-                    if (np.empty()) {  // ! ***
-                        child_valid[c] = false;  // ! ***
-                        delete children[c];  // ! ***
-                        children[c] = nullptr;  // ! ***
-                        break;  // ! ***
+                    auto np = plan_agent(a, (int)agents[a].loc, (int)cur_time_,
+                                          a_cons, a_old, use_old_in_pbs);
+                    if (np.empty()) {
+                        child_valid[c] = false;
+                        delete children[c];
+                        children[c] = nullptr;
+                        break;
                     }
-                    for (int t = (int)cur_time_; t < work_len; t++)  // ! ***
-                        children[c]->paths[a][t] = np[t];  // ! ***
+                    for (int t = (int)cur_time_; t < work_len; t++)
+                        children[c]->paths[a][t] = np[t];
 
                     // Remove old conflicts involving 'a', add new ones
-                    children[c]->conflicts.remove_if([a](const tuple<int,int,int,int,int>& cf) {  // ! ***
-                        return get<0>(cf) == a || get<1>(cf) == a;  // ! ***
+                    children[c]->conflicts.remove_if([a](const tuple<int,int,int,int,int>& cf) {
+                        return get<0>(cf) == a || get<1>(cf) == a;
                     });
-                    list<tuple<int,int,int,int,int>> new_confs;  // ! ***
-                    detect_conflicts_for(a, new_confs);  // ! *** -> detect_conflicts_for()
-                    find_replan_agents(new_confs, replan);  // ! *** -> find_replan_agents()
-                    children[c]->conflicts.splice(children[c]->conflicts.end(), new_confs);  // ! ***
+                    list<tuple<int,int,int,int,int>> new_confs;
+                    detect_conflicts_for(a, new_confs);
+                    find_replan_agents(new_confs, replan);
+                    children[c]->conflicts.splice(children[c]->conflicts.end(), new_confs);
                 }
-                if (!child_valid[c]) continue;  // ! ***
+                if (!child_valid[c]) continue;
             }
-            children[c]->num_collisions = (int)children[c]->conflicts.size();  // ! ***
-            children[c]->cost = compute_node_cost(children[c]);  // ! *** -> compute_node_cost()
+            children[c]->num_collisions = (int)children[c]->conflicts.size();
+            children[c]->cost = compute_node_cost(children[c]);
 
         }
 
-        if (child_valid[0] && child_valid[1]) {  // ! ***
+        if (child_valid[0] && child_valid[1]) {
             // Order by f_val (cost) first, then num_collisions (matching reference PBS)
-            if (children[0]->cost < children[1]->cost ||  // ! ***
-                (children[0]->cost == children[1]->cost &&  // ! ***
-                 children[0]->num_collisions < children[1]->num_collisions)) {  // ! ***
-                dfs_stack.push(children[1]);  // ! ***
-                dfs_stack.push(children[0]);  // ! ***
-            } else {  // ! ***
-                dfs_stack.push(children[0]);  // ! ***
-                dfs_stack.push(children[1]);  // ! ***
+            if (children[0]->cost < children[1]->cost ||
+                (children[0]->cost == children[1]->cost &&
+                 children[0]->num_collisions < children[1]->num_collisions)) {
+                dfs_stack.push(children[1]);
+                dfs_stack.push(children[0]);
+            } else {
+                dfs_stack.push(children[0]);
+                dfs_stack.push(children[1]);
             }
-        } else if (child_valid[0]) {  // ! ***
-            dfs_stack.push(children[0]);  // ! ***
-        } else if (child_valid[1]) {  // ! ***
-            dfs_stack.push(children[1]);  // ! ***
-        } else {  // ! ***
+        } else if (child_valid[0]) {
+            dfs_stack.push(children[0]);
+        } else if (child_valid[1]) {
+            dfs_stack.push(children[1]);
+        } else {
             // Both children invalid: this conflict's agent pair is a dead end.  Record it as a
             // nogood so choose_conflict prefers (and immediately prunes) it in future nodes.
-            nogood.emplace(a1, a2);  // ! ***
+            nogood.emplace(a1, a2);
         }
     }
 
@@ -7152,9 +7152,9 @@ bool Simulation::pbs_core(bool windowed) {  // ! *** [S6] pbs_core(): root batch
     // committed plan by resolving any residual conflict the simple way PBS would: the agent
     // that arrives later WAITS one step earlier (yields), repeated until clear.  Bounded so it
     // always terminates.  In the common case best_node->conflicts is empty and this is skipped.
-    if (!best_node->conflicts.empty()) {  // ! *** reimpl-only safety net: force-resolve any residual conflict before committing
-        auto& P = best_node->paths;  // ! ***
-        int t0 = (int)cur_time_;  // ! ***
+    if (!best_node->conflicts.empty()) {
+        auto& P = best_node->paths;
+        int t0 = (int)cur_time_;
         // Scan bound for the safety net.
         //   Windowed (wPBS): consider ONLY conflicts within the EXECUTED window
         //   [cur_time_, cur_time_+replan_window] (matching the reference, which never
@@ -7163,46 +7163,46 @@ bool Simulation::pbs_core(bool windowed) {  // ! *** [S6] pbs_core(): root batch
         //   is a never-firing safety net in windowed mode (verified: 0 fires across the full grid).
         //   Non-windowed: keep the full-path scan (full PBS already leaves 0 residual conflicts,
         //   so this is also effectively never-firing, but the full scan preserves prior behavior).
-        int plen = (int)P[0].size();   // all agents share work_len-length tables  // ! ***
-        if (windowed)  // ! ***
-            plen = min(plen, t0 + config.replan_window + 1);  // ! ***
-        int rounds = 0;  // ! ***
-        const int MAX_ROUNDS = num_ag * num_ag * 4 + 16;  // ! ***
-        bool any = true;  // ! ***
-        while (any && rounds < MAX_ROUNDS) {  // ! ***
-            any = false; rounds++;  // ! ***
-            for (int a1 = 0; a1 < num_ag && !any; a1++) {  // ! ***
-                for (int a2 = a1 + 1; a2 < num_ag && !any; a2++) {  // ! ***
-                    for (int t = t0 + 1; t < plen; t++) {  // ! ***
-                        bool vertex = (P[a1][t] == P[a2][t]);  // ! ***
-                        bool edge = (P[a1][t] == P[a2][t-1] && P[a2][t] == P[a1][t-1] &&  // ! ***
-                                     P[a1][t] != P[a1][t-1]);  // ! ***
-                        if (!vertex && !edge) continue;  // ! ***
+        int plen = (int)P[0].size();   // all agents share work_len-length tables
+        if (windowed)
+            plen = min(plen, t0 + config.replan_window + 1);
+        int rounds = 0;
+        const int MAX_ROUNDS = num_ag * num_ag * 4 + 16;
+        bool any = true;
+        while (any && rounds < MAX_ROUNDS) {
+            any = false; rounds++;
+            for (int a1 = 0; a1 < num_ag && !any; a1++) {
+                for (int a2 = a1 + 1; a2 < num_ag && !any; a2++) {
+                    for (int t = t0 + 1; t < plen; t++) {
+                        bool vertex = (P[a1][t] == P[a2][t]);
+                        bool edge = (P[a1][t] == P[a2][t-1] && P[a2][t] == P[a1][t-1] &&
+                                     P[a1][t] != P[a1][t-1]);
+                        if (!vertex && !edge) continue;
                         // Choose the agent that is MOVING into the clash to yield; if both move,
                         // yield the higher-indexed one.  Make it wait one step at t-1 by shifting
                         // its remaining path one timestep later.
-                        int yielder = a2;  // ! ***
-                        if (P[a1][t] != P[a1][t-1] && P[a2][t] == P[a2][t-1]) yielder = a1;  // ! ***
-                        else if (P[a1][t] == P[a1][t-1] && P[a2][t] != P[a2][t-1]) yielder = a2;  // ! ***
+                        int yielder = a2;
+                        if (P[a1][t] != P[a1][t-1] && P[a2][t] == P[a2][t-1]) yielder = a1;
+                        else if (P[a1][t] == P[a1][t-1] && P[a2][t] != P[a2][t-1]) yielder = a2;
                         // Insert a wait at t-1 for the yielder: hold its position from t-1, push
                         // the rest of the path back by one step (drop the last cell).
-                        int hold = P[yielder][t-1];  // ! ***
-                        for (int tt = plen - 1; tt > t - 1; tt--)  // ! ***
-                            P[yielder][tt] = P[yielder][tt-1];  // ! ***
-                        P[yielder][t-1] = hold;  // ! ***
-                        any = true;  // ! ***
-                        break;  // ! ***
+                        int hold = P[yielder][t-1];
+                        for (int tt = plen - 1; tt > t - 1; tt--)
+                            P[yielder][tt] = P[yielder][tt-1];
+                        P[yielder][t-1] = hold;
+                        any = true;
+                        break;
                     }
                 }
             }
         }
-        best_node->conflicts.clear();  // ! ***
+        best_node->conflicts.clear();
     }
 
-    commit_node(best_node);  // ! *** commit the chosen plan into path_table_ / agents.path
+    commit_node(best_node);
 
-    shared_old_valid_ = false;  // shared table is only valid within this solve's root batch  // ! ***
-    return true;  // ! ***
+    shared_old_valid_ = false;  // shared table is only valid within this solve's root batch
+    return true;
 }
 
 // ============================================================
@@ -7215,7 +7215,7 @@ bool Simulation::pbs_core(bool windowed) {  // ! *** [S6] pbs_core(): root batch
 // SIPP search: (location, interval_idx, goal_id) states
 // ============================================================
 
-bool Simulation::pbs_core_sipp() {  // ! (not-LNS) pbs_core_sipp() is DEAD CODE: path_planning_pbs always calls pbs_core(false)
+bool Simulation::pbs_core_sipp() {
     int num_ag = (int)agents.size();
     int max_t = (int)maxtime;
     int map_size = mapd_map.row * mapd_map.col;
@@ -7672,128 +7672,128 @@ bool Simulation::pbs_core_sipp() {  // ! (not-LNS) pbs_core_sipp() is DEAD CODE:
 //   Uses build_goal_sequences() + choose_dummy_endpoint().
 // ============================================================
 
-void Simulation::path_planning_pp_mla() {  // ! *** [S9] path_planning_pp_mla(): prioritized planning (--mapf PP methods)
-    int num_ag = (int)agents.size();  // ! ***
-    int max_t = (int)maxtime;  // ! ***
+void Simulation::path_planning_pp_mla() {
+    int num_ag = (int)agents.size();
+    int max_t = (int)maxtime;
 
     // Save old paths
-    vector<vector<int>> old_paths(num_ag);  // ! ***
-    for (int i = 0; i < num_ag; i++) {  // ! ***
-        old_paths[i].resize(max_t);  // ! ***
-        for (int t = 0; t < max_t; t++)  // ! ***
-            old_paths[i][t] = (int)path_table_[i][t];  // ! ***
+    vector<vector<int>> old_paths(num_ag);
+    for (int i = 0; i < num_ag; i++) {
+        old_paths[i].resize(max_t);
+        for (int t = 0; t < max_t; t++)
+            old_paths[i][t] = (int)path_table_[i][t];
     }
 
     // Plan order: active agents first, idle second
-    vector<pair<int,int>> plan_order;  // ! ***
-    for (int i = 0; i < num_ag; i++) {  // ! ***
-        int pri = agents[i].task_sequence.empty() ? 1 : 0;  // ! ***
-        plan_order.push_back({pri, i});  // ! ***
+    vector<pair<int,int>> plan_order;
+    for (int i = 0; i < num_ag; i++) {
+        int pri = agents[i].task_sequence.empty() ? 1 : 0;
+        plan_order.push_back({pri, i});
     }
-    sort(plan_order.begin(), plan_order.end());  // ! ***
+    sort(plan_order.begin(), plan_order.end());
 
-    vector<vector<int>> new_paths(num_ag);  // ! ***
-    vector<bool> planned(num_ag, false);  // ! ***
-    vector<int> agent_dummies(num_ag, -1);  // ! ***
+    vector<vector<int>> new_paths(num_ag);
+    vector<bool> planned(num_ag, false);
+    vector<int> agent_dummies(num_ag, -1);
 
-    for (auto& po : plan_order) {  // ! ***
-        int i = po.second;  // ! ***
-        Agent& ag = agents[i];  // ! ***
+    for (auto& po : plan_order) {
+        int i = po.second;
+        Agent& ag = agents[i];
 
-        if (false) {  // skip disabled  // ! ***
-            new_paths[i] = old_paths[i];  // ! ***
-            planned[i] = true;  // ! ***
-            agent_dummies[i] = old_paths[i].back();  // ! ***
-            continue;  // ! ***
+        if (false) {  // skip disabled
+            new_paths[i] = old_paths[i];
+            planned[i] = true;
+            agent_dummies[i] = old_paths[i].back();
+            continue;
         }
 
         // Build cons_paths from all OTHER agents
-        vector<vector<int>> cons_paths;  // ! ***
-        for (int j = 0; j < num_ag; j++) {  // ! ***
-            if (j == i) continue;  // ! ***
-            if (planned[j])  // ! ***
-                cons_paths.push_back(new_paths[j]);  // ! ***
-            else  // ! ***
-                cons_paths.push_back(old_paths[j]);  // ! ***
+        vector<vector<int>> cons_paths;
+        for (int j = 0; j < num_ag; j++) {
+            if (j == i) continue;
+            if (planned[j])
+                cons_paths.push_back(new_paths[j]);
+            else
+                cons_paths.push_back(old_paths[j]);
         }
 
         // Build goal sequence: match reference task_truncated_size=1
         // Reference KivaSystemOnline::update_goal_locations limits to 1 task per agent
         // (task_truncated_size defaults to 1 in driver.cpp). This means each agent gets
         // at most 1 task's goals (pickup + delivery) plus a dummy endpoint.
-        int task_truncated_size = 1;  // ! ***
-        int current_task_size = 0;  // ! ***
-        vector<pair<int,int>> goals;  // ! ***
-        for (int tid : ag.task_sequence) {  // ! ***
-            if (current_task_size >= task_truncated_size) break;  // ! ***
-            Task& task = all_tasks[tid];  // ! ***
-            int ng = min((int)task.goals.size(), 2);  // ! ***
-            if (ag.status == AG_CARRYING && tid == ag.current_task) {  // ! ***
+        int task_truncated_size = 1;
+        int current_task_size = 0;
+        vector<pair<int,int>> goals;
+        for (int tid : ag.task_sequence) {
+            if (current_task_size >= task_truncated_size) break;
+            Task& task = all_tasks[tid];
+            int ng = min((int)task.goals.size(), 2);
+            if (ag.status == AG_CARRYING && tid == ag.current_task) {
                 // Already carrying: skip pickup, only add delivery
-                int gloc = (ng >= 2) ? task.goals[1] : task.goals[0];  // ! ***
-                goals.push_back({gloc, 0});  // ! ***
-                current_task_size++;  // ! ***
-            } else {  // ! ***
-                if (ng <= 1) {  // ! ***
-                    goals.push_back({task.goals[0], task.release_time});  // ! ***
-                } else {  // ! ***
-                    goals.push_back({task.goals[0], task.release_time});  // ! ***
-                    goals.push_back({task.goals[1], 0});  // ! ***
+                int gloc = (ng >= 2) ? task.goals[1] : task.goals[0];
+                goals.push_back({gloc, 0});
+                current_task_size++;
+            } else {
+                if (ng <= 1) {
+                    goals.push_back({task.goals[0], task.release_time});
+                } else {
+                    goals.push_back({task.goals[0], task.release_time});
+                    goals.push_back({task.goals[1], 0});
                 }
-                current_task_size++;  // ! ***
+                current_task_size++;
             }
         }
 
         // Choose dummy endpoint using shared choose_dummy_endpoint function
         // Use strict=true to forbid task goals (matching reference choose_good_endpoint
         // which forbids all current_assigned_endpoints including task goals)
-        int last_goal = goals.empty() ? (int)ag.loc : goals.back().first;  // ! ***
-        int dummy_loc = choose_dummy_endpoint(i, last_goal, agent_dummies, true);  // ! *** -> choose_dummy_endpoint()
-        agent_dummies[i] = dummy_loc;  // ! ***
-        goals.push_back({dummy_loc, 0});  // ! ***
+        int last_goal = goals.empty() ? (int)ag.loc : goals.back().first;
+        int dummy_loc = choose_dummy_endpoint(i, last_goal, agent_dummies, true);
+        agent_dummies[i] = dummy_loc;
+        goals.push_back({dummy_loc, 0});
 
         // Plan path: use SIPP when --sipp is set, else MLA*
-        vector<int> path;  // ! ***
-        if (config.use_sipp) {  // ! ***
-            path = sipp_search(i, (int)ag.loc, (int)cur_time_,  // ! *** -> sipp_search()
-                               goals, cons_paths, {}, false);  // ! ***
+        vector<int> path;
+        if (config.use_sipp) {
+            path = sipp_search(i, (int)ag.loc, (int)cur_time_,
+                               goals, cons_paths, {}, false);
         }
-        if (path.empty()) {  // ! ***
-            if (config.mla_mode != MLA_SEQ) {  // ! ***
-                vector<vector<pair<int,int>>> tg = split_into_task_groups(i, goals);  // ! *** -> split_into_task_groups()
-                path = mla_star_taskwise(i, (int)ag.loc, (int)cur_time_,  // ! *** -> mla_star_taskwise()
-                                          tg, cons_paths, {}, false);  // ! ***
-            } else {  // ! ***
-                path = seq_mla_star(i, (int)ag.loc, (int)cur_time_,  // ! *** -> seq_mla_star()
-                                     goals, cons_paths, {}, false);  // ! ***
+        if (path.empty()) {
+            if (config.mla_mode != MLA_SEQ) {
+                vector<vector<pair<int,int>>> tg = split_into_task_groups(i, goals);
+                path = mla_star_taskwise(i, (int)ag.loc, (int)cur_time_,
+                                          tg, cons_paths, {}, false);
+            } else {
+                path = seq_mla_star(i, (int)ag.loc, (int)cur_time_,
+                                     goals, cons_paths, {}, false);
             }
         }
 
         // Build absolute-timestep path
-        new_paths[i].resize(max_t);  // ! ***
-        if (!path.empty()) {  // ! ***
-            for (int t = 0; t < max_t; t++)  // ! ***
-                new_paths[i][t] = path[t];  // mla_star already pads to max_t  // ! ***
-        } else {  // ! ***
+        new_paths[i].resize(max_t);
+        if (!path.empty()) {
+            for (int t = 0; t < max_t; t++)
+                new_paths[i][t] = path[t];  // mla_star already pads to max_t
+        } else {
             // Failed — stay in place
-            for (int t = 0; t < max_t; t++)  // ! ***
-                new_paths[i][t] = (int)ag.loc;  // ! ***
+            for (int t = 0; t < max_t; t++)
+                new_paths[i][t] = (int)ag.loc;
         }
 
-        planned[i] = true;  // ! ***
+        planned[i] = true;
 
         // Commit to token and agent path
-        for (int t = 0; t < max_t; t++) {  // ! ***
-            path_table_[i][t] = new_paths[i][t];  // ! ***
-            agents[i].path[t] = new_paths[i][t];  // ! ***
+        for (int t = 0; t < max_t; t++) {
+            path_table_[i][t] = new_paths[i][t];
+            agents[i].path[t] = new_paths[i][t];
         }
     }
 
     // Set status
-    for (int i = 0; i < num_ag; i++) {  // ! ***
-        if (!agents[i].task_sequence.empty() && agents[i].status == AG_FREE) {  // ! ***
-            agents[i].status = AG_MOVING_TO_PICKUP;  // ! ***
-            agents[i].current_task = agents[i].task_sequence.front();  // ! ***
+    for (int i = 0; i < num_ag; i++) {
+        if (!agents[i].task_sequence.empty() && agents[i].status == AG_FREE) {
+            agents[i].status = AG_MOVING_TO_PICKUP;
+            agents[i].current_task = agents[i].task_sequence.front();
         }
     }
 }
@@ -7802,15 +7802,15 @@ void Simulation::path_planning_pp_mla() {  // ! *** [S9] path_planning_pp_mla():
 // Section 35: PBS Path Planning — Wrapper
 // ============================================================
 
-void Simulation::path_planning_pbs() {  // ! *** [S6] path_planning_pbs(): pbs_core(false) + FREE -> MOVING_TO_PICKUP
+void Simulation::path_planning_pbs() {
     // Always use pbs_core(false) which delegates to sipp_search() via plan_agent
     // when config.use_sipp is true. The previous pbs_core_sipp() used a flat greedy
     // conflict resolution instead of proper PBS DFS tree search.
-    pbs_core(false);  // ! *** -> pbs_core()
-    for (int i = 0; i < (int)agents.size(); i++) {  // ! ***
-        if (!agents[i].task_sequence.empty() && agents[i].status == AG_FREE) {  // ! ***
-            agents[i].status = AG_MOVING_TO_PICKUP;  // ! ***
-            agents[i].current_task = agents[i].task_sequence.front();  // ! ***
+    pbs_core(false);
+    for (int i = 0; i < (int)agents.size(); i++) {
+        if (!agents[i].task_sequence.empty() && agents[i].status == AG_FREE) {
+            agents[i].status = AG_MOVING_TO_PICKUP;
+            agents[i].current_task = agents[i].task_sequence.front();
         }
     }
 }
@@ -7826,146 +7826,146 @@ void Simulation::path_planning_pbs() {  // ! *** [S6] path_planning_pbs(): pbs_c
 //   is that the grid/heuristic source is the framework's mapd_map (no separate
 //   BasicGraph, no separate module).  All cells are Travel/Obstacle (no "Magic").
 // ============================================================
-namespace {  // ! *** [S8] native windowed PBS: WGraph/WReservationTable/WStateTimeAStar/WSippSearch/WPBS/native_wpbs_solve
-using boost::heap::fibonacci_heap;  // ! ***
-using boost::heap::compare;  // ! ***
-using boost::unordered_set;  // ! ***
-using boost::unordered_map;  // ! ***
-using std::vector;  // ! ***
-using std::tuple;  // ! ***
-using std::make_tuple;  // ! ***
-using std::pair;  // ! ***
-using std::make_pair;  // ! ***
-using std::list;  // ! ***
-using std::max;  // ! ***
-using std::min;  // ! ***
+namespace {
+using boost::heap::fibonacci_heap;
+using boost::heap::compare;
+using boost::unordered_set;
+using boost::unordered_map;
+using std::vector;
+using std::tuple;
+using std::make_tuple;
+using std::pair;
+using std::make_pair;
+using std::list;
+using std::max;
+using std::min;
 
-typedef tuple<int, int, int, int, int> WConflict;   // (a1,a2,loc1,loc2,timestep)  // ! *** typedef tuple
-typedef tuple<int, int, bool> WInterval;  // ! *** typedef tuple
-#define W_INTERVAL_MAX 10000  // ! ***
+typedef tuple<int, int, int, int, int> WConflict;   // (a1,a2,loc1,loc2,timestep)
+typedef tuple<int, int, bool> WInterval;
+#define W_INTERVAL_MAX 10000
 
 // ------------------------------------------------------------------ WState
-struct WState {  // ! *** struct WState
-    int location;  // ! ***
-    int timestep;  // ! ***
-    int orientation;  // ! ***
-    WState wait() const { return WState(location, timestep + 1, orientation); }  // ! ***
-    struct Hasher {  // ! ***
-        std::size_t operator()(const WState& n) const {  // ! ***
-            size_t loc_hash = std::hash<int>()(n.location);  // ! ***
-            size_t time_hash = std::hash<int>()(n.timestep);  // ! ***
-            size_t ori_hash = std::hash<int>()(n.orientation);  // ! ***
-            return (time_hash ^ (loc_hash << 1) ^ (ori_hash << 2));  // ! ***
+struct WState {
+    int location;
+    int timestep;
+    int orientation;
+    WState wait() const { return WState(location, timestep + 1, orientation); }
+    struct Hasher {
+        std::size_t operator()(const WState& n) const {
+            size_t loc_hash = std::hash<int>()(n.location);
+            size_t time_hash = std::hash<int>()(n.timestep);
+            size_t ori_hash = std::hash<int>()(n.orientation);
+            return (time_hash ^ (loc_hash << 1) ^ (ori_hash << 2));
         }
     };
-    void operator=(const WState& o) { timestep = o.timestep; location = o.location; orientation = o.orientation; }  // ! ***
-    bool operator==(const WState& o) const { return timestep == o.timestep && location == o.location && orientation == o.orientation; }  // ! ***
-    bool operator!=(const WState& o) const { return timestep != o.timestep || location != o.location || orientation != o.orientation; }  // ! ***
-    WState() : location(-1), timestep(-1), orientation(-1) {}  // ! ***
-    WState(int location, int timestep = -1, int orientation = -1) : location(location), timestep(timestep), orientation(orientation) {}  // ! ***
-    WState(const WState& o) { location = o.location; timestep = o.timestep; orientation = o.orientation; }  // ! ***
+    void operator=(const WState& o) { timestep = o.timestep; location = o.location; orientation = o.orientation; }
+    bool operator==(const WState& o) const { return timestep == o.timestep && location == o.location && orientation == o.orientation; }
+    bool operator!=(const WState& o) const { return timestep != o.timestep || location != o.location || orientation != o.orientation; }
+    WState() : location(-1), timestep(-1), orientation(-1) {}
+    WState(int location, int timestep = -1, int orientation = -1) : location(location), timestep(timestep), orientation(orientation) {}
+    WState(const WState& o) { location = o.location; timestep = o.timestep; orientation = o.orientation; }
 };
-typedef std::vector<WState> WPath;  // ! *** typedef std
+typedef std::vector<WState> WPath;
 
 // ------------------------------------------------------------------ WGraph
 // Concrete grid graph backed by the framework's mapd_map: 4-neighbour, uniform
 // weight, no rotation.  Heuristics come from mapd_map.endpoints[].h_val (BFS on
 // the same padded grid); a BFS fallback (never reached in practice, all goals are
 // endpoints) matches the reference exactly for any non-endpoint root.
-class WGraph {  // ! *** class WGraph
-public:  // ! ***
-    const MAPDMap* mp = nullptr;  // ! ***
-    int rows = 0, cols = 0;  // ! ***
-    unordered_map<int, vector<double>> heuristics;  // ! ***
-    int size() const { return rows * cols; }  // ! ***
+class WGraph {
+public:
+    const MAPDMap* mp = nullptr;
+    int rows = 0, cols = 0;
+    unordered_map<int, vector<double>> heuristics;
+    int size() const { return rows * cols; }
 
-    list<WState> get_neighbors(const WState& s) const {  // ! ***
-        list<WState> nb;  // ! ***
-        if (s.location < 0) return nb;  // ! ***
-        nb.push_back(WState(s.location, s.timestep + 1, -1)); // wait first  // ! ***
-        int move[4] = {1, -1, cols, -cols};  // ! ***
-        for (int i = 0; i < 4; i++) {  // ! ***
-            int nl = s.location + move[i];  // ! ***
-            if (nl < 0 || nl >= size()) continue;  // ! ***
-            if ((i == 0 || i == 1) && (nl / cols != s.location / cols)) continue;  // ! ***
-            if (mp->grid[nl]) nb.push_back(WState(nl, s.timestep + 1, -1));  // ! ***
+    list<WState> get_neighbors(const WState& s) const {
+        list<WState> nb;
+        if (s.location < 0) return nb;
+        nb.push_back(WState(s.location, s.timestep + 1, -1)); // wait first
+        int move[4] = {1, -1, cols, -cols};
+        for (int i = 0; i < 4; i++) {
+            int nl = s.location + move[i];
+            if (nl < 0 || nl >= size()) continue;
+            if ((i == 0 || i == 1) && (nl / cols != s.location / cols)) continue;
+            if (mp->grid[nl]) nb.push_back(WState(nl, s.timestep + 1, -1));
         }
-        return nb;  // ! ***
+        return nb;
     }
 
-    double get_weight(int, int) const { return 1.0; }  // ! ***
+    double get_weight(int, int) const { return 1.0; }
 
-    const vector<double>& ensure_heuristic(int root) {  // ! ***
-        auto it = heuristics.find(root);  // ! ***
-        if (it != heuristics.end()) return it->second;  // ! ***
-        vector<double> res;  // ! ***
-        int ep = (mp != nullptr) ? mp->ep_index(root) : -1;  // ! ***
-        if (ep >= 0) {  // ! ***
-            const vector<int>& hv = mp->endpoints[ep].h_val;   // framework heuristic  // ! ***
-            res.resize(hv.size());  // ! ***
-            for (size_t k = 0; k < hv.size(); k++)  // ! ***
-                res[k] = (hv[k] == INT_MAX) ? (double)INT_MAX : (double)hv[k];  // ! ***
-        } else {  // ! ***
-            res.assign(size(), (double)INT_MAX);  // ! ***
-            if (root >= 0 && root < size() && mp->grid[root]) {  // ! ***
-                std::queue<int> Q; res[root] = 0; Q.push(root);  // ! ***
-                int move[4] = {1, -1, cols, -cols};  // ! ***
-                while (!Q.empty()) {  // ! ***
-                    int c = Q.front(); Q.pop();  // ! ***
-                    for (int i = 0; i < 4; i++) {  // ! ***
-                        int nl = c + move[i];  // ! ***
-                        if (nl < 0 || nl >= size()) continue;  // ! ***
-                        if ((i == 0 || i == 1) && (nl / cols != c / cols)) continue;  // ! ***
-                        if (mp->grid[nl] && res[nl] >= (double)INT_MAX) { res[nl] = res[c] + 1; Q.push(nl); }  // ! ***
+    const vector<double>& ensure_heuristic(int root) {
+        auto it = heuristics.find(root);
+        if (it != heuristics.end()) return it->second;
+        vector<double> res;
+        int ep = (mp != nullptr) ? mp->ep_index(root) : -1;
+        if (ep >= 0) {
+            const vector<int>& hv = mp->endpoints[ep].h_val;   // framework heuristic
+            res.resize(hv.size());
+            for (size_t k = 0; k < hv.size(); k++)
+                res[k] = (hv[k] == INT_MAX) ? (double)INT_MAX : (double)hv[k];
+        } else {
+            res.assign(size(), (double)INT_MAX);
+            if (root >= 0 && root < size() && mp->grid[root]) {
+                std::queue<int> Q; res[root] = 0; Q.push(root);
+                int move[4] = {1, -1, cols, -cols};
+                while (!Q.empty()) {
+                    int c = Q.front(); Q.pop();
+                    for (int i = 0; i < 4; i++) {
+                        int nl = c + move[i];
+                        if (nl < 0 || nl >= size()) continue;
+                        if ((i == 0 || i == 1) && (nl / cols != c / cols)) continue;
+                        if (mp->grid[nl] && res[nl] >= (double)INT_MAX) { res[nl] = res[c] + 1; Q.push(nl); }
                     }
                 }
             }
         }
-        auto ins = heuristics.emplace(root, std::move(res));  // ! ***
-        return ins.first->second;  // ! ***
+        auto ins = heuristics.emplace(root, std::move(res));
+        return ins.first->second;
     }
 };
 
 // ------------------------------------------------------------------ WPriorityGraph
-class WPriorityGraph {  // ! *** class WPriorityGraph
-public:  // ! ***
-    double runtime = 0;  // ! ***
-    typedef boost::unordered_map<int, boost::unordered_set<int> > PGraph_t;  // ! ***
-    PGraph_t G;  // ! ***
-    void clear() { G.clear(); }  // ! ***
-    bool empty() const { return G.empty(); }  // ! ***
-    void copy(const WPriorityGraph& o) { this->G = o.G; }  // ! ***
-    void add(int from, int to) { G[from].insert(to); }  // ! ***
-    void remove(int from, int to) { if (G.find(from) != G.end()) G[from].erase(to); }  // ! ***
-    bool connected(int from, int to) const {  // ! ***
-        std::list<int> open_list;  // ! ***
-        boost::unordered_set<int> closed_list;  // ! ***
-        open_list.push_back(from); closed_list.insert(from);  // ! ***
-        while (!open_list.empty()) {  // ! ***
-            int curr = open_list.back(); open_list.pop_back();  // ! ***
-            auto neighbors = G.find(curr);  // ! ***
-            if (neighbors == G.end()) continue;  // ! ***
-            for (auto next : neighbors->second) {  // ! ***
-                if (next == to) return true;  // ! ***
-                if (closed_list.find(next) == closed_list.end()) { open_list.push_back(next); closed_list.insert(next); }  // ! ***
+class WPriorityGraph {
+public:
+    double runtime = 0;
+    typedef boost::unordered_map<int, boost::unordered_set<int> > PGraph_t;
+    PGraph_t G;
+    void clear() { G.clear(); }
+    bool empty() const { return G.empty(); }
+    void copy(const WPriorityGraph& o) { this->G = o.G; }
+    void add(int from, int to) { G[from].insert(to); }
+    void remove(int from, int to) { if (G.find(from) != G.end()) G[from].erase(to); }
+    bool connected(int from, int to) const {
+        std::list<int> open_list;
+        boost::unordered_set<int> closed_list;
+        open_list.push_back(from); closed_list.insert(from);
+        while (!open_list.empty()) {
+            int curr = open_list.back(); open_list.pop_back();
+            auto neighbors = G.find(curr);
+            if (neighbors == G.end()) continue;
+            for (auto next : neighbors->second) {
+                if (next == to) return true;
+                if (closed_list.find(next) == closed_list.end()) { open_list.push_back(next); closed_list.insert(next); }
             }
         }
-        return false;  // ! ***
+        return false;
     }
-    boost::unordered_set<int> get_reachable_nodes(int root) {  // ! ***
-        clock_t t = std::clock();  // ! ***
-        std::list<int> open_list;  // ! ***
-        boost::unordered_set<int> closed_list;  // ! ***
-        open_list.push_back(root);  // ! ***
-        while (!open_list.empty()) {  // ! ***
-            int curr = open_list.back(); open_list.pop_back();  // ! ***
-            auto neighbors = G.find(curr);  // ! ***
-            if (neighbors == G.end()) continue;  // ! ***
-            for (auto next : neighbors->second)  // ! ***
-                if (closed_list.find(next) == closed_list.end()) { open_list.push_back(next); closed_list.insert(next); }  // ! ***
+    boost::unordered_set<int> get_reachable_nodes(int root) {
+        clock_t t = std::clock();
+        std::list<int> open_list;
+        boost::unordered_set<int> closed_list;
+        open_list.push_back(root);
+        while (!open_list.empty()) {
+            int curr = open_list.back(); open_list.pop_back();
+            auto neighbors = G.find(curr);
+            if (neighbors == G.end()) continue;
+            for (auto next : neighbors->second)
+                if (closed_list.find(next) == closed_list.end()) { open_list.push_back(next); closed_list.insert(next); }
         }
-        runtime = (std::clock() - t) * 1.0 / CLOCKS_PER_SEC;  // ! ***
-        return closed_list;  // ! ***
+        runtime = (std::clock() - t) * 1.0 / CLOCKS_PER_SEC;
+        return closed_list;
     }
 };
 
@@ -7973,380 +7973,380 @@ public:  // ! ***
 // Constraint table (CT) built from higher-priority agents' paths, clipped to the
 // planning window.  use_cat / prioritize_start / initial_constraints are all off in
 // this configuration; the code paths are retained for faithfulness but are no-ops.
-class WReservationTable {  // ! *** class WReservationTable
-public:  // ! ***
-    size_t map_size = 0;  // ! ***
-    int num_of_agents = 0;  // ! ***
-    int k_robust = 0;  // ! ***
-    int window = 0;  // ! ***
-    bool use_cat = false;  // ! ***
-    bool hold_endpoints = false;  // ! ***
-    bool prioritize_start = false;  // ! ***
-    double runtime = 0;  // ! ***
+class WReservationTable {
+public:
+    size_t map_size = 0;
+    int num_of_agents = 0;
+    int k_robust = 0;
+    int window = 0;
+    bool use_cat = false;
+    bool hold_endpoints = false;
+    bool prioritize_start = false;
+    double runtime = 0;
 
-    void clear() { sit.clear(); ct.clear(); cat.clear(); }  // ! ***
-    void copy(const WReservationTable& o) { sit = o.sit; ct = o.ct; cat = o.cat; }  // ! ***
+    void clear() { sit.clear(); ct.clear(); cat.clear(); }
+    void copy(const WReservationTable& o) { sit = o.sit; ct = o.ct; cat = o.cat; }
 
-    void build(const vector<WPath*>& paths,  // ! ***
-               const list<tuple<int, int, int> >& initial_constraints,  // ! ***
-               const boost::unordered_set<int>& high_priority_agents, int current_agent, int start_location);  // ! ***
-    void insertPath2CT(const WPath& path);  // ! ***
-    bool isConstrained(int curr_id, int next_id, int next_timestep) const;  // ! ***
-    bool isConflicting(int curr_id, int next_id, int next_timestep) const;  // ! ***
-    int getHoldingTimeFromCT(int location) const;  // ! ***
+    void build(const vector<WPath*>& paths,
+               const list<tuple<int, int, int> >& initial_constraints,
+               const boost::unordered_set<int>& high_priority_agents, int current_agent, int start_location);
+    void insertPath2CT(const WPath& path);
+    bool isConstrained(int curr_id, int next_id, int next_timestep) const;
+    bool isConflicting(int curr_id, int next_id, int next_timestep) const;
+    int getHoldingTimeFromCT(int location) const;
 
-    WReservationTable(const WGraph& G) : G(G) {}  // ! ***
-private:  // ! ***
-    const WGraph& G;  // ! ***
-    unordered_map<size_t, list<pair<int, int> > > ct;  // ! ***
-    vector<vector<bool> > cat;  // ! ***
-    unordered_map<size_t, list<WInterval > > sit;  // ! ***
-    void insertConstraints4starts(const vector<WPath*>& paths, int current_agent, int start_location);  // ! ***
-    void insertPath2CAT(const WPath& path);  // ! ***
-    void addInitialConstraints(const list<tuple<int, int, int> >& initial_constraints, int current_agent);  // ! ***
-    inline int getEdgeIndex(int from, int to) const { return (from + 1) * map_size + to; }  // ! ***
+    WReservationTable(const WGraph& G) : G(G) {}
+private:
+    const WGraph& G;
+    unordered_map<size_t, list<pair<int, int> > > ct;
+    vector<vector<bool> > cat;
+    unordered_map<size_t, list<WInterval > > sit;
+    void insertConstraints4starts(const vector<WPath*>& paths, int current_agent, int start_location);
+    void insertPath2CAT(const WPath& path);
+    void addInitialConstraints(const list<tuple<int, int, int> >& initial_constraints, int current_agent);
+    inline int getEdgeIndex(int from, int to) const { return (from + 1) * map_size + to; }
 };
 
-int WReservationTable::getHoldingTimeFromCT(int location) const {  // ! *** defines WReservationTable::getHoldingTimeFromCT()
-    const auto& it = ct.find(location);  // ! ***
-    if (it == ct.end()) return 0;  // ! ***
-    int t = 0;  // ! ***
-    for (auto time_range : it->second)  // ! ***
-        if (time_range.second > t) t = time_range.second;  // ! ***
-    return t;  // ! ***
+int WReservationTable::getHoldingTimeFromCT(int location) const {
+    const auto& it = ct.find(location);
+    if (it == ct.end()) return 0;
+    int t = 0;
+    for (auto time_range : it->second)
+        if (time_range.second > t) t = time_range.second;
+    return t;
 }
 
-void WReservationTable::insertPath2CT(const WPath& path) {  // ! *** defines WReservationTable::insertPath2CT()
-    if (path.empty()) return;  // ! ***
-    auto prev = path.begin();  // ! ***
-    auto curr = path.begin();  // ! ***
-    ++curr;  // ! ***
-    while (curr != path.end() && curr->timestep - k_robust <= window) {  // ! ***
-        if (prev->location != curr->location) {  // ! ***
-            ct[prev->location].emplace_back(prev->timestep - k_robust, curr->timestep + k_robust);  // ! ***
-            if (k_robust == 0)  // ! ***
-                ct[getEdgeIndex(curr->location, prev->location)].emplace_back(curr->timestep, curr->timestep + 1);  // ! ***
-            prev = curr;  // ! ***
+void WReservationTable::insertPath2CT(const WPath& path) {
+    if (path.empty()) return;
+    auto prev = path.begin();
+    auto curr = path.begin();
+    ++curr;
+    while (curr != path.end() && curr->timestep - k_robust <= window) {
+        if (prev->location != curr->location) {
+            ct[prev->location].emplace_back(prev->timestep - k_robust, curr->timestep + k_robust);
+            if (k_robust == 0)
+                ct[getEdgeIndex(curr->location, prev->location)].emplace_back(curr->timestep, curr->timestep + 1);
+            prev = curr;
         }
-        ++curr;  // ! ***
+        ++curr;
     }
-    if (curr != path.end()) {  // ! ***
-        ct[prev->location].emplace_back(prev->timestep - k_robust, curr->timestep + k_robust);  // ! ***
-        if (k_robust == 0)  // ! ***
-            ct[getEdgeIndex(curr->location, prev->location)].emplace_back(curr->timestep, curr->timestep + 1);  // ! ***
-    } else {  // ! ***
-        ct[prev->location].emplace_back(prev->timestep - k_robust, path.back().timestep + 1 + k_robust);  // ! ***
-        if (k_robust == 0)  // ! ***
-            ct[getEdgeIndex(path.back().location, prev->location)].emplace_back(path.back().timestep, path.back().timestep + 1);  // ! ***
+    if (curr != path.end()) {
+        ct[prev->location].emplace_back(prev->timestep - k_robust, curr->timestep + k_robust);
+        if (k_robust == 0)
+            ct[getEdgeIndex(curr->location, prev->location)].emplace_back(curr->timestep, curr->timestep + 1);
+    } else {
+        ct[prev->location].emplace_back(prev->timestep - k_robust, path.back().timestep + 1 + k_robust);
+        if (k_robust == 0)
+            ct[getEdgeIndex(path.back().location, prev->location)].emplace_back(path.back().timestep, path.back().timestep + 1);
     }
-    ct[path.back().location].emplace_back(path.back().timestep, W_INTERVAL_MAX);  // ! ***
+    ct[path.back().location].emplace_back(path.back().timestep, W_INTERVAL_MAX);
 }
 
-void WReservationTable::addInitialConstraints(const list<tuple<int, int, int> >& initial_constraints, int current_agent) {  // ! *** defines WReservationTable::addInitialConstraints()
-    for (auto con : initial_constraints) {  // ! ***
-        if (std::get<0>(con) != current_agent && 0 <= std::get<1>(con) && std::get<1>(con) < G.size())  // ! ***
-            ct[std::get<1>(con)].emplace_back(0, min(window, std::get<2>(con)));  // ! ***
+void WReservationTable::addInitialConstraints(const list<tuple<int, int, int> >& initial_constraints, int current_agent) {
+    for (auto con : initial_constraints) {
+        if (std::get<0>(con) != current_agent && 0 <= std::get<1>(con) && std::get<1>(con) < G.size())
+            ct[std::get<1>(con)].emplace_back(0, min(window, std::get<2>(con)));
     }
 }
 
-void WReservationTable::insertPath2CAT(const WPath& path) {  // ! *** defines WReservationTable::insertPath2CAT()
-    if (path.empty()) return;  // ! ***
-    int max_timestep = min((int)path.size() - 1, k_robust + window);  // ! ***
-    int timestep = 0;  // ! ***
-    while (timestep <= max_timestep) {  // ! ***
-        int location = path[timestep].location;  // ! ***
-        for (int t = max(0, timestep - k_robust); t <= min((int)cat.size() - 1, timestep + k_robust); t++)  // ! ***
-            cat[t][location] = true;  // ! ***
-        timestep++;  // ! ***
+void WReservationTable::insertPath2CAT(const WPath& path) {
+    if (path.empty()) return;
+    int max_timestep = min((int)path.size() - 1, k_robust + window);
+    int timestep = 0;
+    while (timestep <= max_timestep) {
+        int location = path[timestep].location;
+        for (int t = max(0, timestep - k_robust); t <= min((int)cat.size() - 1, timestep + k_robust); t++)
+            cat[t][location] = true;
+        timestep++;
     }
-    while (timestep < (int)cat.size()) { cat[timestep][path.back().location] = true; timestep++; }  // ! ***
+    while (timestep < (int)cat.size()) { cat[timestep][path.back().location] = true; timestep++; }
 }
 
-void WReservationTable::build(const vector<WPath*>& paths,  // ! *** defines WReservationTable::build()
-        const list<tuple<int, int, int> >& initial_constraints,  // ! ***
-        const boost::unordered_set<int>& high_priority_agents, int current_agent, int start_location) {  // ! ***
-    clock_t t = std::clock();  // ! ***
-    vector<bool> soft(num_of_agents, true);  // ! ***
-    for (auto i : high_priority_agents) {  // ! ***
-        if (paths[i] == nullptr) continue;  // ! ***
-        insertPath2CT(*paths[i]);  // ! ***
-        soft[i] = false;  // ! ***
+void WReservationTable::build(const vector<WPath*>& paths,
+        const list<tuple<int, int, int> >& initial_constraints,
+        const boost::unordered_set<int>& high_priority_agents, int current_agent, int start_location) {
+    clock_t t = std::clock();
+    vector<bool> soft(num_of_agents, true);
+    for (auto i : high_priority_agents) {
+        if (paths[i] == nullptr) continue;
+        insertPath2CT(*paths[i]);
+        soft[i] = false;
     }
-    if (prioritize_start)  // ! ***
-        insertConstraints4starts(paths, current_agent, start_location);  // ! ***
-    addInitialConstraints(initial_constraints, current_agent);  // ! ***
-    runtime = (std::clock() - t) * 1.0 / CLOCKS_PER_SEC;  // ! ***
-    if (!use_cat) return;  // ! ***
-    soft[current_agent] = false;  // ! ***
-    for (int i = 0; i < num_of_agents; i++) {  // ! ***
-        if (!soft[i] || paths[i] == nullptr) continue;  // ! ***
-        insertPath2CAT(*paths[i]);  // ! ***
+    if (prioritize_start)
+        insertConstraints4starts(paths, current_agent, start_location);
+    addInitialConstraints(initial_constraints, current_agent);
+    runtime = (std::clock() - t) * 1.0 / CLOCKS_PER_SEC;
+    if (!use_cat) return;
+    soft[current_agent] = false;
+    for (int i = 0; i < num_of_agents; i++) {
+        if (!soft[i] || paths[i] == nullptr) continue;
+        insertPath2CAT(*paths[i]);
     }
-    runtime = (std::clock() - t) * 1.0 / CLOCKS_PER_SEC;  // ! ***
+    runtime = (std::clock() - t) * 1.0 / CLOCKS_PER_SEC;
 }
 
-void WReservationTable::insertConstraints4starts(const vector<WPath*>& paths, int current_agent, int) {  // ! *** defines WReservationTable::insertConstraints4starts()
-    for (int i = 0; i < num_of_agents; i++) {  // ! ***
-        if (paths[i] == nullptr) continue;  // ! ***
-        else if (i != current_agent) {  // ! ***
-            int start = paths[i]->front().location;  // ! ***
-            if (start < 0) continue;  // ! ***
-            for (auto state : (*paths[i]))  // ! ***
-                if (state.location != start) { ct[start].emplace_back(0, state.timestep + k_robust); break; }  // ! ***
+void WReservationTable::insertConstraints4starts(const vector<WPath*>& paths, int current_agent, int) {
+    for (int i = 0; i < num_of_agents; i++) {
+        if (paths[i] == nullptr) continue;
+        else if (i != current_agent) {
+            int start = paths[i]->front().location;
+            if (start < 0) continue;
+            for (auto state : (*paths[i]))
+                if (state.location != start) { ct[start].emplace_back(0, state.timestep + k_robust); break; }
         }
     }
 }
 
-bool WReservationTable::isConstrained(int curr_id, int next_id, int next_timestep) const {  // ! *** defines WReservationTable::isConstrained()
-    auto it = ct.find(next_id);  // ! ***
-    if (it != ct.end())  // ! ***
-        for (auto time_range : it->second)  // ! ***
-            if (next_timestep >= time_range.first && next_timestep < time_range.second)  // ! ***
-                return true;  // ! ***
-    if (curr_id != next_id) {  // ! ***
-        it = ct.find(getEdgeIndex(curr_id, next_id));  // ! ***
-        if (it != ct.end())  // ! ***
-            for (auto time_range : it->second)  // ! ***
-                if (next_timestep >= time_range.first && next_timestep < time_range.second)  // ! ***
-                    return true;  // ! ***
+bool WReservationTable::isConstrained(int curr_id, int next_id, int next_timestep) const {
+    auto it = ct.find(next_id);
+    if (it != ct.end())
+        for (auto time_range : it->second)
+            if (next_timestep >= time_range.first && next_timestep < time_range.second)
+                return true;
+    if (curr_id != next_id) {
+        it = ct.find(getEdgeIndex(curr_id, next_id));
+        if (it != ct.end())
+            for (auto time_range : it->second)
+                if (next_timestep >= time_range.first && next_timestep < time_range.second)
+                    return true;
     }
-    return false;  // ! ***
+    return false;
 }
 
-bool WReservationTable::isConflicting(int curr_id, int next_id, int next_timestep) const {  // ! *** defines WReservationTable::isConflicting()
-    if (next_timestep >= (int)cat.size()) return false;  // ! ***
-    if (cat[next_timestep][next_id]) return true;  // ! ***
-    else if (curr_id != next_id && cat[next_timestep][curr_id] && cat[next_timestep - 1][next_id]) return true;  // ! ***
-    else return false;  // ! ***
+bool WReservationTable::isConflicting(int curr_id, int next_id, int next_timestep) const {
+    if (next_timestep >= (int)cat.size()) return false;
+    if (cat[next_timestep][next_id]) return true;
+    else if (curr_id != next_id && cat[next_timestep][curr_id] && cat[next_timestep - 1][next_id]) return true;
+    else return false;
 }
 
 // ------------------------------------------------------------------ WSingleAgentSolver
-class WSingleAgentSolver {  // ! *** class WSingleAgentSolver
-public:  // ! ***
-    bool prioritize_start = false;  // ! ***
-    double suboptimal_bound = 1;  // ! ***
-    bool hold_endpoints = false;  // ! ***
-    uint64_t num_expanded = 0;  // ! ***
-    uint64_t num_generated = 0;  // ! ***
-    double runtime = 0;  // ! ***
-    int vis_goal_time = 0;  // ! ***
-    double path_cost = 0;  // ! ***
-    double temp_h_val = 0;  // ! ***
-    double min_f_val = 0;  // ! ***
-    int num_of_conf = 0;  // ! ***
-    int goal_len = 0;  // ! ***
-    std::unordered_map<int, double> travel_times;  // ! ***
+class WSingleAgentSolver {
+public:
+    bool prioritize_start = false;
+    double suboptimal_bound = 1;
+    bool hold_endpoints = false;
+    uint64_t num_expanded = 0;
+    uint64_t num_generated = 0;
+    double runtime = 0;
+    int vis_goal_time = 0;
+    double path_cost = 0;
+    double temp_h_val = 0;
+    double min_f_val = 0;
+    int num_of_conf = 0;
+    int goal_len = 0;
+    std::unordered_map<int, double> travel_times;
 
-    double compute_h_value(WGraph& G, int curr, int goal_id,  // ! ***
-        const vector<pair<int, int> >& goal_location) const {  // ! ***
-        double h = G.ensure_heuristic(goal_location[goal_id].first)[curr];  // ! ***
-        goal_id++;  // ! ***
-        while (goal_id < (int)goal_location.size()) {  // ! ***
-            h += G.ensure_heuristic(goal_location[goal_id].first)[goal_location[goal_id - 1].first];  // ! ***
-            goal_id++;  // ! ***
+    double compute_h_value(WGraph& G, int curr, int goal_id,
+        const vector<pair<int, int> >& goal_location) const {
+        double h = G.ensure_heuristic(goal_location[goal_id].first)[curr];
+        goal_id++;
+        while (goal_id < (int)goal_location.size()) {
+            h += G.ensure_heuristic(goal_location[goal_id].first)[goal_location[goal_id - 1].first];
+            goal_id++;
         }
-        return h;  // ! ***
+        return h;
     }
-    virtual WPath run(WGraph& G, const WState& start, const vector<pair<int, int> >& goal_location, WReservationTable& RT) = 0;  // ! ***
-    virtual ~WSingleAgentSolver() {}  // ! ***
+    virtual WPath run(WGraph& G, const WState& start, const vector<pair<int, int> >& goal_location, WReservationTable& RT) = 0;
+    virtual ~WSingleAgentSolver() {}
 };
 
 // ------------------------------------------------------------------ WStateTimeAStar
-class WStateTimeAStarNode {  // ! *** class WStateTimeAStarNode
-public:  // ! ***
-    WState state;  // ! ***
-    double g_val;  // ! ***
-    double h_val;  // ! ***
-    WStateTimeAStarNode* parent;  // ! ***
-    int conflicts;  // ! ***
-    int depth;  // ! ***
-    bool in_openlist;  // ! ***
-    int visit_goal_time;  // ! ***
-    int goal_id;  // ! ***
-    int goal_length;  // ! ***
-    bool vis_goal;  // ! ***
+class WStateTimeAStarNode {
+public:
+    WState state;
+    double g_val;
+    double h_val;
+    WStateTimeAStarNode* parent;
+    int conflicts;
+    int depth;
+    bool in_openlist;
+    int visit_goal_time;
+    int goal_id;
+    int goal_length;
+    bool vis_goal;
 
-    struct compare_node {  // ! ***
-        bool operator()(const WStateTimeAStarNode* n1, const WStateTimeAStarNode* n2) const {  // ! ***
-            if (n1->g_val + n1->h_val == n2->g_val + n2->h_val)  // ! ***
-                return n1->g_val <= n2->g_val;  // ! ***
-            return n1->g_val + n1->h_val >= n2->g_val + n2->h_val;  // ! ***
+    struct compare_node {
+        bool operator()(const WStateTimeAStarNode* n1, const WStateTimeAStarNode* n2) const {
+            if (n1->g_val + n1->h_val == n2->g_val + n2->h_val)
+                return n1->g_val <= n2->g_val;
+            return n1->g_val + n1->h_val >= n2->g_val + n2->h_val;
         }
     };
-    struct secondary_compare_node {  // ! ***
-        bool operator()(const WStateTimeAStarNode* n1, const WStateTimeAStarNode* n2) const {  // ! ***
-            if (n1->conflicts == n2->conflicts) {  // ! ***
-                if (n1->goal_id == n2->goal_id)  // ! ***
-                    return n1->g_val <= n2->g_val;  // ! ***
-                return n1->goal_id <= n2->goal_id;  // ! ***
+    struct secondary_compare_node {
+        bool operator()(const WStateTimeAStarNode* n1, const WStateTimeAStarNode* n2) const {
+            if (n1->conflicts == n2->conflicts) {
+                if (n1->goal_id == n2->goal_id)
+                    return n1->g_val <= n2->g_val;
+                return n1->goal_id <= n2->goal_id;
             }
-            return n1->conflicts >= n2->conflicts;  // ! ***
+            return n1->conflicts >= n2->conflicts;
         }
     };
-    fibonacci_heap<WStateTimeAStarNode*, compare<WStateTimeAStarNode::compare_node> >::handle_type open_handle;  // ! ***
-    fibonacci_heap<WStateTimeAStarNode*, compare<WStateTimeAStarNode::secondary_compare_node> >::handle_type focal_handle;  // ! ***
+    fibonacci_heap<WStateTimeAStarNode*, compare<WStateTimeAStarNode::compare_node> >::handle_type open_handle;
+    fibonacci_heap<WStateTimeAStarNode*, compare<WStateTimeAStarNode::secondary_compare_node> >::handle_type focal_handle;
 
-    WStateTimeAStarNode() : g_val(0), h_val(0), parent(nullptr), conflicts(0), depth(0), in_openlist(false), visit_goal_time(0), goal_id(0), vis_goal(false) {}  // ! ***
-    WStateTimeAStarNode(const WState& state, double g_val, double h_val, WStateTimeAStarNode* parent, int conflicts) :  // ! ***
-        state(state), g_val(g_val), h_val(h_val), parent(parent), conflicts(conflicts), in_openlist(false) {  // ! ***
-        if (parent != nullptr) {  // ! ***
-            depth = parent->depth + 1;  // ! ***
-            goal_id = parent->goal_id;  // ! ***
-            if (parent->vis_goal) visit_goal_time = parent->visit_goal_time;  // ! ***
-            else visit_goal_time = 0;  // ! ***
-            vis_goal = parent->vis_goal;  // ! ***
-        } else { depth = 0; goal_id = 0; visit_goal_time = 0; vis_goal = false; }  // ! ***
+    WStateTimeAStarNode() : g_val(0), h_val(0), parent(nullptr), conflicts(0), depth(0), in_openlist(false), visit_goal_time(0), goal_id(0), vis_goal(false) {}
+    WStateTimeAStarNode(const WState& state, double g_val, double h_val, WStateTimeAStarNode* parent, int conflicts) :
+        state(state), g_val(g_val), h_val(h_val), parent(parent), conflicts(conflicts), in_openlist(false) {
+        if (parent != nullptr) {
+            depth = parent->depth + 1;
+            goal_id = parent->goal_id;
+            if (parent->vis_goal) visit_goal_time = parent->visit_goal_time;
+            else visit_goal_time = 0;
+            vis_goal = parent->vis_goal;
+        } else { depth = 0; goal_id = 0; visit_goal_time = 0; vis_goal = false; }
     }
-    inline double getFVal() const { return g_val + h_val; }  // ! ***
-    struct EqNode {  // ! ***
-        bool operator()(const WStateTimeAStarNode* n1, const WStateTimeAStarNode* n2) const {  // ! ***
-            return (n1 == n2) || (n1 && n2 && n1->state == n2->state && n1->goal_id == n2->goal_id);  // ! ***
+    inline double getFVal() const { return g_val + h_val; }
+    struct EqNode {
+        bool operator()(const WStateTimeAStarNode* n1, const WStateTimeAStarNode* n2) const {
+            return (n1 == n2) || (n1 && n2 && n1->state == n2->state && n1->goal_id == n2->goal_id);
         }
     };
-    struct Hasher {  // ! ***
-        std::size_t operator()(const WStateTimeAStarNode* n) const { return WState::Hasher()(n->state); }  // ! ***
+    struct Hasher {
+        std::size_t operator()(const WStateTimeAStarNode* n) const { return WState::Hasher()(n->state); }
     };
 };
 
-class WStateTimeAStar : public WSingleAgentSolver {  // ! *** class WStateTimeAStar
-public:  // ! ***
-    WPath run(WGraph& G, const WState& start, const vector<pair<int, int> >& goal_location, WReservationTable& RT);  // ! ***
-private:  // ! ***
-    fibonacci_heap<WStateTimeAStarNode*, compare<WStateTimeAStarNode::compare_node> > open_list;  // ! ***
-    fibonacci_heap<WStateTimeAStarNode*, compare<WStateTimeAStarNode::secondary_compare_node> > focal_list;  // ! ***
-    unordered_set<WStateTimeAStarNode*, WStateTimeAStarNode::Hasher, WStateTimeAStarNode::EqNode> allNodes_table;  // ! ***
-    inline void releaseClosedListNodes() {  // ! ***
-        for (auto it = allNodes_table.begin(); it != allNodes_table.end(); it++) delete (*it);  // ! ***
-        allNodes_table.clear();  // ! ***
+class WStateTimeAStar : public WSingleAgentSolver {
+public:
+    WPath run(WGraph& G, const WState& start, const vector<pair<int, int> >& goal_location, WReservationTable& RT);
+private:
+    fibonacci_heap<WStateTimeAStarNode*, compare<WStateTimeAStarNode::compare_node> > open_list;
+    fibonacci_heap<WStateTimeAStarNode*, compare<WStateTimeAStarNode::secondary_compare_node> > focal_list;
+    unordered_set<WStateTimeAStarNode*, WStateTimeAStarNode::Hasher, WStateTimeAStarNode::EqNode> allNodes_table;
+    inline void releaseClosedListNodes() {
+        for (auto it = allNodes_table.begin(); it != allNodes_table.end(); it++) delete (*it);
+        allNodes_table.clear();
     }
-    WPath updatePath(const WStateTimeAStarNode* goal, const WState& start) {  // ! ***
-        WPath path(goal->state.timestep + 1 - start.timestep);  // ! ***
-        path_cost = goal->getFVal();  // ! ***
-        num_of_conf = goal->conflicts;  // ! ***
-        temp_h_val = goal->h_val;  // ! ***
-        const WStateTimeAStarNode* curr = goal;  // ! ***
-        for (int t = goal->state.timestep - start.timestep; t >= 0; t--) {  // ! ***
-            path[t] = curr->state;  // ! ***
-            path[t].timestep = path[t].timestep - start.timestep;  // ! ***
-            curr = curr->parent;  // ! ***
+    WPath updatePath(const WStateTimeAStarNode* goal, const WState& start) {
+        WPath path(goal->state.timestep + 1 - start.timestep);
+        path_cost = goal->getFVal();
+        num_of_conf = goal->conflicts;
+        temp_h_val = goal->h_val;
+        const WStateTimeAStarNode* curr = goal;
+        for (int t = goal->state.timestep - start.timestep; t >= 0; t--) {
+            path[t] = curr->state;
+            path[t].timestep = path[t].timestep - start.timestep;
+            curr = curr->parent;
         }
-        return path;  // ! ***
+        return path;
     }
 };
 
-WPath WStateTimeAStar::run(WGraph& G, const WState& start,  // ! *** defines WStateTimeAStar::run()
-    const vector<pair<int, int> >& goal_location, WReservationTable& rt) {  // ! ***
-    num_expanded = 0;  // ! ***
-    num_generated = 0;  // ! ***
-    runtime = 0;  // ! ***
-    clock_t t = std::clock();  // ! ***
-    double h_val = compute_h_value(G, start.location, 0, goal_location);  // ! ***
-    if (h_val > INT_MAX) return WPath();  // ! ***
-    if (rt.isConstrained(start.location, start.location, 0)) return WPath();  // ! ***
+WPath WStateTimeAStar::run(WGraph& G, const WState& start,
+    const vector<pair<int, int> >& goal_location, WReservationTable& rt) {
+    num_expanded = 0;
+    num_generated = 0;
+    runtime = 0;
+    clock_t t = std::clock();
+    double h_val = compute_h_value(G, start.location, 0, goal_location);
+    if (h_val > INT_MAX) return WPath();
+    if (rt.isConstrained(start.location, start.location, 0)) return WPath();
 
-    WStateTimeAStarNode* root = new WStateTimeAStarNode(start, 0, h_val, nullptr, 0);  // ! ***
-    num_generated++;  // ! ***
-    root->open_handle = open_list.push(root);  // ! ***
-    root->focal_handle = focal_list.push(root);  // ! ***
-    root->in_openlist = true;  // ! ***
-    allNodes_table.insert(root);  // ! ***
-    min_f_val = root->getFVal();  // ! ***
-    double lower_bound = min_f_val;  // ! ***
-    int earliest_holding_time = 0;  // ! ***
-    earliest_holding_time = rt.getHoldingTimeFromCT(goal_location.back().first);  // ! ***
+    WStateTimeAStarNode* root = new WStateTimeAStarNode(start, 0, h_val, nullptr, 0);
+    num_generated++;
+    root->open_handle = open_list.push(root);
+    root->focal_handle = focal_list.push(root);
+    root->in_openlist = true;
+    allNodes_table.insert(root);
+    min_f_val = root->getFVal();
+    double lower_bound = min_f_val;
+    int earliest_holding_time = 0;
+    earliest_holding_time = rt.getHoldingTimeFromCT(goal_location.back().first);
 
-    const int cutoff = rt.window;  // ! ***
+    const int cutoff = rt.window;
 
-    while (!focal_list.empty()) {  // ! ***
-        WStateTimeAStarNode* curr = focal_list.top();  // ! ***
-        focal_list.pop();  // ! ***
-        open_list.erase(curr->open_handle);  // ! ***
-        curr->in_openlist = false;  // ! ***
-        num_expanded++;  // ! ***
+    while (!focal_list.empty()) {
+        WStateTimeAStarNode* curr = focal_list.top();
+        focal_list.pop();
+        open_list.erase(curr->open_handle);
+        curr->in_openlist = false;
+        num_expanded++;
 
-        if (curr->state.location == goal_location[curr->goal_id].first &&  // ! ***
-            curr->state.timestep >= goal_location[curr->goal_id].second &&  // ! ***
-            !(curr->goal_id == (int)goal_location.size() - 1  // ! ***
-              && earliest_holding_time > curr->state.timestep - start.timestep))  // ! ***
-            curr->goal_id++;  // ! ***
+        if (curr->state.location == goal_location[curr->goal_id].first &&
+            curr->state.timestep >= goal_location[curr->goal_id].second &&
+            !(curr->goal_id == (int)goal_location.size() - 1
+              && earliest_holding_time > curr->state.timestep - start.timestep))
+            curr->goal_id++;
 
-        if (curr->goal_id == (int)goal_location.size() || curr->state.timestep >= start.timestep + cutoff) {  // ! ***
-            WPath path = updatePath(curr, start);  // ! ***
-            releaseClosedListNodes();  // ! ***
-            open_list.clear(); focal_list.clear();  // ! ***
-            runtime = (std::clock() - t) * 1.0 / CLOCKS_PER_SEC;  // ! ***
-            return path;  // ! ***
+        if (curr->goal_id == (int)goal_location.size() || curr->state.timestep >= start.timestep + cutoff) {
+            WPath path = updatePath(curr, start);
+            releaseClosedListNodes();
+            open_list.clear(); focal_list.clear();
+            runtime = (std::clock() - t) * 1.0 / CLOCKS_PER_SEC;
+            return path;
         }
-        for (auto next_state : G.get_neighbors(curr->state)) {  // ! ***
-            if (!rt.isConstrained(curr->state.location, next_state.location, next_state.timestep - start.timestep)) {  // ! ***
-                double next_g_val = curr->g_val + G.get_weight(curr->state.location, next_state.location);  // ! ***
-                double next_h_val = compute_h_value(G, next_state.location, curr->goal_id, goal_location);  // ! ***
-                if (next_h_val >= INT_MAX) continue;  // ! ***
-                int next_conflicts = curr->conflicts;  // ! ***
-                if (rt.isConflicting(curr->state.location, next_state.location, next_state.timestep - start.timestep))  // ! ***
-                    next_conflicts++;  // ! ***
-                auto next = new WStateTimeAStarNode(next_state, next_g_val, next_h_val, curr, next_conflicts);  // ! ***
-                auto it = allNodes_table.find(next);  // ! ***
-                if (it == allNodes_table.end()) {  // ! ***
-                    next->open_handle = open_list.push(next);  // ! ***
-                    next->in_openlist = true;  // ! ***
-                    num_generated++;  // ! ***
-                    if (next->getFVal() <= lower_bound)  // ! ***
-                        next->focal_handle = focal_list.push(next);  // ! ***
-                    allNodes_table.insert(next);  // ! ***
-                } else {  // ! ***
-                    WStateTimeAStarNode* existing_next = *it;  // ! ***
-                    if (existing_next->in_openlist) {  // ! ***
-                        if (existing_next->getFVal() > next_g_val + next_h_val ||  // ! ***
-                            (existing_next->getFVal() == next_g_val + next_h_val && existing_next->conflicts > next_conflicts)) {  // ! ***
-                            bool add_to_focal = false, update_in_focal = false, update_open = false;  // ! ***
-                            if ((next_g_val + next_h_val) <= lower_bound) {  // ! ***
-                                if (existing_next->getFVal() > lower_bound) add_to_focal = true;  // ! ***
-                                else update_in_focal = true;  // ! ***
+        for (auto next_state : G.get_neighbors(curr->state)) {
+            if (!rt.isConstrained(curr->state.location, next_state.location, next_state.timestep - start.timestep)) {
+                double next_g_val = curr->g_val + G.get_weight(curr->state.location, next_state.location);
+                double next_h_val = compute_h_value(G, next_state.location, curr->goal_id, goal_location);
+                if (next_h_val >= INT_MAX) continue;
+                int next_conflicts = curr->conflicts;
+                if (rt.isConflicting(curr->state.location, next_state.location, next_state.timestep - start.timestep))
+                    next_conflicts++;
+                auto next = new WStateTimeAStarNode(next_state, next_g_val, next_h_val, curr, next_conflicts);
+                auto it = allNodes_table.find(next);
+                if (it == allNodes_table.end()) {
+                    next->open_handle = open_list.push(next);
+                    next->in_openlist = true;
+                    num_generated++;
+                    if (next->getFVal() <= lower_bound)
+                        next->focal_handle = focal_list.push(next);
+                    allNodes_table.insert(next);
+                } else {
+                    WStateTimeAStarNode* existing_next = *it;
+                    if (existing_next->in_openlist) {
+                        if (existing_next->getFVal() > next_g_val + next_h_val ||
+                            (existing_next->getFVal() == next_g_val + next_h_val && existing_next->conflicts > next_conflicts)) {
+                            bool add_to_focal = false, update_in_focal = false, update_open = false;
+                            if ((next_g_val + next_h_val) <= lower_bound) {
+                                if (existing_next->getFVal() > lower_bound) add_to_focal = true;
+                                else update_in_focal = true;
                             }
-                            if (existing_next->getFVal() > next_g_val + next_h_val) update_open = true;  // ! ***
-                            existing_next->g_val = next_g_val;  // ! ***
-                            existing_next->h_val = next_h_val;  // ! ***
-                            existing_next->parent = curr;  // ! ***
-                            existing_next->depth = next->depth;  // ! ***
-                            existing_next->conflicts = next_conflicts;  // ! ***
-                            if (update_open) open_list.increase(existing_next->open_handle);  // ! ***
-                            if (add_to_focal) existing_next->focal_handle = focal_list.push(existing_next);  // ! ***
-                            if (update_in_focal) focal_list.update(existing_next->focal_handle);  // ! ***
+                            if (existing_next->getFVal() > next_g_val + next_h_val) update_open = true;
+                            existing_next->g_val = next_g_val;
+                            existing_next->h_val = next_h_val;
+                            existing_next->parent = curr;
+                            existing_next->depth = next->depth;
+                            existing_next->conflicts = next_conflicts;
+                            if (update_open) open_list.increase(existing_next->open_handle);
+                            if (add_to_focal) existing_next->focal_handle = focal_list.push(existing_next);
+                            if (update_in_focal) focal_list.update(existing_next->focal_handle);
                         }
-                    } else {  // ! ***
-                        if (existing_next->getFVal() > next_g_val + next_h_val ||  // ! ***
-                            (existing_next->getFVal() == next_g_val + next_h_val && existing_next->conflicts > next_conflicts)) {  // ! ***
-                            existing_next->g_val = next_g_val;  // ! ***
-                            existing_next->h_val = next_h_val;  // ! ***
-                            existing_next->parent = curr;  // ! ***
-                            existing_next->depth = next->depth;  // ! ***
-                            existing_next->conflicts = next_conflicts;  // ! ***
-                            existing_next->open_handle = open_list.push(existing_next);  // ! ***
-                            existing_next->in_openlist = true;  // ! ***
-                            if (existing_next->getFVal() <= lower_bound)  // ! ***
-                                existing_next->focal_handle = focal_list.push(existing_next);  // ! ***
+                    } else {
+                        if (existing_next->getFVal() > next_g_val + next_h_val ||
+                            (existing_next->getFVal() == next_g_val + next_h_val && existing_next->conflicts > next_conflicts)) {
+                            existing_next->g_val = next_g_val;
+                            existing_next->h_val = next_h_val;
+                            existing_next->parent = curr;
+                            existing_next->depth = next->depth;
+                            existing_next->conflicts = next_conflicts;
+                            existing_next->open_handle = open_list.push(existing_next);
+                            existing_next->in_openlist = true;
+                            if (existing_next->getFVal() <= lower_bound)
+                                existing_next->focal_handle = focal_list.push(existing_next);
                         }
                     }
-                    delete (next);  // ! ***
+                    delete (next);
                 }
             }
         }
-        if (open_list.size() == 0) break;  // ! ***
-        WStateTimeAStarNode* open_head = open_list.top();  // ! ***
-        if (open_head->getFVal() > min_f_val) {  // ! ***
-            double new_min_f_val = open_head->getFVal();  // ! ***
-            double new_lower_bound = std::max(lower_bound, new_min_f_val);  // ! ***
-            for (WStateTimeAStarNode* n : open_list)  // ! ***
-                if (n->getFVal() > lower_bound && n->getFVal() <= new_lower_bound)  // ! ***
-                    n->focal_handle = focal_list.push(n);  // ! ***
-            min_f_val = new_min_f_val;  // ! ***
-            lower_bound = new_lower_bound;  // ! ***
+        if (open_list.size() == 0) break;
+        WStateTimeAStarNode* open_head = open_list.top();
+        if (open_head->getFVal() > min_f_val) {
+            double new_min_f_val = open_head->getFVal();
+            double new_lower_bound = std::max(lower_bound, new_min_f_val);
+            for (WStateTimeAStarNode* n : open_list)
+                if (n->getFVal() > lower_bound && n->getFVal() <= new_lower_bound)
+                    n->focal_handle = focal_list.push(n);
+            min_f_val = new_min_f_val;
+            lower_bound = new_lower_bound;
         }
     }
-    releaseClosedListNodes();  // ! ***
-    open_list.clear(); focal_list.clear();  // ! ***
-    return WPath();  // ! ***
+    releaseClosedListNodes();
+    open_list.clear(); focal_list.clear();
+    return WPath();
 }
 
 // ------------------------------------------------------------------ WSippSearch
@@ -8369,672 +8369,672 @@ WPath WStateTimeAStar::run(WGraph& G, const WState& start,  // ! *** defines WSt
 //     paths are collision-free with the higher-priority reservations.
 // Tie-break mirrors WStateTimeAStar's focal ordering (min f, then goal_id DESCENDING,
 // then g DESCENDING; conflicts are always 0 here since use_cat is off).
-class WSippSearch : public WSingleAgentSolver {  // ! *** class WSippSearch
-public:  // ! ***
-    WPath run(WGraph& G, const WState& start,  // ! ***
-              const vector<pair<int, int> >& goal_location, WReservationTable& rt);  // ! ***
-private:  // ! ***
-    struct SN {  // ! ***
-        int loc, iv, goal_id, r;   // r == relative timestep == g_val (unit costs)  // ! ***
-        double h;  // ! ***
-        SN* parent;  // ! ***
-        double f() const { return (double)r + h; }  // ! ***
+class WSippSearch : public WSingleAgentSolver {
+public:
+    WPath run(WGraph& G, const WState& start,
+              const vector<pair<int, int> >& goal_location, WReservationTable& rt);
+private:
+    struct SN {
+        int loc, iv, goal_id, r;   // r == relative timestep == g_val (unit costs)
+        double h;
+        SN* parent;
+        double f() const { return (double)r + h; }
     };
-    struct CmpSN {  // ! ***
+    struct CmpSN {
         // boost fibonacci_heap is a max-heap: top() == "greatest".  Return true when
         // a is WORSE than b so the best node (min f, then max goal_id, then max g) is on top.
-        bool operator()(const SN* a, const SN* b) const {  // ! ***
-            if (a->f() != b->f()) return a->f() > b->f();      // larger f  -> worse  // ! ***
-            if (a->goal_id != b->goal_id) return a->goal_id < b->goal_id; // lower goal_id -> worse  // ! ***
-            if (a->r != b->r) return a->r < b->r;              // lower g   -> worse  // ! ***
+        bool operator()(const SN* a, const SN* b) const {
+            if (a->f() != b->f()) return a->f() > b->f();      // larger f  -> worse
+            if (a->goal_id != b->goal_id) return a->goal_id < b->goal_id; // lower goal_id -> worse
+            if (a->r != b->r) return a->r < b->r;              // lower g   -> worse
             // Final deterministic tie-break among otherwise-identical nodes.  WStateTimeAStar
             // leaves this to fibonacci-heap internals; empirically preferring the smaller cell
             // index tracks the MLA* low-level's committed windows most closely (all wPBS-MLSIPP
             // cells then land within the +-2% band of their wPBS-MLA* counterparts).
-            return a->loc > b->loc;                            // smaller loc -> better (on top)  // ! ***
+            return a->loc > b->loc;                            // smaller loc -> better (on top)
         }
     };
 };
 
-WPath WSippSearch::run(WGraph& G, const WState& start,  // ! *** defines WSippSearch::run()
-    const vector<pair<int, int> >& goal_location, WReservationTable& rt) {  // ! ***
-    num_expanded = 0; num_generated = 0; runtime = 0;  // ! ***
-    path_cost = 0; temp_h_val = 0; num_of_conf = 0; vis_goal_time = 0;  // ! ***
-    clock_t t = std::clock();  // ! ***
+WPath WSippSearch::run(WGraph& G, const WState& start,
+    const vector<pair<int, int> >& goal_location, WReservationTable& rt) {
+    num_expanded = 0; num_generated = 0; runtime = 0;
+    path_cost = 0; temp_h_val = 0; num_of_conf = 0; vis_goal_time = 0;
+    clock_t t = std::clock();
 
-    const int ng = (int)goal_location.size();  // ! ***
-    const int start_abs = start.timestep;  // ! ***
-    const int cutoff = rt.window;              // relative-time search cutoff (== WStateTimeAStar)  // ! ***
+    const int ng = (int)goal_location.size();
+    const int start_abs = start.timestep;
+    const int cutoff = rt.window;              // relative-time search cutoff (== WStateTimeAStar)
 
-    double h0 = compute_h_value(G, start.location, 0, goal_location);  // ! ***
-    if (h0 > INT_MAX) return WPath();  // ! ***
-    if (rt.isConstrained(start.location, start.location, 0)) return WPath();  // ! ***
+    double h0 = compute_h_value(G, start.location, 0, goal_location);
+    if (h0 > INT_MAX) return WPath();
+    if (rt.isConstrained(start.location, start.location, 0)) return WPath();
 
-    const int earliest_hold = rt.getHoldingTimeFromCT(goal_location.back().first);  // ! ***
-    const int cols = G.cols;  // ! ***
-    const int msize = G.size();  // ! ***
-    const int BIG = 1 << 29;  // ! ***
-    const int H = cutoff;                      // safe intervals are only needed over [0, cutoff]  // ! ***
+    const int earliest_hold = rt.getHoldingTimeFromCT(goal_location.back().first);
+    const int cols = G.cols;
+    const int msize = G.size();
+    const int BIG = 1 << 29;
+    const int H = cutoff;                      // safe intervals are only needed over [0, cutoff]
 
     // ---- Lazy safe-interval cache (SIPP data structure) -----------------------------------
     // For each cell, invert the reservation table's vertex occupancy over [0, H] into maximal
     // free (safe) intervals [lo, hi).  A trailing free run is extended to BIG so an agent may
     // hold at its goal for the whole window.  Derived purely from rt.isConstrained(loc,loc,r).
-    std::unordered_map<int, std::vector<std::pair<int, int> > > sit;  // ! ***
-    auto intervals = [&](int loc) -> const std::vector<std::pair<int, int> >& {  // ! *** lambda intervals()
-        auto it = sit.find(loc);  // ! ***
-        if (it != sit.end()) return it->second;  // ! ***
-        std::vector<std::pair<int, int> > ivs;  // ! ***
-        int r = 0;  // ! ***
-        while (r <= H) {  // ! ***
-            while (r <= H && rt.isConstrained(loc, loc, r)) r++;  // ! ***
-            if (r > H) break;  // ! ***
-            int lo = r;  // ! ***
-            while (r <= H && !rt.isConstrained(loc, loc, r)) r++;  // ! ***
-            int hi = (r > H) ? BIG : r;  // ! ***
-            ivs.emplace_back(lo, hi);  // ! ***
+    std::unordered_map<int, std::vector<std::pair<int, int> > > sit;
+    auto intervals = [&](int loc) -> const std::vector<std::pair<int, int> >& {
+        auto it = sit.find(loc);
+        if (it != sit.end()) return it->second;
+        std::vector<std::pair<int, int> > ivs;
+        int r = 0;
+        while (r <= H) {
+            while (r <= H && rt.isConstrained(loc, loc, r)) r++;
+            if (r > H) break;
+            int lo = r;
+            while (r <= H && !rt.isConstrained(loc, loc, r)) r++;
+            int hi = (r > H) ? BIG : r;
+            ivs.emplace_back(lo, hi);
         }
-        auto ins = sit.emplace(loc, std::move(ivs));  // ! ***
-        return ins.first->second;  // ! ***
+        auto ins = sit.emplace(loc, std::move(ivs));
+        return ins.first->second;
     };
-    auto find_iv = [&](int loc, int r) -> int {  // ! *** lambda find_iv()
-        const auto& ivs = intervals(loc);  // ! ***
-        for (int i = 0; i < (int)ivs.size(); i++)  // ! ***
-            if (ivs[i].first <= r && r < ivs[i].second) return i;  // ! ***
-        return -1;                             // vertex-constrained at r  // ! ***
+    auto find_iv = [&](int loc, int r) -> int {
+        const auto& ivs = intervals(loc);
+        for (int i = 0; i < (int)ivs.size(); i++)
+            if (ivs[i].first <= r && r < ivs[i].second) return i;
+        return -1;                             // vertex-constrained at r
     };
 
-    std::vector<SN*> arena;  // ! ***
-    boost::heap::fibonacci_heap<SN*, boost::heap::compare<CmpSN> > open;  // ! ***
+    std::vector<SN*> arena;
+    boost::heap::fibonacci_heap<SN*, boost::heap::compare<CmpSN> > open;
     // closed / dedup keyed on (loc, goal_id, r); f is deterministic per key (unit costs).
-    struct KeyHash { size_t operator()(uint64_t k) const { return k * 2654435761ULL; } };  // ! ***
-    std::unordered_map<uint64_t, char, KeyHash> seen;  // ! ***
-    auto key = [](int loc, int gi, int r) -> uint64_t {  // ! *** lambda key()
-        return ((uint64_t)(uint32_t)loc << 32) | ((uint64_t)(gi & 0xFFFF) << 16) | (uint32_t)(r & 0xFFFF);  // ! ***
+    struct KeyHash { size_t operator()(uint64_t k) const { return k * 2654435761ULL; } };
+    std::unordered_map<uint64_t, char, KeyHash> seen;
+    auto key = [](int loc, int gi, int r) -> uint64_t {
+        return ((uint64_t)(uint32_t)loc << 32) | ((uint64_t)(gi & 0xFFFF) << 16) | (uint32_t)(r & 0xFFFF);
     };
-    auto push = [&](int loc, int iv, int gi, int r, double h) {  // ! *** lambda push()
-        SN* nd = new SN{loc, iv, gi, r, h, nullptr};  // ! ***
-        arena.push_back(nd);  // ! ***
-        return nd;  // ! ***
+    auto push = [&](int loc, int iv, int gi, int r, double h) {
+        SN* nd = new SN{loc, iv, gi, r, h, nullptr};
+        arena.push_back(nd);
+        return nd;
     };
 
-    int s_iv = find_iv(start.location, 0);  // ! ***
-    SN* root = push(start.location, s_iv, 0, 0, h0);  // ! ***
-    root->parent = nullptr;  // ! ***
-    open.push(root);  // ! ***
-    num_generated++;  // ! ***
-    seen[key(start.location, 0, 0)] = 1;  // ! ***
+    int s_iv = find_iv(start.location, 0);
+    SN* root = push(start.location, s_iv, 0, 0, h0);
+    root->parent = nullptr;
+    open.push(root);
+    num_generated++;
+    seen[key(start.location, 0, 0)] = 1;
 
     // 4-neighbour move offsets in WGraph::get_neighbors order (E, W, S, N); WAIT handled first.
-    const int mv[4] = {1, -1, cols, -cols};  // ! ***
+    const int mv[4] = {1, -1, cols, -cols};
 
-    SN* sol = nullptr;  // ! ***
-    while (!open.empty()) {  // ! ***
-        SN* cur = open.top(); open.pop();  // ! ***
-        int gi = cur->goal_id;  // ! ***
-        int abs_t = cur->r + start_abs;  // ! ***
+    SN* sol = nullptr;
+    while (!open.empty()) {
+        SN* cur = open.top(); open.pop();
+        int gi = cur->goal_id;
+        int abs_t = cur->r + start_abs;
         // goal_id advancement on pop (mirrors WStateTimeAStar), including the last-goal hold rule.
-        if (gi < ng && cur->loc == goal_location[gi].first && abs_t >= goal_location[gi].second &&  // ! ***
-            !(gi == ng - 1 && earliest_hold > cur->r))  // ! ***
-            gi++;  // ! ***
-        if (gi == ng || cur->r >= cutoff) { sol = cur; break; }  // ! ***
-        num_expanded++;  // ! ***
+        if (gi < ng && cur->loc == goal_location[gi].first && abs_t >= goal_location[gi].second &&
+            !(gi == ng - 1 && earliest_hold > cur->r))
+            gi++;
+        if (gi == ng || cur->r >= cutoff) { sol = cur; break; }
+        num_expanded++;
 
         // WAIT in place: stay at loc one step if still vertex-free (same safe interval).
         {
-            int arr = cur->r + 1;  // ! ***
-            if (arr <= H && find_iv(cur->loc, arr) >= 0) {  // ! ***
-                double nh = compute_h_value(G, cur->loc, gi, goal_location);  // ! ***
-                if (nh < INT_MAX) {  // ! ***
-                    uint64_t k = key(cur->loc, gi, arr);  // ! ***
-                    if (!seen.count(k)) {  // ! ***
-                        seen[k] = 1;  // ! ***
-                        SN* nd = push(cur->loc, find_iv(cur->loc, arr), gi, arr, nh);  // ! ***
-                        nd->parent = cur; open.push(nd); num_generated++;  // ! ***
+            int arr = cur->r + 1;
+            if (arr <= H && find_iv(cur->loc, arr) >= 0) {
+                double nh = compute_h_value(G, cur->loc, gi, goal_location);
+                if (nh < INT_MAX) {
+                    uint64_t k = key(cur->loc, gi, arr);
+                    if (!seen.count(k)) {
+                        seen[k] = 1;
+                        SN* nd = push(cur->loc, find_iv(cur->loc, arr), gi, arr, nh);
+                        nd->parent = cur; open.push(nd); num_generated++;
                     }
                 }
             }
         }
         // MOVE to each 4-neighbour, arriving at r+1; validated against safe intervals + edges.
-        for (int d = 0; d < 4; d++) {  // ! ***
-            int nl = cur->loc + mv[d];  // ! ***
-            if (nl < 0 || nl >= msize) continue;  // ! ***
-            if ((d == 0 || d == 1) && (nl / cols != cur->loc / cols)) continue;  // row wrap  // ! ***
-            if (!G.mp->grid[nl]) continue;  // ! ***
-            int arr = cur->r + 1;  // ! ***
-            if (arr > H) continue;  // ! ***
-            int niv = find_iv(nl, arr);  // ! ***
-            if (niv < 0) continue;                                   // vertex-constrained (blocked)  // ! ***
-            if (rt.isConstrained(cur->loc, nl, arr)) continue;       // vertex OR edge (swap) blocked  // ! ***
-            double nh = compute_h_value(G, nl, gi, goal_location);  // ! ***
-            if (nh >= INT_MAX) continue;  // ! ***
-            uint64_t k = key(nl, gi, arr);  // ! ***
-            if (seen.count(k)) continue;  // ! ***
-            seen[k] = 1;  // ! ***
-            SN* nd = push(nl, niv, gi, arr, nh);  // ! ***
-            nd->parent = cur; open.push(nd); num_generated++;  // ! ***
+        for (int d = 0; d < 4; d++) {
+            int nl = cur->loc + mv[d];
+            if (nl < 0 || nl >= msize) continue;
+            if ((d == 0 || d == 1) && (nl / cols != cur->loc / cols)) continue;  // row wrap
+            if (!G.mp->grid[nl]) continue;
+            int arr = cur->r + 1;
+            if (arr > H) continue;
+            int niv = find_iv(nl, arr);
+            if (niv < 0) continue;                                   // vertex-constrained (blocked)
+            if (rt.isConstrained(cur->loc, nl, arr)) continue;       // vertex OR edge (swap) blocked
+            double nh = compute_h_value(G, nl, gi, goal_location);
+            if (nh >= INT_MAX) continue;
+            uint64_t k = key(nl, gi, arr);
+            if (seen.count(k)) continue;
+            seen[k] = 1;
+            SN* nd = push(nl, niv, gi, arr, nh);
+            nd->parent = cur; open.push(nd); num_generated++;
         }
     }
 
-    WPath path;  // ! ***
-    if (sol) {  // ! ***
-        path_cost = (double)sol->r + sol->h;  // ! ***
-        temp_h_val = sol->h;  // ! ***
-        num_of_conf = 0;  // ! ***
-        path.assign(sol->r + 1, WState());  // ! ***
-        for (SN* n = sol; n != nullptr; n = n->parent)  // ! ***
-            path[n->r] = WState(n->loc, n->r, -1);   // RELATIVE-indexed, like WStateTimeAStar  // ! ***
+    WPath path;
+    if (sol) {
+        path_cost = (double)sol->r + sol->h;
+        temp_h_val = sol->h;
+        num_of_conf = 0;
+        path.assign(sol->r + 1, WState());
+        for (SN* n = sol; n != nullptr; n = n->parent)
+            path[n->r] = WState(n->loc, n->r, -1);   // RELATIVE-indexed, like WStateTimeAStar
     }
-    for (SN* n : arena) delete n;  // ! ***
-    runtime = (std::clock() - t) * 1.0 / CLOCKS_PER_SEC;  // ! ***
-    return path;  // ! ***
+    for (SN* n : arena) delete n;
+    runtime = (std::clock() - t) * 1.0 / CLOCKS_PER_SEC;
+    return path;
 }
 
 // ------------------------------------------------------------------ WPBSNode
-class WPBSNode {  // ! *** class WPBSNode
-public:  // ! ***
-    std::list<WConflict> conflicts;  // ! ***
-    WConflict conflict;  // ! ***
-    WPBSNode* parent;  // ! ***
-    list<pair<int, WPath> > paths;  // ! ***
-    std::pair<int, int> priority;  // ! ***
-    WPriorityGraph priorities;  // ! ***
-    double g_val;  // ! ***
-    double h_val;  // ! ***
-    double f_val;  // ! ***
-    vector<double> path_cost_list;  // ! ***
-    vector<int> vis_goal_time;  // ! ***
-    vector<int> goal_lens;  // ! ***
-    size_t depth;  // ! ***
-    size_t makespan;  // ! ***
-    int num_of_collisions;  // ! ***
-    int earliest_collision;  // ! ***
-    uint64_t time_expanded;  // ! ***
-    uint64_t time_generated;  // ! ***
-    void clear() { conflicts.clear(); priorities.clear(); }  // ! ***
-    WPBSNode() : parent(nullptr), g_val(0), h_val(0), f_val(0), depth(0), makespan(0),  // ! ***
-        num_of_collisions(0), earliest_collision(INT_MAX), time_expanded(0), time_generated(0) {}  // ! ***
+class WPBSNode {
+public:
+    std::list<WConflict> conflicts;
+    WConflict conflict;
+    WPBSNode* parent;
+    list<pair<int, WPath> > paths;
+    std::pair<int, int> priority;
+    WPriorityGraph priorities;
+    double g_val;
+    double h_val;
+    double f_val;
+    vector<double> path_cost_list;
+    vector<int> vis_goal_time;
+    vector<int> goal_lens;
+    size_t depth;
+    size_t makespan;
+    int num_of_collisions;
+    int earliest_collision;
+    uint64_t time_expanded;
+    uint64_t time_generated;
+    void clear() { conflicts.clear(); priorities.clear(); }
+    WPBSNode() : parent(nullptr), g_val(0), h_val(0), f_val(0), depth(0), makespan(0),
+        num_of_collisions(0), earliest_collision(INT_MAX), time_expanded(0), time_generated(0) {}
 };
 
 // ------------------------------------------------------------------ WPBS
-class WPBS {  // ! *** class WPBS
-public:  // ! ***
-    bool lazyPriority = false;  // ! ***
-    bool prioritize_start = false;  // ! ***
-    WPBSNode* dummy_start = nullptr;  // ! ***
-    WPBSNode* best_node = nullptr;  // ! ***
-    uint64_t HL_num_expanded = 0, HL_num_generated = 0, LL_num_expanded = 0, LL_num_generated = 0;  // ! ***
-    double min_f_val = -1;  // ! ***
-    int k_robust = 0;  // ! ***
-    int window = 0;  // ! ***
-    bool hold_endpoints = false;  // ! ***
-    double runtime = 0;  // ! ***
-    int screen = 0;  // ! ***
-    bool solution_found = false;  // ! ***
-    double solution_cost = -2;  // ! ***
-    double avg_path_length = -1;  // ! ***
-    double min_sum_of_costs = 0;  // ! ***
-    vector<WPath> solution;  // ! ***
-    vector<int> vis_goal_time;  // ! ***
-    WReservationTable initial_rt;  // ! ***
-    vector<WPath> initial_paths;  // ! ***
-    std::unordered_map<int, double> travel_times;  // ! ***
-    list<tuple<int, int, int> > initial_constraints;  // ! ***
+class WPBS {
+public:
+    bool lazyPriority = false;
+    bool prioritize_start = false;
+    WPBSNode* dummy_start = nullptr;
+    WPBSNode* best_node = nullptr;
+    uint64_t HL_num_expanded = 0, HL_num_generated = 0, LL_num_expanded = 0, LL_num_generated = 0;
+    double min_f_val = -1;
+    int k_robust = 0;
+    int window = 0;
+    bool hold_endpoints = false;
+    double runtime = 0;
+    int screen = 0;
+    bool solution_found = false;
+    double solution_cost = -2;
+    double avg_path_length = -1;
+    double min_sum_of_costs = 0;
+    vector<WPath> solution;
+    vector<int> vis_goal_time;
+    WReservationTable initial_rt;
+    vector<WPath> initial_paths;
+    std::unordered_map<int, double> travel_times;
+    list<tuple<int, int, int> > initial_constraints;
 
-    bool run(const vector<WState>& starts, const vector<vector<pair<int, int> > >& goal_locations, int time_limit);  // ! ***
+    bool run(const vector<WState>& starts, const vector<vector<pair<int, int> > >& goal_locations, int time_limit);
 
-    WPBS(WGraph& G, WSingleAgentSolver& path_planner)  // ! ***
-        : initial_rt(G), G(G), path_planner(path_planner), rt(G) {}  // ! ***
-    ~WPBS() { release_closed_list(); }  // ! ***
+    WPBS(WGraph& G, WSingleAgentSolver& path_planner)
+        : initial_rt(G), G(G), path_planner(path_planner), rt(G) {}
+    ~WPBS() { release_closed_list(); }
 
-    void update_paths(WPBSNode* curr);  // ! ***
-    void setRT(bool use_cat, bool ps) { rt.use_cat = use_cat; rt.prioritize_start = ps; }  // ! ***
-    void clear();  // ! ***
-private:  // ! ***
-    WGraph& G;  // ! ***
-    WSingleAgentSolver& path_planner;  // ! ***
-    vector<WState> starts;  // ! ***
-    vector<vector<pair<int, int> > > goal_locations;  // ! ***
-    std::vector<WPath*> paths;  // ! ***
-    list<WPBSNode*> allNodes_table;  // ! ***
-    list<WPBSNode*> dfs;  // ! ***
-    std::clock_t start;  // ! ***
-    int num_of_agents = 0;  // ! ***
-    double min_sum_of_costs_ = 0;  // ! ***
-    int max_makespan = 0;  // ! ***
-    int time_limit = 0;  // ! ***
-    unordered_set<pair<int, int> > nogood;  // ! ***
-    WReservationTable rt;  // ! ***
+    void update_paths(WPBSNode* curr);
+    void setRT(bool use_cat, bool ps) { rt.use_cat = use_cat; rt.prioritize_start = ps; }
+    void clear();
+private:
+    WGraph& G;
+    WSingleAgentSolver& path_planner;
+    vector<WState> starts;
+    vector<vector<pair<int, int> > > goal_locations;
+    std::vector<WPath*> paths;
+    list<WPBSNode*> allNodes_table;
+    list<WPBSNode*> dfs;
+    std::clock_t start;
+    int num_of_agents = 0;
+    double min_sum_of_costs_ = 0;
+    int max_makespan = 0;
+    int time_limit = 0;
+    unordered_set<pair<int, int> > nogood;
+    WReservationTable rt;
 
-    bool generate_root_node();  // ! ***
-    void push_node(WPBSNode* node);  // ! ***
-    WPBSNode* pop_node();  // ! ***
-    bool find_path(WPBSNode* node, int ag);  // ! ***
-    bool find_consistent_paths(WPBSNode* node, int a);  // ! ***
-    void resolve_conflict(const WConflict& conflict, WPBSNode* n1, WPBSNode* n2);  // ! ***
-    bool generate_child(WPBSNode* child, WPBSNode* curr);  // ! ***
-    void remove_conflicts(list<WConflict>& conflicts, int excluded_agent);  // ! ***
-    void find_conflicts(const list<WConflict>& old_conflicts, list<WConflict>& new_conflicts, int new_agent);  // ! ***
-    void find_conflicts(list<WConflict>& conflicts, int a1, int a2);  // ! ***
-    void find_conflicts(list<WConflict>& new_conflicts, int new_agent);  // ! ***
-    void find_conflicts(list<WConflict>& new_conflicts);  // ! ***
-    void choose_conflict(WPBSNode& parent);  // ! ***
-    void copy_conflicts(const list<WConflict>& conflicts, list<WConflict>& copy, int excluded_agent);  // ! ***
-    double get_path_cost(const WPath& path) const;  // ! ***
-    void get_solution();  // ! ***
-    inline void release_closed_list();  // ! ***
-    void update_best_node(WPBSNode* node);  // ! ***
-    bool wait_at_start(const WPath& path, int start_location, int timestep) const;  // ! ***
-    void find_replan_agents(WPBSNode* node, const list<WConflict>& conflicts, unordered_set<int>& replan);  // ! *** -> find_replan_agents()
-    bool validate_consistence(const list<WConflict>& conflicts, const WPriorityGraph& G) const;  // ! ***
+    bool generate_root_node();
+    void push_node(WPBSNode* node);
+    WPBSNode* pop_node();
+    bool find_path(WPBSNode* node, int ag);
+    bool find_consistent_paths(WPBSNode* node, int a);
+    void resolve_conflict(const WConflict& conflict, WPBSNode* n1, WPBSNode* n2);
+    bool generate_child(WPBSNode* child, WPBSNode* curr);
+    void remove_conflicts(list<WConflict>& conflicts, int excluded_agent);
+    void find_conflicts(const list<WConflict>& old_conflicts, list<WConflict>& new_conflicts, int new_agent);
+    void find_conflicts(list<WConflict>& conflicts, int a1, int a2);
+    void find_conflicts(list<WConflict>& new_conflicts, int new_agent);
+    void find_conflicts(list<WConflict>& new_conflicts);
+    void choose_conflict(WPBSNode& parent);
+    void copy_conflicts(const list<WConflict>& conflicts, list<WConflict>& copy, int excluded_agent);
+    double get_path_cost(const WPath& path) const;
+    void get_solution();
+    inline void release_closed_list();
+    void update_best_node(WPBSNode* node);
+    bool wait_at_start(const WPath& path, int start_location, int timestep) const;
+    void find_replan_agents(WPBSNode* node, const list<WConflict>& conflicts, unordered_set<int>& replan);
+    bool validate_consistence(const list<WConflict>& conflicts, const WPriorityGraph& G) const;
 };
 
-void WPBS::clear() {  // ! *** defines WPBS::clear()
-    runtime = 0;  // ! ***
-    HL_num_expanded = HL_num_generated = LL_num_expanded = LL_num_generated = 0;  // ! ***
-    solution_found = false; solution_cost = -2; min_f_val = -1; avg_path_length = -1;  // ! ***
-    paths.clear(); nogood.clear(); dfs.clear();  // ! ***
-    release_closed_list();  // ! ***
-    starts.clear(); goal_locations.clear(); best_node = nullptr;  // ! ***
+void WPBS::clear() {
+    runtime = 0;
+    HL_num_expanded = HL_num_generated = LL_num_expanded = LL_num_generated = 0;
+    solution_found = false; solution_cost = -2; min_f_val = -1; avg_path_length = -1;
+    paths.clear(); nogood.clear(); dfs.clear();
+    release_closed_list();
+    starts.clear(); goal_locations.clear(); best_node = nullptr;
 }
 
-void WPBS::update_paths(WPBSNode* curr) {  // ! *** defines WPBS::update_paths()
-    vector<bool> updated(num_of_agents, false);  // ! ***
-    while (curr != nullptr) {  // ! ***
-        for (auto p = curr->paths.begin(); p != curr->paths.end(); ++p)  // ! ***
-            if (!updated[std::get<0>(*p)]) { paths[std::get<0>(*p)] = &(std::get<1>(*p)); updated[std::get<0>(*p)] = true; }  // ! ***
-        curr = curr->parent;  // ! ***
+void WPBS::update_paths(WPBSNode* curr) {
+    vector<bool> updated(num_of_agents, false);
+    while (curr != nullptr) {
+        for (auto p = curr->paths.begin(); p != curr->paths.end(); ++p)
+            if (!updated[std::get<0>(*p)]) { paths[std::get<0>(*p)] = &(std::get<1>(*p)); updated[std::get<0>(*p)] = true; }
+        curr = curr->parent;
     }
 }
 
-void WPBS::copy_conflicts(const list<WConflict>& conflicts, list<WConflict>& copy, int excluded_agent) {  // ! *** defines WPBS::copy_conflicts()
-    for (auto conflict : conflicts)  // ! ***
-        if (excluded_agent != std::get<0>(conflict) && excluded_agent != std::get<1>(conflict))  // ! ***
-            copy.push_back(conflict);  // ! ***
+void WPBS::copy_conflicts(const list<WConflict>& conflicts, list<WConflict>& copy, int excluded_agent) {
+    for (auto conflict : conflicts)
+        if (excluded_agent != std::get<0>(conflict) && excluded_agent != std::get<1>(conflict))
+            copy.push_back(conflict);
 }
 
-void WPBS::find_conflicts(list<WConflict>& conflicts, int a1, int a2) {  // ! *** defines WPBS::find_conflicts()
-    if (paths[a1] == nullptr || paths[a2] == nullptr) return;  // ! ***
-    int size1 = min(window + 1, (int)paths[a1]->size());  // ! ***
-    int size2 = min(window + 1, (int)paths[a2]->size());  // ! ***
-    int max_size = max(size1, size2);  // ! ***
-    for (int timestep = 0; timestep < max_size; timestep++) {  // ! ***
-        int loc1 = 0, loc2 = 0;  // ! ***
-        if (timestep <= size1 - 1) loc1 = paths[a1]->at(timestep).location;  // ! ***
-        else loc1 = paths[a1]->at(size1 - 1).location;  // ! ***
-        if (timestep <= size2 - 1) loc2 = paths[a2]->at(timestep).location;  // ! ***
-        else loc2 = paths[a2]->at(size2 - 1).location;  // ! ***
-        if (loc1 == loc2) { conflicts.emplace_back(a1, a2, loc1, -1, timestep); return; }  // ! ***
-        if (timestep < size1 - 1 && timestep < size2 - 1)  // ! ***
-            if (loc1 != loc2 && loc1 == paths[a2]->at(timestep + 1).location  // ! ***
-                && loc2 == paths[a1]->at(timestep + 1).location)  // ! ***
-            { conflicts.emplace_back(a1, a2, loc1, loc2, timestep + 1); return; }  // ! ***
+void WPBS::find_conflicts(list<WConflict>& conflicts, int a1, int a2) {
+    if (paths[a1] == nullptr || paths[a2] == nullptr) return;
+    int size1 = min(window + 1, (int)paths[a1]->size());
+    int size2 = min(window + 1, (int)paths[a2]->size());
+    int max_size = max(size1, size2);
+    for (int timestep = 0; timestep < max_size; timestep++) {
+        int loc1 = 0, loc2 = 0;
+        if (timestep <= size1 - 1) loc1 = paths[a1]->at(timestep).location;
+        else loc1 = paths[a1]->at(size1 - 1).location;
+        if (timestep <= size2 - 1) loc2 = paths[a2]->at(timestep).location;
+        else loc2 = paths[a2]->at(size2 - 1).location;
+        if (loc1 == loc2) { conflicts.emplace_back(a1, a2, loc1, -1, timestep); return; }
+        if (timestep < size1 - 1 && timestep < size2 - 1)
+            if (loc1 != loc2 && loc1 == paths[a2]->at(timestep + 1).location
+                && loc2 == paths[a1]->at(timestep + 1).location)
+            { conflicts.emplace_back(a1, a2, loc1, loc2, timestep + 1); return; }
     }
 }
 
-void WPBS::find_conflicts(list<WConflict>& conflicts) {  // ! *** defines WPBS::find_conflicts()
-    for (int a1 = 0; a1 < num_of_agents; a1++)  // ! ***
-        for (int a2 = a1 + 1; a2 < num_of_agents; a2++)  // ! ***
-            find_conflicts(conflicts, a1, a2);  // ! ***
+void WPBS::find_conflicts(list<WConflict>& conflicts) {
+    for (int a1 = 0; a1 < num_of_agents; a1++)
+        for (int a2 = a1 + 1; a2 < num_of_agents; a2++)
+            find_conflicts(conflicts, a1, a2);
 }
 
-void WPBS::find_conflicts(list<WConflict>& new_conflicts, int new_agent) {  // ! *** defines WPBS::find_conflicts()
-    for (int a2 = 0; a2 < num_of_agents; a2++) {  // ! ***
-        if (new_agent == a2) continue;  // ! ***
-        find_conflicts(new_conflicts, new_agent, a2);  // ! ***
+void WPBS::find_conflicts(list<WConflict>& new_conflicts, int new_agent) {
+    for (int a2 = 0; a2 < num_of_agents; a2++) {
+        if (new_agent == a2) continue;
+        find_conflicts(new_conflicts, new_agent, a2);
     }
 }
 
-void WPBS::find_conflicts(const list<WConflict>& old_conflicts, list<WConflict>& new_conflicts, int new_agent) {  // ! *** defines WPBS::find_conflicts()
-    copy_conflicts(old_conflicts, new_conflicts, new_agent);  // ! ***
-    find_conflicts(new_conflicts, new_agent);  // ! ***
+void WPBS::find_conflicts(const list<WConflict>& old_conflicts, list<WConflict>& new_conflicts, int new_agent) {
+    copy_conflicts(old_conflicts, new_conflicts, new_agent);
+    find_conflicts(new_conflicts, new_agent);
 }
 
-void WPBS::remove_conflicts(list<WConflict>& conflicts, int excluded_agent) {  // ! *** defines WPBS::remove_conflicts()
-    for (auto it = conflicts.begin(); it != conflicts.end();) {  // ! ***
-        if (std::get<0>(*it) == excluded_agent || std::get<1>(*it) == excluded_agent)  // ! ***
-            it = conflicts.erase(it);  // ! ***
-        else ++it;  // ! ***
+void WPBS::remove_conflicts(list<WConflict>& conflicts, int excluded_agent) {
+    for (auto it = conflicts.begin(); it != conflicts.end();) {
+        if (std::get<0>(*it) == excluded_agent || std::get<1>(*it) == excluded_agent)
+            it = conflicts.erase(it);
+        else ++it;
     }
 }
 
-void WPBS::choose_conflict(WPBSNode& node) {  // ! *** defines WPBS::choose_conflict()
-    if (node.conflicts.empty()) return;  // ! ***
-    node.conflict = node.conflicts.front();  // ! ***
-    for (auto conflict : node.conflicts)  // ! ***
-        if (std::get<4>(conflict) < std::get<4>(node.conflict))  // ! ***
-            node.conflict = conflict;  // ! ***
-    node.earliest_collision = std::get<4>(node.conflict);  // ! ***
-    if (!nogood.empty())  // ! ***
-        for (auto conflict : node.conflicts) {  // ! ***
-            int a1 = std::get<0>(conflict);  // ! ***
-            int a2 = std::get<1>(conflict);  // ! ***
-            for (auto p : nogood)  // ! ***
-                if ((a1 == p.first && a2 == p.second) || (a1 == p.second && a2 == p.first))  // ! ***
-                { node.conflict = conflict; return; }  // ! ***
+void WPBS::choose_conflict(WPBSNode& node) {
+    if (node.conflicts.empty()) return;
+    node.conflict = node.conflicts.front();
+    for (auto conflict : node.conflicts)
+        if (std::get<4>(conflict) < std::get<4>(node.conflict))
+            node.conflict = conflict;
+    node.earliest_collision = std::get<4>(node.conflict);
+    if (!nogood.empty())
+        for (auto conflict : node.conflicts) {
+            int a1 = std::get<0>(conflict);
+            int a2 = std::get<1>(conflict);
+            for (auto p : nogood)
+                if ((a1 == p.first && a2 == p.second) || (a1 == p.second && a2 == p.first))
+                { node.conflict = conflict; return; }
         }
 }
 
-double WPBS::get_path_cost(const WPath& path) const {  // ! *** defines WPBS::get_path_cost()
-    double cost = 0;  // ! ***
-    for (int i = 0; i < (int)path.size() - 1; i++)  // ! ***
-        cost += G.get_weight(path[i].location, path[i + 1].location) * 1;  // ! ***
-    return cost;  // ! ***
+double WPBS::get_path_cost(const WPath& path) const {
+    double cost = 0;
+    for (int i = 0; i < (int)path.size() - 1; i++)
+        cost += G.get_weight(path[i].location, path[i + 1].location) * 1;
+    return cost;
 }
 
-bool WPBS::find_path(WPBSNode* node, int agent) {  // ! *** defines WPBS::find_path()
-    WPath path;  // ! ***
-    double path_cost;  // ! ***
-    double temp_h_val;  // ! ***
-    rt.copy(initial_rt);  // ! ***
-    rt.build(paths, initial_constraints, node->priorities.get_reachable_nodes(agent),  // ! ***
-             agent, starts[agent].location);  // ! ***
-    path = path_planner.run(G, starts[agent], goal_locations[agent], rt);  // ! ***
-    path_cost = path_planner.path_cost;  // ! ***
-    temp_h_val = path_planner.temp_h_val;  // ! ***
-    LL_num_expanded += path_planner.num_expanded;  // ! ***
-    LL_num_generated += path_planner.num_generated;  // ! ***
-    if (path.empty()) return false;  // ! ***
-    double old_cost = 0;  // ! ***
-    if (paths[agent] != nullptr) old_cost = get_path_cost(*paths[agent]);  // ! ***
-    node->h_val = node->h_val - (node->path_cost_list[agent] - old_cost) + temp_h_val;  // ! ***
-    node->g_val = node->g_val - old_cost + get_path_cost(path);  // ! ***
-    for (auto it = node->paths.begin(); it != node->paths.end(); ++it)  // ! ***
-        if (std::get<0>(*it) == agent) { node->paths.erase(it); break; }  // ! ***
-    node->paths.emplace_back(agent, path);  // ! ***
-    paths[agent] = &node->paths.back().second;  // ! ***
-    node->vis_goal_time[agent] = path_planner.vis_goal_time;  // ! ***
-    (void)path_cost;  // ! ***
-    return true;  // ! ***
+bool WPBS::find_path(WPBSNode* node, int agent) {
+    WPath path;
+    double path_cost;
+    double temp_h_val;
+    rt.copy(initial_rt);
+    rt.build(paths, initial_constraints, node->priorities.get_reachable_nodes(agent),
+             agent, starts[agent].location);
+    path = path_planner.run(G, starts[agent], goal_locations[agent], rt);
+    path_cost = path_planner.path_cost;
+    temp_h_val = path_planner.temp_h_val;
+    LL_num_expanded += path_planner.num_expanded;
+    LL_num_generated += path_planner.num_generated;
+    if (path.empty()) return false;
+    double old_cost = 0;
+    if (paths[agent] != nullptr) old_cost = get_path_cost(*paths[agent]);
+    node->h_val = node->h_val - (node->path_cost_list[agent] - old_cost) + temp_h_val;
+    node->g_val = node->g_val - old_cost + get_path_cost(path);
+    for (auto it = node->paths.begin(); it != node->paths.end(); ++it)
+        if (std::get<0>(*it) == agent) { node->paths.erase(it); break; }
+    node->paths.emplace_back(agent, path);
+    paths[agent] = &node->paths.back().second;
+    node->vis_goal_time[agent] = path_planner.vis_goal_time;
+    (void)path_cost;
+    return true;
 }
 
-bool WPBS::wait_at_start(const WPath& path, int start_location, int timestep) const {  // ! *** defines WPBS::wait_at_start()
-    for (auto& state : path) {  // ! ***
-        if (state.timestep > timestep) return true;  // ! ***
-        else if (state.location != start_location) return false;  // ! ***
+bool WPBS::wait_at_start(const WPath& path, int start_location, int timestep) const {
+    for (auto& state : path) {
+        if (state.timestep > timestep) return true;
+        else if (state.location != start_location) return false;
     }
-    return false;  // ! ***
+    return false;
 }
 
-void WPBS::find_replan_agents(WPBSNode* node, const list<WConflict>& conflicts, unordered_set<int>& replan) {  // ! *** defines WPBS::find_replan_agents()
-    for (const auto& conflict : conflicts) {  // ! ***
-        int a1, a2, v1, v2, t;  // ! ***
-        std::tie(a1, a2, v1, v2, t) = conflict;  // ! ***
-        if (replan.find(a1) != replan.end() || replan.find(a2) != replan.end()) continue;  // ! ***
-        else if (prioritize_start && wait_at_start(*paths[a1], v1, t)) { replan.insert(a2); continue; }  // ! ***
-        else if (prioritize_start && wait_at_start(*paths[a2], v2, t)) { replan.insert(a1); continue; }  // ! ***
-        if (node->priorities.connected(a1, a2)) { replan.insert(a1); continue; }  // ! ***
-        if (node->priorities.connected(a2, a1)) { replan.insert(a2); continue; }  // ! ***
+void WPBS::find_replan_agents(WPBSNode* node, const list<WConflict>& conflicts, unordered_set<int>& replan) {
+    for (const auto& conflict : conflicts) {
+        int a1, a2, v1, v2, t;
+        std::tie(a1, a2, v1, v2, t) = conflict;
+        if (replan.find(a1) != replan.end() || replan.find(a2) != replan.end()) continue;
+        else if (prioritize_start && wait_at_start(*paths[a1], v1, t)) { replan.insert(a2); continue; }
+        else if (prioritize_start && wait_at_start(*paths[a2], v2, t)) { replan.insert(a1); continue; }
+        if (node->priorities.connected(a1, a2)) { replan.insert(a1); continue; }
+        if (node->priorities.connected(a2, a1)) { replan.insert(a2); continue; }
     }
 }
 
-bool WPBS::find_consistent_paths(WPBSNode* node, int agent) {  // ! *** defines WPBS::find_consistent_paths()
-    int count = 0;  // ! ***
-    unordered_set<int> replan;  // ! ***
-    if (agent >= 0 && agent < num_of_agents) replan.insert(agent);  // ! ***
-    find_replan_agents(node, node->conflicts, replan);  // ! *** -> find_replan_agents()
-    while (!replan.empty()) {  // ! ***
-        if (count > (int)node->paths.size() * 5) return false;  // ! ***
-        int a = *replan.begin();  // ! ***
-        replan.erase(a);  // ! ***
-        count++;  // ! ***
-        if (!find_path(node, a)) return false;  // ! ***
-        remove_conflicts(node->conflicts, a);  // ! ***
-        list<WConflict> new_conflicts;  // ! ***
-        find_conflicts(new_conflicts, a);  // ! ***
-        find_replan_agents(node, new_conflicts, replan);  // ! *** -> find_replan_agents()
-        node->conflicts.splice(node->conflicts.end(), new_conflicts);  // ! ***
+bool WPBS::find_consistent_paths(WPBSNode* node, int agent) {
+    int count = 0;
+    unordered_set<int> replan;
+    if (agent >= 0 && agent < num_of_agents) replan.insert(agent);
+    find_replan_agents(node, node->conflicts, replan);
+    while (!replan.empty()) {
+        if (count > (int)node->paths.size() * 5) return false;
+        int a = *replan.begin();
+        replan.erase(a);
+        count++;
+        if (!find_path(node, a)) return false;
+        remove_conflicts(node->conflicts, a);
+        list<WConflict> new_conflicts;
+        find_conflicts(new_conflicts, a);
+        find_replan_agents(node, new_conflicts, replan);
+        node->conflicts.splice(node->conflicts.end(), new_conflicts);
     }
-    return true;  // ! ***
+    return true;
 }
 
-bool WPBS::validate_consistence(const list<WConflict>& conflicts, const WPriorityGraph& Gp) const {  // ! *** defines WPBS::validate_consistence()
-    for (auto conflict : conflicts) {  // ! ***
-        int a1 = std::get<0>(conflict);  // ! ***
-        int a2 = std::get<1>(conflict);  // ! ***
-        if (Gp.connected(a1, a2)) return false;  // ! ***
-        else if (Gp.connected(a2, a1)) return false;  // ! ***
+bool WPBS::validate_consistence(const list<WConflict>& conflicts, const WPriorityGraph& Gp) const {
+    for (auto conflict : conflicts) {
+        int a1 = std::get<0>(conflict);
+        int a2 = std::get<1>(conflict);
+        if (Gp.connected(a1, a2)) return false;
+        else if (Gp.connected(a2, a1)) return false;
     }
-    return true;  // ! ***
+    return true;
 }
 
-bool WPBS::generate_child(WPBSNode* node, WPBSNode* parent) {  // ! *** defines WPBS::generate_child()
-    node->parent = parent;  // ! ***
-    node->g_val = parent->g_val;  // ! ***
-    node->h_val = parent->h_val;  // ! ***
-    node->makespan = parent->makespan;  // ! ***
-    node->depth = parent->depth + 1;  // ! ***
-    node->path_cost_list = parent->path_cost_list;  // ! ***
-    node->vis_goal_time = parent->vis_goal_time;  // ! ***
-    node->priorities.copy(node->parent->priorities);  // ! ***
-    node->priorities.add(node->priority.first, node->priority.second);  // ! ***
-    copy_conflicts(node->parent->conflicts, node->conflicts, -1);  // ! ***
-    if (!find_consistent_paths(node, node->priority.first)) return false;  // ! ***
-    node->num_of_collisions = node->conflicts.size();  // ! ***
-    node->f_val = node->g_val + node->h_val;  // ! ***
-    return true;  // ! ***
+bool WPBS::generate_child(WPBSNode* node, WPBSNode* parent) {
+    node->parent = parent;
+    node->g_val = parent->g_val;
+    node->h_val = parent->h_val;
+    node->makespan = parent->makespan;
+    node->depth = parent->depth + 1;
+    node->path_cost_list = parent->path_cost_list;
+    node->vis_goal_time = parent->vis_goal_time;
+    node->priorities.copy(node->parent->priorities);
+    node->priorities.add(node->priority.first, node->priority.second);
+    copy_conflicts(node->parent->conflicts, node->conflicts, -1);
+    if (!find_consistent_paths(node, node->priority.first)) return false;
+    node->num_of_collisions = node->conflicts.size();
+    node->f_val = node->g_val + node->h_val;
+    return true;
 }
 
-bool WPBS::generate_root_node() {  // ! *** defines WPBS::generate_root_node()
-    dummy_start = new WPBSNode();  // ! ***
-    paths.resize(num_of_agents, nullptr);  // ! ***
-    dummy_start->path_cost_list.resize(num_of_agents);  // ! ***
-    dummy_start->vis_goal_time.resize(num_of_agents);  // ! ***
+bool WPBS::generate_root_node() {
+    dummy_start = new WPBSNode();
+    paths.resize(num_of_agents, nullptr);
+    dummy_start->path_cost_list.resize(num_of_agents);
+    dummy_start->vis_goal_time.resize(num_of_agents);
 
-    if (!initial_paths.empty())  // ! ***
-        for (int i = 0; i < num_of_agents; i++)  // ! ***
-            if (!initial_paths[i].empty()) {  // ! ***
-                dummy_start->paths.emplace_back(make_pair(i, initial_paths[i]));  // ! ***
-                paths[i] = &dummy_start->paths.back().second;  // ! ***
-                dummy_start->makespan = std::max(dummy_start->makespan, paths[i]->size() - 1);  // ! ***
-                dummy_start->g_val += get_path_cost(*paths[i]);  // ! ***
+    if (!initial_paths.empty())
+        for (int i = 0; i < num_of_agents; i++)
+            if (!initial_paths[i].empty()) {
+                dummy_start->paths.emplace_back(make_pair(i, initial_paths[i]));
+                paths[i] = &dummy_start->paths.back().second;
+                dummy_start->makespan = std::max(dummy_start->makespan, paths[i]->size() - 1);
+                dummy_start->g_val += get_path_cost(*paths[i]);
             }
 
-    for (int i = 0; i < num_of_agents; i++) {  // ! ***
-        if (paths[i] != nullptr) continue;  // ! ***
-        WPath path;  // ! ***
-        double path_cost;  // ! ***
-        int start_location = starts[i].location;  // ! ***
-        rt.copy(initial_rt);  // ! ***
-        rt.build(paths, initial_constraints, dummy_start->priorities.get_reachable_nodes(i), i, start_location);  // ! ***
-        path = path_planner.run(G, starts[i], goal_locations[i], rt);  // ! ***
-        path_cost = path_planner.path_cost;  // ! ***
-        dummy_start->path_cost_list[i] = path_cost;  // ! ***
-        dummy_start->vis_goal_time[i] = path_planner.vis_goal_time;  // ! ***
-        rt.clear();  // ! ***
-        LL_num_expanded += path_planner.num_expanded;  // ! ***
-        LL_num_generated += path_planner.num_generated;  // ! ***
-        if (path.empty()) return false;  // ! ***
-        dummy_start->paths.emplace_back(i, path);  // ! ***
-        paths[i] = &dummy_start->paths.back().second;  // ! ***
-        dummy_start->makespan = std::max(dummy_start->makespan, paths[i]->size() - 1);  // ! ***
-        dummy_start->g_val += (path_cost - path_planner.temp_h_val);  // ! ***
+    for (int i = 0; i < num_of_agents; i++) {
+        if (paths[i] != nullptr) continue;
+        WPath path;
+        double path_cost;
+        int start_location = starts[i].location;
+        rt.copy(initial_rt);
+        rt.build(paths, initial_constraints, dummy_start->priorities.get_reachable_nodes(i), i, start_location);
+        path = path_planner.run(G, starts[i], goal_locations[i], rt);
+        path_cost = path_planner.path_cost;
+        dummy_start->path_cost_list[i] = path_cost;
+        dummy_start->vis_goal_time[i] = path_planner.vis_goal_time;
+        rt.clear();
+        LL_num_expanded += path_planner.num_expanded;
+        LL_num_generated += path_planner.num_generated;
+        if (path.empty()) return false;
+        dummy_start->paths.emplace_back(i, path);
+        paths[i] = &dummy_start->paths.back().second;
+        dummy_start->makespan = std::max(dummy_start->makespan, paths[i]->size() - 1);
+        dummy_start->g_val += (path_cost - path_planner.temp_h_val);
     }
-    find_conflicts(dummy_start->conflicts);  // ! ***
-    if (!lazyPriority)  // ! ***
-        if (!find_consistent_paths(dummy_start, -1)) return false;  // ! ***
-    dummy_start->f_val = dummy_start->g_val + dummy_start->h_val;  // ! ***
-    dummy_start->num_of_collisions = dummy_start->conflicts.size();  // ! ***
-    min_f_val = dummy_start->f_val;  // ! ***
-    best_node = dummy_start;  // ! ***
-    push_node(dummy_start);  // ! ***
-    return true;  // ! ***
+    find_conflicts(dummy_start->conflicts);
+    if (!lazyPriority)
+        if (!find_consistent_paths(dummy_start, -1)) return false;
+    dummy_start->f_val = dummy_start->g_val + dummy_start->h_val;
+    dummy_start->num_of_collisions = dummy_start->conflicts.size();
+    min_f_val = dummy_start->f_val;
+    best_node = dummy_start;
+    push_node(dummy_start);
+    return true;
 }
 
-void WPBS::push_node(WPBSNode* node) { dfs.push_back(node); allNodes_table.push_back(node); }  // ! *** defines WPBS::push_node()
-WPBSNode* WPBS::pop_node() { WPBSNode* node = dfs.back(); dfs.pop_back(); return node; }  // ! *** defines WPBS::pop_node()
+void WPBS::push_node(WPBSNode* node) { dfs.push_back(node); allNodes_table.push_back(node); }
+WPBSNode* WPBS::pop_node() { WPBSNode* node = dfs.back(); dfs.pop_back(); return node; }
 
-void WPBS::update_best_node(WPBSNode* node) {  // ! *** defines WPBS::update_best_node()
-    if (node->earliest_collision > best_node->earliest_collision) best_node = node;  // ! ***
-    else if (node->earliest_collision == best_node->earliest_collision && node->f_val < best_node->f_val)  // ! ***
-        best_node = node;  // ! ***
+void WPBS::update_best_node(WPBSNode* node) {
+    if (node->earliest_collision > best_node->earliest_collision) best_node = node;
+    else if (node->earliest_collision == best_node->earliest_collision && node->f_val < best_node->f_val)
+        best_node = node;
 }
 
-bool WPBS::run(const vector<WState>& starts_,  // ! *** defines WPBS::run()
-              const vector<vector<pair<int, int> > >& goal_locations_,  // ! ***
-              int time_limit_) {  // ! ***
-    clear();  // ! ***
-    start = std::clock();  // ! ***
-    this->starts = starts_;  // ! ***
-    this->goal_locations = goal_locations_;  // ! ***
-    this->num_of_agents = starts_.size();  // ! ***
-    this->time_limit = time_limit_;  // ! ***
-    solution_cost = -2;  // ! ***
-    solution_found = false;  // ! ***
-    rt.num_of_agents = num_of_agents;  // ! ***
-    rt.map_size = G.size();  // ! ***
-    rt.k_robust = k_robust;  // ! ***
-    rt.window = window;  // ! ***
-    rt.hold_endpoints = hold_endpoints;  // ! ***
-    path_planner.travel_times = travel_times;  // ! ***
-    path_planner.hold_endpoints = hold_endpoints;  // ! ***
-    path_planner.prioritize_start = prioritize_start;  // ! ***
-    if (!generate_root_node()) return false;  // ! ***
-    if (dummy_start->num_of_collisions == 0)  // ! ***
-    { solution_found = true; solution_cost = dummy_start->f_val; }  // ! ***
+bool WPBS::run(const vector<WState>& starts_,
+              const vector<vector<pair<int, int> > >& goal_locations_,
+              int time_limit_) {
+    clear();
+    start = std::clock();
+    this->starts = starts_;
+    this->goal_locations = goal_locations_;
+    this->num_of_agents = starts_.size();
+    this->time_limit = time_limit_;
+    solution_cost = -2;
+    solution_found = false;
+    rt.num_of_agents = num_of_agents;
+    rt.map_size = G.size();
+    rt.k_robust = k_robust;
+    rt.window = window;
+    rt.hold_endpoints = hold_endpoints;
+    path_planner.travel_times = travel_times;
+    path_planner.hold_endpoints = hold_endpoints;
+    path_planner.prioritize_start = prioritize_start;
+    if (!generate_root_node()) return false;
+    if (dummy_start->num_of_collisions == 0)
+    { solution_found = true; solution_cost = dummy_start->f_val; }
 
-    while (!dfs.empty() && !solution_found) {  // ! ***
-        runtime = (std::clock() - start) * 1.0 / CLOCKS_PER_SEC;  // ! ***
-        if (runtime > time_limit) { solution_cost = -1; solution_found = false; break; }  // ! ***
-        WPBSNode* curr = pop_node();  // ! ***
-        update_paths(curr);  // ! ***
-        if (curr->conflicts.empty())  // ! ***
-        { solution_found = true; solution_cost = curr->f_val; best_node = curr; break; }  // ! ***
-        choose_conflict(*curr);  // ! ***
-        update_best_node(curr);  // ! ***
-        HL_num_expanded++;  // ! ***
-        curr->time_expanded = HL_num_expanded;  // ! ***
-        WPBSNode* n[2];  // ! ***
-        for (int i = 0; i < 2; i++) n[i] = new WPBSNode();  // ! ***
-        resolve_conflict(curr->conflict, n[0], n[1]);  // ! ***
-        vector<WPath*> copy(paths);  // ! ***
-        for (int i = 0; i < 2; i++) {  // ! ***
-            bool sol = generate_child(n[i], curr);  // ! ***
-            if (sol) { HL_num_generated++; n[i]->time_generated = HL_num_generated; }  // ! ***
-            if (sol) {  // ! ***
-                if (n[i]->f_val == min_f_val && n[i]->num_of_collisions == 0) {  // ! ***
-                    solution_found = true; solution_cost = n[i]->f_val; best_node = n[i];  // ! ***
-                    allNodes_table.push_back(n[i]); break;  // ! ***
+    while (!dfs.empty() && !solution_found) {
+        runtime = (std::clock() - start) * 1.0 / CLOCKS_PER_SEC;
+        if (runtime > time_limit) { solution_cost = -1; solution_found = false; break; }
+        WPBSNode* curr = pop_node();
+        update_paths(curr);
+        if (curr->conflicts.empty())
+        { solution_found = true; solution_cost = curr->f_val; best_node = curr; break; }
+        choose_conflict(*curr);
+        update_best_node(curr);
+        HL_num_expanded++;
+        curr->time_expanded = HL_num_expanded;
+        WPBSNode* n[2];
+        for (int i = 0; i < 2; i++) n[i] = new WPBSNode();
+        resolve_conflict(curr->conflict, n[0], n[1]);
+        vector<WPath*> copy(paths);
+        for (int i = 0; i < 2; i++) {
+            bool sol = generate_child(n[i], curr);
+            if (sol) { HL_num_generated++; n[i]->time_generated = HL_num_generated; }
+            if (sol) {
+                if (n[i]->f_val == min_f_val && n[i]->num_of_collisions == 0) {
+                    solution_found = true; solution_cost = n[i]->f_val; best_node = n[i];
+                    allNodes_table.push_back(n[i]); break;
                 }
-            } else { delete (n[i]); n[i] = nullptr; }  // ! ***
-            paths = copy;  // ! ***
+            } else { delete (n[i]); n[i] = nullptr; }
+            paths = copy;
         }
 
-        if (!solution_found) {  // ! ***
-            if (n[0] != nullptr && n[1] != nullptr) {  // ! ***
-                if (n[0]->f_val < n[1]->f_val ||  // ! ***
-                    (n[0]->f_val == n[1]->f_val && n[0]->num_of_collisions < n[1]->num_of_collisions))  // ! ***
-                { push_node(n[1]); push_node(n[0]); }  // ! ***
-                else { push_node(n[0]); push_node(n[1]); }  // ! ***
+        if (!solution_found) {
+            if (n[0] != nullptr && n[1] != nullptr) {
+                if (n[0]->f_val < n[1]->f_val ||
+                    (n[0]->f_val == n[1]->f_val && n[0]->num_of_collisions < n[1]->num_of_collisions))
+                { push_node(n[1]); push_node(n[0]); }
+                else { push_node(n[0]); push_node(n[1]); }
             }
-            else if (n[0] != nullptr) push_node(n[0]);  // ! ***
-            else if (n[1] != nullptr) push_node(n[1]);  // ! ***
-            else nogood.emplace(std::get<0>(curr->conflict), std::get<1>(curr->conflict));  // ! ***
-            curr->clear();  // ! ***
+            else if (n[0] != nullptr) push_node(n[0]);
+            else if (n[1] != nullptr) push_node(n[1]);
+            else nogood.emplace(std::get<0>(curr->conflict), std::get<1>(curr->conflict));
+            curr->clear();
         }
     }
-    runtime = (std::clock() - start) * 1.0 / CLOCKS_PER_SEC;  // ! ***
-    get_solution();  // ! ***
-    return solution_found;  // ! ***
+    runtime = (std::clock() - start) * 1.0 / CLOCKS_PER_SEC;
+    get_solution();
+    return solution_found;
 }
 
-void WPBS::resolve_conflict(const WConflict& conflict, WPBSNode* n1, WPBSNode* n2) {  // ! *** defines WPBS::resolve_conflict()
-    int a1, a2, v1, v2, t;  // ! ***
-    std::tie(a1, a2, v1, v2, t) = conflict;  // ! ***
-    n1->priority = std::make_pair(a1, a2);  // ! ***
-    n2->priority = std::make_pair(a2, a1);  // ! ***
-    (void)v1; (void)v2; (void)t;  // ! ***
+void WPBS::resolve_conflict(const WConflict& conflict, WPBSNode* n1, WPBSNode* n2) {
+    int a1, a2, v1, v2, t;
+    std::tie(a1, a2, v1, v2, t) = conflict;
+    n1->priority = std::make_pair(a1, a2);
+    n2->priority = std::make_pair(a2, a1);
+    (void)v1; (void)v2; (void)t;
 }
 
-inline void WPBS::release_closed_list() {  // ! *** defines WPBS::release_closed_list()
-    for (auto it = allNodes_table.begin(); it != allNodes_table.end(); it++) delete *it;  // ! ***
-    allNodes_table.clear();  // ! ***
+inline void WPBS::release_closed_list() {
+    for (auto it = allNodes_table.begin(); it != allNodes_table.end(); it++) delete *it;
+    allNodes_table.clear();
 }
 
-void WPBS::get_solution() {  // ! *** defines WPBS::get_solution()
-    update_paths(best_node);  // ! ***
-    solution.resize(num_of_agents);  // ! ***
-    vis_goal_time.resize(num_of_agents);  // ! ***
-    for (int k = 0; k < num_of_agents; k++) {  // ! ***
-        solution[k] = *paths[k];  // ! ***
-        vis_goal_time[k] = best_node->vis_goal_time[k];  // ! ***
+void WPBS::get_solution() {
+    update_paths(best_node);
+    solution.resize(num_of_agents);
+    vis_goal_time.resize(num_of_agents);
+    for (int k = 0; k < num_of_agents; k++) {
+        solution[k] = *paths[k];
+        vis_goal_time[k] = best_node->vis_goal_time[k];
     }
-    avg_path_length = 0;  // ! ***
-    for (int k = 0; k < num_of_agents; k++) {  // ! ***
-        if (goal_locations[k].size() == 0) continue;  // ! ***
-        avg_path_length += paths[k]->size();  // ! ***
+    avg_path_length = 0;
+    for (int k = 0; k < num_of_agents; k++) {
+        if (goal_locations[k].size() == 0) continue;
+        avg_path_length += paths[k]->size();
     }
-    avg_path_length /= num_of_agents;  // ! ***
+    avg_path_length /= num_of_agents;
 }
 
 // Entry point: run the native windowed PBS over mapd_map, return per-agent
 // location sequences (index 0 == cur_time), hold-in-place fallback if unplanned.
-bool native_wpbs_solve(const MAPDMap& mp,  // ! *** defines native_wpbs_solve()
-                       const std::vector<int>& start_locs,  // ! ***
-                       const std::vector<std::vector<std::pair<int,int>>>& goal_seqs,  // ! ***
-                       int cur_time, int window, int time_limit_ms,  // ! ***
-                       std::vector<std::vector<int>>& out_paths,  // ! ***
-                       bool use_sipp) {  // ! ***
-    int n = (int)start_locs.size();  // ! ***
-    out_paths.assign(n, {});  // ! ***
+bool native_wpbs_solve(const MAPDMap& mp,
+                       const std::vector<int>& start_locs,
+                       const std::vector<std::vector<std::pair<int,int>>>& goal_seqs,
+                       int cur_time, int window, int time_limit_ms,
+                       std::vector<std::vector<int>>& out_paths,
+                       bool use_sipp) {
+    int n = (int)start_locs.size();
+    out_paths.assign(n, {});
 
-    WGraph G;  // ! ***
-    G.mp = &mp;  // ! ***
-    G.rows = mp.row;  // ! ***
-    G.cols = mp.col;  // ! ***
+    WGraph G;
+    G.mp = &mp;
+    G.rows = mp.row;
+    G.cols = mp.col;
 
     // Low-level solver selected by use_sipp: the framework-native windowed solve is
     // identical for wPBS-MLA* and wPBS-MLSIPP except for this single-agent planner.
-    WStateTimeAStar planner_astar;  // ! ***
-    WSippSearch     planner_sipp;  // ! ***
-    WSingleAgentSolver& planner = use_sipp  // ! ***
-        ? static_cast<WSingleAgentSolver&>(planner_sipp)  // ! ***
-        : static_cast<WSingleAgentSolver&>(planner_astar);  // ! ***
-    WPBS pbs(G, planner);  // ! ***
-    pbs.lazyPriority = false;  // ! ***
-    pbs.prioritize_start = false;  // ! ***
-    pbs.hold_endpoints = false;  // ! ***
-    pbs.k_robust = 0;  // ! ***
-    pbs.window = window;  // ! ***
-    pbs.screen = 0;  // ! ***
-    pbs.setRT(false, false);  // ! ***
-    pbs.initial_rt.k_robust = 0;  // ! ***
-    pbs.initial_rt.window = window;  // ! ***
-    pbs.initial_rt.hold_endpoints = false;  // ! ***
-    pbs.initial_rt.use_cat = false;  // ! ***
+    WStateTimeAStar planner_astar;
+    WSippSearch     planner_sipp;
+    WSingleAgentSolver& planner = use_sipp
+        ? static_cast<WSingleAgentSolver&>(planner_sipp)
+        : static_cast<WSingleAgentSolver&>(planner_astar);
+    WPBS pbs(G, planner);
+    pbs.lazyPriority = false;
+    pbs.prioritize_start = false;
+    pbs.hold_endpoints = false;
+    pbs.k_robust = 0;
+    pbs.window = window;
+    pbs.screen = 0;
+    pbs.setRT(false, false);
+    pbs.initial_rt.k_robust = 0;
+    pbs.initial_rt.window = window;
+    pbs.initial_rt.hold_endpoints = false;
+    pbs.initial_rt.use_cat = false;
 
-    std::vector<WState> starts;  // ! ***
-    starts.reserve(n);  // ! ***
-    for (int i = 0; i < n; i++)  // ! ***
-        starts.emplace_back(start_locs[i], cur_time, -1);  // ! ***
+    std::vector<WState> starts;
+    starts.reserve(n);
+    for (int i = 0; i < n; i++)
+        starts.emplace_back(start_locs[i], cur_time, -1);
 
-    std::vector<std::vector<std::pair<int,int>>> goals = goal_seqs;  // ! ***
+    std::vector<std::vector<std::pair<int,int>>> goals = goal_seqs;
 
-    int tl_sec = time_limit_ms / 1000;  // ! ***
-    if (tl_sec < 1) tl_sec = 1;  // ! ***
-    bool ok = pbs.run(starts, goals, tl_sec);  // ! ***
-    (void)ok;  // ! ***
+    int tl_sec = time_limit_ms / 1000;
+    if (tl_sec < 1) tl_sec = 1;
+    bool ok = pbs.run(starts, goals, tl_sec);
+    (void)ok;
 
-    for (int i = 0; i < n; i++) {  // ! ***
-        if (i < (int)pbs.solution.size() && !pbs.solution[i].empty()) {  // ! ***
-            const WPath& p = pbs.solution[i];  // ! ***
-            out_paths[i].resize(p.size());  // ! ***
-            for (int t = 0; t < (int)p.size(); t++)  // ! ***
-                out_paths[i][t] = p[t].location;  // ! ***
-        } else {  // ! ***
-            out_paths[i] = { start_locs[i] };  // ! ***
+    for (int i = 0; i < n; i++) {
+        if (i < (int)pbs.solution.size() && !pbs.solution[i].empty()) {
+            const WPath& p = pbs.solution[i];
+            out_paths[i].resize(p.size());
+            for (int t = 0; t < (int)p.size(); t++)
+                out_paths[i][t] = p[t].location;
+        } else {
+            out_paths[i] = { start_locs[i] };
         }
     }
-    return true;  // ! ***
+    return true;
 }
 
-} // anonymous namespace  // ! ***
+} // anonymous namespace
 
 // ============================================================
 // Section 36: wPBS Path Planning — Wrapper
 // ============================================================
 
-void Simulation::path_planning_wpbs() {  // ! *** [S8] path_planning_wpbs(): native solve for (Hungarian|LNS)+wPBS
+void Simulation::path_planning_wpbs() {
     // The framework-native windowed PBS (wpbs_windowed_solve, backed by mapd_map)
     // is used for Hungarian+wPBS-MLA* and LNS(1s)+wPBS-MLA* (Hungarian / repeated-
     // Hungarian-LNS assignment + wPBS + non-SIPP low level).  The SIPP variants
@@ -9044,20 +9044,20 @@ void Simulation::path_planning_wpbs() {  // ! *** [S8] path_planning_wpbs(): nat
     // SIPP low-level, selected inside native_wpbs_solve by config.use_sipp), so it no
     // longer diverges from its wPBS-MLA* counterpart.  Non-windowed PBS-MLSIPP and
     // PP-SIPP still take the reimpl baseline (pbs_core) below.
-    bool use_native = ((config.assign_method == AM_HUNGARIAN ||  // ! *** native windowed solve for BOTH series (MLA* and MLSIPP alike)
-                        config.assign_method == AM_REPEATED_HUNGARIAN_LNS) &&  // ! ***
-                       config.mapf == MAPF_wPBS);  // ! ***
-    if (use_native) {  // ! ***
-        wpbs_windowed_solve();  // ! *** -> wpbs_windowed_solve()
-        for (int i = 0; i < (int)agents.size(); i++) {  // ! ***
-            if (!agents[i].task_sequence.empty() && agents[i].status == AG_FREE) {  // ! ***
-                agents[i].status = AG_MOVING_TO_PICKUP;  // ! ***
-                agents[i].current_task = agents[i].task_sequence.front();  // ! ***
+    bool use_native = ((config.assign_method == AM_HUNGARIAN ||
+                        config.assign_method == AM_REPEATED_HUNGARIAN_LNS) &&
+                       config.mapf == MAPF_wPBS);
+    if (use_native) {
+        wpbs_windowed_solve();
+        for (int i = 0; i < (int)agents.size(); i++) {
+            if (!agents[i].task_sequence.empty() && agents[i].status == AG_FREE) {
+                agents[i].status = AG_MOVING_TO_PICKUP;
+                agents[i].current_task = agents[i].task_sequence.front();
             }
         }
-        return;  // ! ***
+        return;
     }
-    pbs_core(true);  // ! (not-LNS) windowed pbs_core fallback: unreachable here, use_native is always true for (Hungarian|LNS)+wPBS
+    pbs_core(true);
     for (int i = 0; i < (int)agents.size(); i++) {
         if (!agents[i].task_sequence.empty() && agents[i].status == AG_FREE) {
             agents[i].status = AG_MOVING_TO_PICKUP;
@@ -9074,101 +9074,101 @@ void Simulation::path_planning_wpbs() {  // ! *** [S8] path_planning_wpbs(): nat
 //   agents.path.  Dispersal uses choose_good_endpoint (task endpoints only, skip
 //   own, home fallback), via the framework's endpoint list (mapd_map.endpoints).
 // ============================================================
-void Simulation::wpbs_windowed_solve() {  // ! *** [S8] wpbs_windowed_solve(): starts/goals + dispersal, run WPBS, commit window
-    int num_ag = (int)agents.size();  // ! ***
-    int max_t = (int)maxtime;  // ! ***
+void Simulation::wpbs_windowed_solve() {
+    int num_ag = (int)agents.size();
+    int max_t = (int)maxtime;
 
     // starts = current agent locations
-    std::vector<int> start_locs(num_ag);  // ! ***
-    for (int i = 0; i < num_ag; i++) start_locs[i] = (int)agents[i].loc;  // ! ***
+    std::vector<int> start_locs(num_ag);
+    for (int i = 0; i < num_ag; i++) start_locs[i] = (int)agents[i].loc;
 
     // --- Build task-goal part per agent (identical to build_goal_sequences,
     //     task_truncated_size=1) with ABSOLUTE release times. ---
-    std::vector<std::vector<std::pair<int,int>>> goal_seqs(num_ag);  // ! ***
-    const int task_truncated_size = 1;  // ! ***
-    for (int i = 0; i < num_ag; i++) {  // ! ***
-        int current_task_count = 0;  // ! ***
-        for (int tid : agents[i].task_sequence) {  // ! ***
-            if (current_task_count >= task_truncated_size) break;  // ! ***
-            Task& task = all_tasks[tid];  // ! ***
-            int num_goals = min((int)task.goals.size(), 2);  // ! ***
-            bool carrying = (agents[i].status == AG_CARRYING && tid == agents[i].current_task);  // ! ***
-            if (num_goals <= 1) {  // ! ***
-                if (!carrying)  // ! ***
-                    goal_seqs[i].push_back({task.goals[0], task.release_time});  // ! ***
-            } else {  // ! ***
-                if (carrying) {  // ! ***
-                    goal_seqs[i].push_back({task.goals[1], 0});  // ! ***
-                } else {  // ! ***
-                    goal_seqs[i].push_back({task.goals[0], task.release_time});  // ! ***
-                    goal_seqs[i].push_back({task.goals[1], 0});  // ! ***
+    std::vector<std::vector<std::pair<int,int>>> goal_seqs(num_ag);
+    const int task_truncated_size = 1;
+    for (int i = 0; i < num_ag; i++) {
+        int current_task_count = 0;
+        for (int tid : agents[i].task_sequence) {
+            if (current_task_count >= task_truncated_size) break;
+            Task& task = all_tasks[tid];
+            int num_goals = min((int)task.goals.size(), 2);
+            bool carrying = (agents[i].status == AG_CARRYING && tid == agents[i].current_task);
+            if (num_goals <= 1) {
+                if (!carrying)
+                    goal_seqs[i].push_back({task.goals[0], task.release_time});
+            } else {
+                if (carrying) {
+                    goal_seqs[i].push_back({task.goals[1], 0});
+                } else {
+                    goal_seqs[i].push_back({task.goals[0], task.release_time});
+                    goal_seqs[i].push_back({task.goals[1], 0});
                 }
             }
-            current_task_count++;  // ! ***
+            current_task_count++;
         }
     }
 
     // --- Reference choose_good_endpoint dispersal: task endpoints only (skip own,
     //     skip already-assigned), std::map<dist,loc> min; home endpoints fallback. ---
-    std::set<int> assigned;  // ! ***
-    auto ref_choose_good_endpoint = [&](int last_loc) -> int {  // ! *** reference choose_good_endpoint dispersal
-        std::map<int,int> distance;  // ! ***
-        for (int e = 0; e < (int)mapd_map.endpoints.size(); e++) {  // ! ***
-            const Endpoint& ep = mapd_map.endpoints[e];  // ! ***
-            if (!ep.is_task_endpoint) continue;          // task endpoints ('e') only  // ! ***
-            if (assigned.count(ep.loc)) continue;  // ! ***
-            if (ep.loc == last_loc) continue;            // skip own  // ! ***
-            int d = ep.h_val[last_loc];  // ! ***
-            distance[d] = ep.loc;                        // later equal-dist overwrites  // ! ***
+    std::set<int> assigned;
+    auto ref_choose_good_endpoint = [&](int last_loc) -> int {
+        std::map<int,int> distance;
+        for (int e = 0; e < (int)mapd_map.endpoints.size(); e++) {
+            const Endpoint& ep = mapd_map.endpoints[e];
+            if (!ep.is_task_endpoint) continue;          // task endpoints ('e') only
+            if (assigned.count(ep.loc)) continue;
+            if (ep.loc == last_loc) continue;            // skip own
+            int d = ep.h_val[last_loc];
+            distance[d] = ep.loc;                        // later equal-dist overwrites
         }
-        if (!distance.empty()) return distance.begin()->second;  // ! ***
+        if (!distance.empty()) return distance.begin()->second;
         // fallback: agent home / non-task endpoints
-        for (int e = 0; e < (int)mapd_map.endpoints.size(); e++) {  // ! ***
-            const Endpoint& ep = mapd_map.endpoints[e];  // ! ***
-            if (ep.is_task_endpoint) continue;  // ! ***
-            if (assigned.count(ep.loc)) continue;  // ! ***
-            if (ep.loc == last_loc) continue;  // ! ***
-            int d = ep.h_val[last_loc];  // ! ***
-            distance[d] = ep.loc;  // ! ***
+        for (int e = 0; e < (int)mapd_map.endpoints.size(); e++) {
+            const Endpoint& ep = mapd_map.endpoints[e];
+            if (ep.is_task_endpoint) continue;
+            if (assigned.count(ep.loc)) continue;
+            if (ep.loc == last_loc) continue;
+            int d = ep.h_val[last_loc];
+            distance[d] = ep.loc;
         }
-        if (!distance.empty()) return distance.begin()->second;  // ! ***
-        return last_loc; // ultimate fallback (should not happen)  // ! ***
+        if (!distance.empty()) return distance.begin()->second;
+        return last_loc; // ultimate fallback (should not happen)
     };
 
     // Non-free agents first, then free agents (matches reference ordering).
-    for (int i = 0; i < num_ag; i++) {  // ! ***
-        if (goal_seqs[i].empty()) continue;  // ! ***
-        int last_loc = goal_seqs[i].back().first;  // ! ***
-        int dummy = ref_choose_good_endpoint(last_loc);  // ! ***
-        goal_seqs[i].push_back({dummy, 0});  // ! ***
-        assigned.insert(dummy);  // ! ***
+    for (int i = 0; i < num_ag; i++) {
+        if (goal_seqs[i].empty()) continue;
+        int last_loc = goal_seqs[i].back().first;
+        int dummy = ref_choose_good_endpoint(last_loc);
+        goal_seqs[i].push_back({dummy, 0});
+        assigned.insert(dummy);
     }
-    for (int i = 0; i < num_ag; i++) {  // ! ***
-        if (!goal_seqs[i].empty()) continue;  // ! ***
-        int last_loc = start_locs[i];  // ! ***
-        int dummy = ref_choose_good_endpoint(last_loc);  // ! ***
-        goal_seqs[i].push_back({dummy, 0});  // ! ***
-        assigned.insert(dummy);  // ! ***
+    for (int i = 0; i < num_ag; i++) {
+        if (!goal_seqs[i].empty()) continue;
+        int last_loc = start_locs[i];
+        int dummy = ref_choose_good_endpoint(last_loc);
+        goal_seqs[i].push_back({dummy, 0});
+        assigned.insert(dummy);
     }
 
     // --- Run the native windowed integrated solve (mapd_map-backed). ---
-    std::vector<std::vector<int>> out_paths;  // ! ***
-    int window = config.replan_window;            // == reference plan_window  // ! ***
-    int time_limit_ms = 30000;                    // generous per-window budget  // ! ***
-    native_wpbs_solve(mapd_map, start_locs, goal_seqs,  // ! *** run the native WPBS
-                      (int)cur_time_, window, time_limit_ms, out_paths,  // ! ***
-                      config.use_sipp);  // ! ***
+    std::vector<std::vector<int>> out_paths;
+    int window = config.replan_window;            // == reference plan_window
+    int time_limit_ms = 30000;                    // generous per-window budget
+    native_wpbs_solve(mapd_map, start_locs, goal_seqs,
+                      (int)cur_time_, window, time_limit_ms, out_paths,
+                      config.use_sipp);
 
     // --- Commit: write plan for t >= cur_time_, hold last cell afterwards. ---
-    for (int i = 0; i < num_ag; i++) {  // ! ***
-        const std::vector<int>& p = out_paths[i];  // ! ***
-        int plen = (int)p.size();  // ! ***
-        int hold = plen > 0 ? p[plen - 1] : start_locs[i];  // ! ***
-        for (int t = (int)cur_time_; t < max_t; t++) {  // ! ***
-            int rel = t - (int)cur_time_;  // ! ***
-            int v = (rel < plen) ? p[rel] : hold;  // ! ***
-            path_table_[i][t] = (unsigned int)v;  // ! ***
-            agents[i].path[t] = (unsigned int)v;  // ! ***
+    for (int i = 0; i < num_ag; i++) {
+        const std::vector<int>& p = out_paths[i];
+        int plen = (int)p.size();
+        int hold = plen > 0 ? p[plen - 1] : start_locs[i];
+        for (int t = (int)cur_time_; t < max_t; t++) {
+            int rel = t - (int)cur_time_;
+            int v = (rel < plen) ? p[rel] : hold;
+            path_table_[i][t] = (unsigned int)v;
+            agents[i].path[t] = (unsigned int)v;
         }
     }
 }
@@ -9459,7 +9459,7 @@ int Simulation::realpath_lns_imp(int num_rounds, int group_size) {
         }
 
         // --- Evaluate: accept only if BOTH makespan and SWT improve ---
-        int new_cost = all_ok ? compute_realpath_cost() : INT_MAX;
+        int new_cost = all_ok ? compute_realpath_cost() : INT_MAX;// !
         int new_makespan = 0;
         int valid_ct = 0;
         for (auto& t : all_tasks) {
@@ -9497,58 +9497,3 @@ int Simulation::realpath_lns_imp(int num_rounds, int group_size) {
 
     return improvements;
 }
-
-// ============================================================================
-//  MARKER LEGEND  (appended by skill_tools/annotate_lns_series.py -- this file
-//  is otherwise a LINE-FOR-LINE copy of src/simulation.cpp, so every
-//  simulation.cpp:N reference lands on line N here too)
-//
-//    // ! ***            this line runs for the HUNGARIAN series and/or the LNS series
-//    // ! *** [Sn] text  first line of a block: which stage it belongs to + what it does
-//    // ! (not-LNS)      NOT on the path: another family's switch branch, an
-//                        unreachable default, dead code, or a flag-only variant.
-//                        Tagged on the first line of the branch; the rest of the
-//                        branch is left completely unmarked.
-//    // ! (shared)       driver-side helper used by all 17 methods
-//
-//  Blank lines, brace-only lines and comment lines are never marked.
-//
-//  STAGES
-//    S0 includes
-//    S1 initialisation                 init / init_pbs_state / init_lns_state
-//    S2 main loop + event detection    run / end / release_tasks / update_system_online
-//                                      / process_online_events
-//    S3 per-iteration dispatch         task_assignment_and_path_planning / should_assign
-//                                      / should_replan / task_assignment / path_planning
-//    S4 TASK ASSIGNMENT                assign_repeated_hungarian [Hungarian series ends here]
-//                                      + estimate_sequence_cost / lns_destroy / lns_repair
-//                                      / assign_repeated_hungarian_lns [LNS series]
-//    S5 assignment -> planning handoff choose_dummy_endpoint / build_goal_sequences
-//                                      / split_into_task_groups
-//    S6 MAPF high level: PBS           path_planning_pbs / pbs_find_conflict / pbs_core
-//    S7 MAPF low level                 seq_mla_star [MLA*] / sipp_search [MLSIPP]
-//                                      / mla_star_taskwise
-//    S8 MAPF high level: native wPBS   W* classes / path_planning_wpbs / wpbs_windowed_solve
-//    S9 MAPF alternative: PP           path_planning_pp_mla
-//
-//  THE 10 METHODS
-//   #   method                CLI                                        assign  MAPF                  low level
-//   6   Hungarian+PBS-MLA*    -a HUNGARIAN_PBS                           S4 Hun  pbs_core(false)       mla_star_taskwise
-//   7   Hungarian+wPBS-MLA*   -a HUNGARIAN_wPBS                          S4 Hun  native WPBS           WStateTimeAStar
-//   8   LNS(1s)+PBS-MLA*      -a LNS_PBS --lns_time 1                    S4 LNS  pbs_core(false)       mla_star_taskwise
-//   9   LNS(1s)+wPBS-MLA*     -a LNS_wPBS --lns_time 1                   S4 LNS  native WPBS           WStateTimeAStar
-//  10   Hungarian+PBS-MLSIPP  -a HUNGARIAN_PBS  --sipp                   S4 Hun  pbs_core(false)       sipp_search
-//  11   Hungarian+wPBS-MLSIPP -a HUNGARIAN_wPBS --sipp                   S4 Hun  native WPBS           WSippSearch
-//  12   LNS(1s)+PBS-MLSIPP    -a LNS_PBS  --lns_time 1 --sipp            S4 LNS  pbs_core(false)       sipp_search
-//  13   LNS(1s)+wPBS-MLSIPP   -a LNS_wPBS --lns_time 1 --sipp            S4 LNS  native WPBS           WSippSearch
-//  16   Hungarian+PP-SIPP     -a HUNGARIAN_PBS --mapf PP --sipp          S4 Hun  path_planning_pp_mla  sipp_search
-//  17   LNS(1s)+PP-SIPP       -a LNS_PBS --mapf PP --lns_time 1 --sipp   S4 LNS  path_planning_pp_mla  sipp_search
-//
-//  DIFFERENCES BETWEEN THE TWO SERIES (everything else is the same code)
-//   1. S3   assign_hungarian_step() [928] vs assign_lns_step() [941]
-//   2. S4   LNS adds the destroy/repair spin after the same Hungarian pass
-//   3. S2   lns_agent_finished_ [4390, 4440] is maintained for LNS only
-//   4. S5   split_into_task_groups [6373] caps at 2 tasks (LNS) / 3 (Hungarian)
-//
-//  Regenerate:  python3 skill_tools/annotate_lns_series.py
-// ============================================================================
