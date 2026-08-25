@@ -46,3 +46,7 @@ iterations on different hardware. All algorithms must nevertheless complete
 Return `server_results/full/results.csv`, `results.json`, and the per-run logs.
 The JSON records the complete command for every row, so the matrix is auditable
 without reconstructing CLI options from the displayed method name.
+
+The branch includes the reviewed reference workbook
+`all_paper_algorithms_comparison_2026-08-24.xlsx`. It is the only Excel file
+explicitly allowed by `.gitignore`.

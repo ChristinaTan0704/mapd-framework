@@ -3,6 +3,10 @@
 This repository contains the current implementations and benchmark inputs for
 TP/TPTS, CENTRAL, HBH, TA, Hungarian, and LNS-based MAPD algorithms.
 
+The reviewed result workbook is
+`all_paper_algorithms_comparison_2026-08-24.xlsx`. Other generated spreadsheets
+and CSV files are intentionally excluded by `.gitignore`.
+
 ## Linux server setup
 
 The recommended environment is Ubuntu 22.04 or 24.04 with a C++14 compiler.

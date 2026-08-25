@@ -1,21 +1,40 @@
+# OS and editor files
+.DS_Store
+Thumbs.db
+~$*
+*~
+*.swp
+*.swo
+
+# C/C++ build products and debug bundles
+*.o
+mapd
+mapd_*
+*.dSYM/
+
+# Python caches and environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Generated experiment output and scratch work
+.verify/
+output/
+server_results/
+skill_tools/
+*.log
+*.tmp
 *.bak
 *.bak_*
-~$*
-__pycache__/
-*.pyc
-*.o
-.verify/
-mapd
+*.throughput
+*.par
+*.tsptw
 
-# local tooling / scratch experiment scripts
-skill_tools/
-
-# result tables and spreadsheets
+# Result tables are generated artifacts. Keep only the reviewed workbook below.
 *.csv
 *.xlsx
+!all_paper_algorithms_comparison_2026-08-24.xlsx
 
-# session notes
+# Local session notes; the reviewed server handover is already tracked.
 history/
-
-# portable Linux/server experiment output
-server_results/
