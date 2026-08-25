@@ -32,6 +32,7 @@ full command covers the 27 configured method labels, including all eight
 - Per-process wall timeout: `1800` seconds.
 - Internal simulator runtime limit: `1795` seconds when launched by the runner;
   the standalone executable defaults to `1800` seconds.
+- Per assignment/path-planning cycle limit: `600` seconds.
 - LNS internal budget: `1` CPU second.
 - Standard PBS/wPBS sequence limit: `2`.
 - `(ts 1)` variants: sequence limit `1`.
@@ -40,13 +41,16 @@ full command covers the 27 configured method labels, including all eight
 - CBS high- and low-level expansion limits: `INT_MAX` unless explicitly
   overridden.
 
-The internal runtime limit is a shared `steady_clock` deadline checked inside
-CBS, CENTRAL assignment A*, TA-Hybrid, TA-Prioritized, PBS/wPBS, STA*, Path2,
-MLA*, MLSIPP, and LNS search loops. Expiration throws `runtime_error`, so the
-algorithm prints the timeout location and stops immediately. The runner's
-external timeout remains five seconds later as a hard-kill fallback. Pass
-`--runtime-limit 0` to the runner (or `--runtime_limit 0` directly to `mapd`)
-only when intentionally disabling the internal deadline.
+The whole-run and pathfinding limits are shared `steady_clock` deadlines
+checked inside CBS, CENTRAL assignment A*, TA-Hybrid, TA-Prioritized,
+PBS/wPBS, STA*, Path2, MLA*, MLSIPP, and LNS search loops. The 600-second
+pathfinding deadline resets at the beginning of each assignment/path-planning
+cycle. Expiration throws `runtime_error`, so the algorithm prints the timeout
+location and stops immediately. The runner's external timeout remains a
+hard-kill fallback. Pass `--runtime-limit 0` or
+`--pathfinding-runtime-limit 0` to the runner only when intentionally
+disabling one of the internal limits; the equivalent executable options use
+underscores.
 
 Makespan/SWT should match exactly for non-LNS smoke rows. LNS metric matching
 is informational because its CPU-time budget can permit a different number of

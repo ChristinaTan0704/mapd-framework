@@ -199,6 +199,8 @@ void Simulation::release_tasks() {
 // ============================================================================
 
 void Simulation::task_assignment_and_path_planning() {
+    RuntimeDeadline::start_pathfinding(
+        config.pathfinding_runtime_limit_seconds);
     RuntimeDeadline::check("task assignment and path planning");
     const bool assignment_triggered = should_assign();
     if (assignment_triggered) {
@@ -211,6 +213,7 @@ void Simulation::task_assignment_and_path_planning() {
         RuntimeDeadline::check("path planning");
         last_path_planning_time_ = cur_time_;
     }
+    RuntimeDeadline::stop_pathfinding();
 }
 
 // --- ShouldAssign() : switch on assign_trigger ---

@@ -218,13 +218,16 @@ on the five agent counts at frequency 500. LNS is explicitly configured with
 `--lns_time 1`. Existing per-job JSON files are reused, so rerunning the same
 command resumes an interrupted matrix. Add `--rerun` to discard the cache.
 
-Every executable also receives an internal wall-clock runtime limit. By
-default, the runner sets `--runtime_limit` to five seconds less than its
-external `--timeout` (1795 versus 1800 seconds). CBS, TA, PBS/wPBS, STA*, MLA*,
-MLSIPP, CENTRAL assignment search, endpoint Path2, and LNS check the shared
-deadline and immediately raise an error when it expires. The external timeout
-remains the final safeguard for time spent inside code that cannot check the
-deadline. Use `--runtime-limit 0` to disable only the internal deadline.
+Every executable receives two internal wall-clock limits. By default, the
+runner sets the whole-run `--runtime_limit` to five seconds less than its
+external `--timeout` (1795 versus 1800 seconds) and sets
+`--pathfinding_runtime_limit` to 600 seconds. The pathfinding deadline resets
+for every assignment/path-planning cycle. CBS, TA, PBS/wPBS, STA*, MLA*,
+MLSIPP, CENTRAL assignment search, endpoint Path2, and LNS immediately raise
+an error when either deadline expires. The external timeout remains the final
+safeguard for code that cannot check the deadline. Runner options
+`--runtime-limit 0` and `--pathfinding-runtime-limit 0` disable the respective
+internal limits.
 
 Return these files from the server:
 
@@ -329,7 +332,9 @@ All rows below also receive `--seed 0`. Preset defaults are
 `task_sequence_limit=2`, `wpbs_replan_window=10`, `lns_time=1`,
 `lns_no_improvement_limit=2000`, CBS focal weight 1.0, and both CBS high- and
 low-level expansion limits `INT_MAX`. The standalone executable's whole-run
-wall-clock limit defaults to 1800 seconds (`--runtime_limit 0` disables it).
+wall-clock limit defaults to 1800 seconds, while each planning cycle defaults
+to 600 seconds. Use `--runtime_limit 0` or
+`--pathfinding_runtime_limit 0` to disable the respective limit.
 
 | Displayed method | Required command options | Mode |
 |---|---|---|

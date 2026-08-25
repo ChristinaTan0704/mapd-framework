@@ -17,18 +17,35 @@ using namespace std;
 // wPBS search classes without duplicating timers or changing every API.
 class RuntimeDeadline {
 public:
-    static void start(int limit_seconds) {
-        enabled() = limit_seconds > 0;
-        if (enabled()) {
-            deadline() = chrono::steady_clock::now() +
-                         chrono::seconds(limit_seconds);
+    static void start_run(int limit_seconds) {
+        run_enabled() = limit_seconds > 0;
+        if (run_enabled()) {
+            run_deadline() = chrono::steady_clock::now() +
+                             chrono::seconds(limit_seconds);
         }
     }
 
+    static void start_pathfinding(int limit_seconds) {
+        pathfinding_enabled() = limit_seconds > 0;
+        if (pathfinding_enabled()) {
+            pathfinding_deadline() = chrono::steady_clock::now() +
+                                     chrono::seconds(limit_seconds);
+        }
+    }
+
+    static void stop_pathfinding() {
+        pathfinding_enabled() = false;
+    }
+
     static void check(const char* location) {
-        if (enabled() && chrono::steady_clock::now() >= deadline()) {
+        const auto now = chrono::steady_clock::now();
+        if (run_enabled() && now >= run_deadline()) {
             throw runtime_error(
                 string("Runtime timeout in ") + location);
+        }
+        if (pathfinding_enabled() && now >= pathfinding_deadline()) {
+            throw runtime_error(
+                string("Pathfinding runtime timeout in ") + location);
         }
     }
 
@@ -39,12 +56,22 @@ public:
     }
 
 private:
-    static bool& enabled() {
+    static bool& run_enabled() {
         static bool value = false;
         return value;
     }
 
-    static chrono::steady_clock::time_point& deadline() {
+    static chrono::steady_clock::time_point& run_deadline() {
+        static chrono::steady_clock::time_point value;
+        return value;
+    }
+
+    static bool& pathfinding_enabled() {
+        static bool value = false;
+        return value;
+    }
+
+    static chrono::steady_clock::time_point& pathfinding_deadline() {
         static chrono::steady_clock::time_point value;
         return value;
     }

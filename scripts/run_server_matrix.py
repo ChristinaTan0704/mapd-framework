@@ -210,7 +210,9 @@ def run_one(args, output_dir: Path, job):
     extra = [value.format(tour=str(tour_path)) for value in method.extra]
     command = [str(args.executable), "-m", str(map_path), "-t", str(task_path),
                "-a", method.preset, "--seed", str(args.seed),
-               "--runtime_limit", str(args.runtime_limit), "-s", "1"] + extra
+               "--runtime_limit", str(args.runtime_limit),
+               "--pathfinding_runtime_limit",
+               str(args.pathfinding_runtime_limit), "-s", "1"] + extra
     if args.endpoint_strategy:
         command.extend(("--endpoint_strategy", args.endpoint_strategy))
 
@@ -264,6 +266,7 @@ def run_one(args, output_dir: Path, job):
         "frequency": frequency,
         "seed": args.seed,
         "runtime_limit_s": args.runtime_limit,
+        "pathfinding_runtime_limit_s": args.pathfinding_runtime_limit,
         "makespan": makespan,
         "swt": swt,
         "runtime_s": runtime_ms / 1000.0 if runtime_ms is not None else None,
@@ -292,7 +295,7 @@ def write_summary(output_dir: Path, results):
         row["method"].lower()))
     (output_dir / "results.json").write_text(json.dumps(ordered, indent=2) + "\n")
     columns = ("method", "preset", "agents", "frequency", "seed",
-               "runtime_limit_s",
+               "runtime_limit_s", "pathfinding_runtime_limit_s",
                "makespan", "swt", "runtime_s", "wall_runtime_s",
                "tasks_completed", "tasks_total", "status", "log")
     with (output_dir / "results.csv").open("w", newline="") as handle:
@@ -392,6 +395,9 @@ def main():
     parser.add_argument(
         "--runtime-limit", type=int,
         help="internal simulator timeout; default is --timeout minus 5 seconds")
+    parser.add_argument(
+        "--pathfinding-runtime-limit", type=int, default=600,
+        help="per planning-cycle simulator timeout in seconds (default 600)")
     parser.add_argument("--max-parallel", type=int, default=5)
     parser.add_argument("--rerun", action="store_true",
                         help="ignore cached per-job JSON files")
@@ -407,6 +413,8 @@ def main():
         args.runtime_limit = max(1, args.timeout - 5)
     if args.runtime_limit < 0:
         parser.error("--runtime-limit must be non-negative")
+    if args.pathfinding_runtime_limit < 0:
+        parser.error("--pathfinding-runtime-limit must be non-negative")
     if args.seed < 0:
         parser.error("use a non-negative seed for reproducible server runs")
     if not args.executable.is_file():
