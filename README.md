@@ -29,6 +29,59 @@ The complete small benchmark is already under `data/Instances/small/`, and TA
 tour files are under `tour/`. Keep both directories when copying the repository
 to a server.
 
+## Generated paper benchmark package
+
+The finalized generated benchmark suite is under [`benchmark_instances/`](benchmark_instances/README.md).
+It is separate from the legacy `data/Instances/small/` inputs used by
+`scripts/run_server_matrix.py`.
+
+| Layout family | Grid | Agent-count variants | Standard tasks |
+|---|---:|---|---:|
+| Structured SMALL | 35 x 21 | 10, 20, 30, 40, 50 | 500 |
+| Structured MEDIUM | 101 x 81 | 100, 200, 300, 400, 500 | 1,000 |
+| Structured LARGE | 187 x 153 | 200, 400, 600, 800, 1,000 | 4,000 |
+| Sparse SMALL-to-MEDIUM | 101 x 81 | 10, 20, 30, 40, 50 | 500 |
+
+The package contains:
+
+- 20 agent-count-specific maps plus four canonical aliases;
+- 245 validated standard and multi-goal task files, including the complete
+  release-frequency matrix (`0.2`, `0.5`, `1`, `2`, `5`, `10`, `50`, `100`,
+  `500`, and `all` where applicable);
+- the paper LARGE workloads with 1,000--5,000 tasks at `f=100`;
+- structured-SMALL multi-goal workloads for all five SMALL agent counts;
+- layout, pickup-density, and delivery-density visualizations; and
+- 25 offline LKH3 tours: one for each of the 20 standard map/agent variants
+  and five structured-SMALL multi-goal variants.
+
+In a filename such as `benchmark_structured_small_a10_fall.task`, `fall`
+means frequency `all`: every task is released at timestep zero. The offline TA
+algorithms require one LKH tour per agent count because agent nodes occupy
+`1..A` and task nodes begin at `A+1`. Separate online-frequency tours are not
+packaged.
+
+LKH tours were generated from the bundled
+`reference_code/TA-Prioritized/LKH3` source by
+`scripts/generate_benchmark_lkh_tours.py`. All 25 tours cover every expected
+agent/task node exactly once and pass their checksum manifest. TA-Prioritized
+completed the minimum-agent offline structured SMALL (500/500 tasks) and
+MEDIUM (1,000/1,000 tasks) cases with collision checking passed. The SPARSE
+minimum-agent tour loaded successfully, but its subsequent prioritized path
+planning failed at task 460; this is not a tour-format or node-coverage error.
+The long-running LARGE path-planning smoke was stopped manually after the tour
+had loaded successfully.
+
+Validate the complete package with:
+
+```bash
+python3 scripts/validate_benchmark_completeness.py
+python3 scripts/check_repository_manifest.py
+(cd benchmark_instances/lkh_tours && shasum -a 256 -c SHA256SUMS)
+```
+
+See [`benchmark_instances/PAPER_COMPLETENESS_AUDIT.md`](benchmark_instances/PAPER_COMPLETENESS_AUDIT.md)
+for the paper-coverage audit and reconstruction/provenance limitations.
+
 This branch uses an explicit `.gitignore` allow-list. To stage changes, use:
 
 ```bash

@@ -79,3 +79,17 @@
 !/tour/30-500.tour
 !/tour/40-500.tour
 !/tour/50-500.tour
+
+# Final generated benchmark assets and their reproducibility scripts.
+!benchmark_instances/
+!benchmark_instances/**
+benchmark_instances/.DS_Store
+!/scripts/generate_paper_large_instance.py
+!/scripts/generate_structured_small_medium.py
+!/scripts/generate_sparse_medium_grid_instance.py
+!/scripts/generate_benchmark_task_matrix.py
+!/scripts/generate_benchmark_lkh_tours.py
+!/scripts/validate_benchmark_completeness.py
+!/scripts/render_warehouse_comparison.py
+!/scripts/render_pickup_heatmaps.py
+!/scripts/render_delivery_heatmaps.py

@@ -139,3 +139,57 @@ python3 scripts/run_server_matrix.py \
 ```
 
 GitHub Actions runs this check after the standard 27-method smoke matrix.
+
+## Generated benchmark package added on 2026-08-25
+
+The repository now includes the finalized generated suite under
+`benchmark_instances/`. This package is additional to the legacy
+`data/Instances/small/` suite used by the current `run_server_matrix.py`
+commands above.
+
+Final inventory:
+
+- four layout families: structured SMALL, MEDIUM, LARGE, and sparse
+  SMALL-to-MEDIUM;
+- 20 agent-count-specific maps plus four canonical map aliases;
+- 245 validated task files covering the paper configurations, the full
+  standard frequency matrix, and structured-SMALL multi-goal tasks;
+- 20 pickup heatmaps, 20 delivery heatmaps, four layout previews, and three
+  padded combined comparison images; and
+- 25 offline LKH3 tours: 20 standard `fall` tours and five multi-goal `fall`
+  tours.
+
+`fall` means all tasks are released at timestep zero. There is one tour for
+each agent count because the LKH node numbering changes with the number of
+agent depots. The five LARGE `f100` tours and four canonical online-frequency
+aliases that were generated during development were intentionally removed;
+TA-Prioritized and TA-Hybrid use the packaged tours only for offline runs.
+
+The tour generator builds a native LKH binary from
+`../reference_code/TA-Prioritized/LKH3`, falling back to the TA-Hybrid copy.
+It seeds LKH with a complete round-robin assignment before the short
+improvement run. Regenerate and validate with:
+
+```bash
+python3 scripts/generate_benchmark_lkh_tours.py --time-limit 1
+python3 scripts/validate_benchmark_completeness.py
+(cd benchmark_instances/lkh_tours && shasum -a 256 -c SHA256SUMS)
+python3 scripts/check_repository_manifest.py
+```
+
+Validation status at handoff:
+
+- all 20 maps satisfy the well-formedness checks;
+- all 245 task files pass format, endpoint-range, count, and frequency checks;
+- all 25 LKH tours have complete, unique agent/task-node coverage and valid
+  checksums;
+- TA-Prioritized completed structured SMALL a10 offline (500/500) and
+  structured MEDIUM a100 offline (1,000/1,000), with collision checks passed;
+- sparse a10 accepted its LKH tour but later failed prioritized path planning
+  at task 460, goal 1; and
+- the structured LARGE a200 smoke was stopped manually while it was still
+  compute-bound. No malformed-tour error occurred.
+
+The package README is `benchmark_instances/README.md`; LKH pairings and costs
+are in `benchmark_instances/lkh_tours/manifest.csv`; provenance limitations are
+recorded in `benchmark_instances/PAPER_COMPLETENESS_AUDIT.md`.

@@ -35,6 +35,73 @@ REQUIRED = {
     "tests/multigoal-10.tour",
 }
 
+BENCHMARKS = {
+    "structured_small": (10, 20, 30, 40, 50),
+    "structured_medium": (100, 200, 300, 400, 500),
+    "structured_large": (200, 400, 600, 800, 1000),
+    "sparse_small_to_medium": (10, 20, 30, 40, 50),
+}
+BENCHMARK_FREQUENCIES = (
+    "0.2", "0.5", "1", "2", "5", "10", "50", "100", "500", "all",
+)
+
+REQUIRED.update({
+    "benchmark_instances/README.md",
+    "benchmark_instances/PAPER_COMPLETENESS_AUDIT.md",
+    "benchmark_instances/SHA256SUMS",
+    "benchmark_instances/lkh_tours/README.md",
+    "benchmark_instances/lkh_tours/SHA256SUMS",
+    "benchmark_instances/lkh_tours/manifest.csv",
+    "benchmark_instances/visualizations/benchmark_all_layouts_comparison.png",
+    "benchmark_instances/visualizations/benchmark_delivery_heatmaps_comparison.png",
+    "benchmark_instances/visualizations/benchmark_pickup_heatmaps_comparison.png",
+    "scripts/generate_benchmark_task_matrix.py",
+    "scripts/generate_benchmark_lkh_tours.py",
+    "scripts/generate_paper_large_instance.py",
+    "scripts/generate_sparse_medium_grid_instance.py",
+    "scripts/generate_structured_small_medium.py",
+    "scripts/render_pickup_heatmaps.py",
+    "scripts/render_delivery_heatmaps.py",
+    "scripts/render_warehouse_comparison.py",
+    "scripts/validate_benchmark_completeness.py",
+})
+
+for benchmark, agent_counts in BENCHMARKS.items():
+    REQUIRED.add(f"benchmark_instances/maps/benchmark_{benchmark}.map")
+    REQUIRED.add(f"benchmark_instances/tasks/benchmark_{benchmark}.task")
+    REQUIRED.add(
+        f"benchmark_instances/visualizations/benchmark_{benchmark}.png")
+    for agents in agent_counts:
+        REQUIRED.add(
+            f"benchmark_instances/maps/benchmark_{benchmark}_a{agents}.map")
+        REQUIRED.add(
+            "benchmark_instances/visualizations/pickup_heatmaps/"
+            f"benchmark_{benchmark}_a{agents}_pickup_heatmap.png")
+        REQUIRED.add(
+            "benchmark_instances/visualizations/delivery_heatmaps/"
+            f"benchmark_{benchmark}_a{agents}_delivery_heatmap.png")
+        REQUIRED.add(
+            "benchmark_instances/lkh_tours/"
+            f"benchmark_{benchmark}_a{agents}_fall.tour")
+        for frequency in BENCHMARK_FREQUENCIES:
+            REQUIRED.add(
+                "benchmark_instances/tasks/"
+                f"benchmark_{benchmark}_a{agents}_f{frequency}.task")
+
+for task_count in (1000, 2000, 3000, 4000, 5000):
+    REQUIRED.add(
+        "benchmark_instances/tasks/"
+        f"benchmark_structured_large_a1000_t{task_count}_f100.task")
+
+for agents in (10, 20, 30, 40, 50):
+    REQUIRED.add(
+        "benchmark_instances/lkh_tours/"
+        f"benchmark_structured_small_mg_a{agents}_fall.tour")
+    for frequency in ("0.2", "0.5", "1", "2", "5", "10", "500", "all"):
+        REQUIRED.add(
+            "benchmark_instances/tasks/"
+            f"benchmark_structured_small_mg_a{agents}_f{frequency}.task")
+
 for agents in (10, 20, 30, 40, 50):
     REQUIRED.add(f"data/Instances/small/kiva-{agents}-500-5.map")
     REQUIRED.add(f"tour/{agents}-500.tour")
