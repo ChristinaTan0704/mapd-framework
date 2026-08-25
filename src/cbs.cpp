@@ -137,6 +137,8 @@ bool SingleAgentECBS::findPath(double f_weight,
     // The default INT_MAX leaves the low-level search effectively uncapped.
     // A smaller positive limit may be supplied explicitly for experiments.
     while (!focal_list.empty()) {
+        RuntimeDeadline::check_periodic(
+            (uint64_t)num_expanded, "CBS low-level search");
         if (num_expanded >= expansion_limit_) {
             path.clear();
             releaseNodes(allNodes);
@@ -485,6 +487,8 @@ bool CBSSearch::run() {
     // framework default is INT_MAX (effectively uncapped) and can be
     // overridden from the command line.
     while (!hl_focal_.empty() && !solution_found) {
+        RuntimeDeadline::check_periodic(
+            (uint64_t)HL_num_expanded_, "CBS high-level search");
         if (HL_num_expanded_ >= high_level_expansion_limit_) {
             solution_found = false;
             return false;

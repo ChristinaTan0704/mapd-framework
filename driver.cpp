@@ -64,6 +64,9 @@ void set_parameters(MAPDConfig& config, const po::variables_map& vm)
                 "unsupported endpoint strategy: " + strategy);
     }
     config.seed = vm["seed"].as<int>();
+    config.runtime_limit_seconds = vm["runtime_limit"].as<int>();
+    if (config.runtime_limit_seconds < 0)
+        throw invalid_argument("runtime_limit must be non-negative");
 
     // Algorithm-specific overrides. Other algorithms retain these values but
     // never read them.
@@ -155,6 +158,7 @@ int main(int argc, char** argv)
         ("mapf",           po::value<string>()->default_value("default"), "MAPF override: CBS, PBS, wPBS, PP (or PP_PER_TASK), PP_TASK_SEQUENCE")
         ("endpoint_strategy", po::value<string>(),                       "endpoint override: WAIT_OR_NEAREST_SAFE, RETURN_TO_HOME, NEAREST_WITH_STRICT_EXCLUSIONS, PAIRWISE_TASK_THEN_HOME, WAIT_OR_NEAREST_FREE_NONTASK, or NEAREST_AVAILABLE")
         ("seed",           po::value<int>()->default_value(0),         "general RNG seed (>=0 deterministic, <0 = time(NULL))")
+        ("runtime_limit",  po::value<int>()->default_value(1800),      "whole-run wall-clock limit in seconds; 0 disables")
         ("tour",           po::value<string>()->default_value(""),     "LKH3 tour file")
         ("save_output",    po::bool_switch()->default_value(false),    "save output to ./output/")
         ("output_dir",     po::value<string>()->default_value("./output"), "output directory")
@@ -230,6 +234,7 @@ int main(int argc, char** argv)
     }
 
     clock_t t_start = clock();
+    RuntimeDeadline::start(config.runtime_limit_seconds);
 
     Simulation sim;
     try {

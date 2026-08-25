@@ -107,6 +107,7 @@ void Simulation::init(const string& map_file, const string& task_file,
 
 void Simulation::run() {
     while (!end()) {
+        RuntimeDeadline::check("simulation main loop");
         release_tasks();                       // Algorithm 1, lines 8-11
         task_assignment_and_path_planning();   // Algorithm 1, line 12
         advance_time();                        // Algorithm 1, line 13
@@ -198,12 +199,16 @@ void Simulation::release_tasks() {
 // ============================================================================
 
 void Simulation::task_assignment_and_path_planning() {
+    RuntimeDeadline::check("task assignment and path planning");
     const bool assignment_triggered = should_assign();
-    if (assignment_triggered)
+    if (assignment_triggered) {
         task_assignment();      // assignment half
+        RuntimeDeadline::check("task assignment");
+    }
 
     if (should_replan(assignment_triggered)) {
         path_planning(assignment_triggered); // path-planning half
+        RuntimeDeadline::check("path planning");
         last_path_planning_time_ = cur_time_;
     }
 }
@@ -860,6 +865,8 @@ int Simulation::central_path_cost(
     int expanded = 0;
 
     while (!open.empty()) {
+        RuntimeDeadline::check_periodic(
+            (uint64_t)expanded, "CENTRAL assignment-cost A*");
         CostNode current = open.top();
         open.pop();
         if (++expanded > 15000) return map_size;
@@ -1336,6 +1343,7 @@ void Simulation::assign_repeated_hungarian_lns() {
     int no_improve = 0, empty_streak = 0;
 
     while (true) {
+        RuntimeDeadline::check("LNS assignment improvement");
         double elapsed = (double)(clock() - lns_start) / CLOCKS_PER_SEC * 1000.0;
         if (elapsed >= time_limit_ms) break;
         if (config.lns_no_improvement_limit > 0 &&
@@ -1454,6 +1462,7 @@ void Simulation::assign_repeated_hungarian() {
     int num_ag = (int)agents.size();
 
     while (!remaining_tasks.empty()) {
+        RuntimeDeadline::check("Hungarian task assignment");
         int remain = (int)remaining_tasks.size();
         int row = max(num_ag, remain);
 
@@ -1730,6 +1739,7 @@ void Simulation::lns_destroy(vector<int>& removed_tasks) {
 // best insertion is worst relative to its best one (largest regret).
 void Simulation::lns_repair(vector<int>& removed_tasks) {
     while (!removed_tasks.empty()) {
+        RuntimeDeadline::check("LNS repair");
         int best_task = -1, best_agent = -1, best_pos = -1;
         int best_marginal = INT_MAX;
         int best_regret = INT_MIN;
@@ -2272,6 +2282,8 @@ public:
     int solve() {
         int flow = 0;
         while (shortest_path()) {
+            RuntimeDeadline::check_periodic(
+                (uint64_t)flow, "TA-Hybrid min-cost flow");
             flow++;
             for (int node = sink_; node != source_;
                  node = edges_[previous_[node]].from) {
@@ -2338,7 +2350,10 @@ private:
         distance_[source_] = 0;
         queue_.push(source_);
         in_queue_[source_] = true;
+        uint64_t expanded = 0;
         while (!queue_.empty()) {
+            RuntimeDeadline::check_periodic(
+                expanded++, "TA-Hybrid min-cost-flow shortest path");
             int node = queue_.front();
             queue_.pop();
             in_queue_[node] = false;
@@ -2369,6 +2384,7 @@ private:
 // anonymous min-cost max-flow to match free agents to pairwise-distinct pickup
 // goals, then reserves their parking paths. All batch state is local.
 void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
+    RuntimeDeadline::check("TA-Hybrid planning");
     const int agent_count = (int)agents.size();
     const int map_size = (int)mapd_map.grid.size();
     const int now = (int)cur_time_;
@@ -2475,10 +2491,13 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
             node.conflicts = 0;
             node.first_agent = -1;
             int earliest = INT_MAX;
+            uint64_t scanned = 0;
             for (int first = 0; first < (int)group1.size(); first++)
                 for (int second = first + 1;
                      second < (int)group1.size(); second++)
                     for (int time = now; time < horizon; time++) {
+                        RuntimeDeadline::check_periodic(
+                            scanned++, "TA-Hybrid conflict detection");
                         bool vertex =
                             node.paths[first][time] == node.paths[second][time];
                         bool edge = time > now &&
@@ -2533,6 +2552,8 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
         HybridCBSNode* solution = nullptr;
         int expanded = 0;
         while (!open.empty()) {
+            RuntimeDeadline::check_periodic(
+                (uint64_t)expanded, "TA-Hybrid Group 1 CBS");
             HybridCBSNode* current = open.top();
             open.pop();
             if (current->first_agent < 0) {
@@ -2616,6 +2637,7 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
             global_bound, estimate_sequence(agent_id, now, false));
 
     while (!remaining.empty()) {
+        RuntimeDeadline::check("TA-Hybrid Group 2 batching");
         vector<int> subgroup;
         set<int> used_pickups;
         vector<int> deferred;
@@ -2642,6 +2664,7 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
 
         vector<vector<int>> flow_paths;
         while (flow_paths.empty()) {
+            RuntimeDeadline::check("TA-Hybrid Group 2 flow construction");
             vector<int> deadlines(tasks.size(), now);
             int maximum_deadline = now;
             for (int index = 0; index < (int)tasks.size(); index++) {
@@ -2675,6 +2698,7 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                     1, 0, index);
 
             for (int time = 0; time < relative_horizon; time++) {
+                RuntimeDeadline::check("TA-Hybrid flow graph construction");
                 for (int location = 0; location < map_size; location++) {
                     if (!mapd_map.grid[location]) continue;
                     flow.add_edges(in_node(location, time),
@@ -2764,6 +2788,7 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
         // total flow cost while eliminating the edge collision.
         bool swapped = true;
         while (swapped) {
+            RuntimeDeadline::check("TA-Hybrid edge-swap repair");
             swapped = false;
             for (int first = 0; first < (int)subgroup.size(); first++)
                 for (int second = first + 1;
@@ -2955,6 +2980,7 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
 // the paper's improved prioritized-planning rule; the released implementation
 // uses the LKH tour order only as the deterministic tie breaker.
 void Simulation::path_planning_pp_task_sequence() {
+    RuntimeDeadline::check("TA-Prioritized planning");
     const int agent_count = (int)agents.size();
     const int start_time = (int)cur_time_;
     TATourAssignment tour = read_ta_tour(
@@ -2994,6 +3020,7 @@ void Simulation::path_planning_pp_task_sequence() {
 
         int final_goal = (int)candidate.agent.path[start_time];
         for (int task_id : candidate.agent.task_sequence) {
+            RuntimeDeadline::check("TA-Prioritized task sequence");
             const Task& task = all_tasks[task_id];
             int first_goal = task_id == candidate.agent.current_task
                 ? candidate.agent.current_goal_index : 0;
@@ -3016,6 +3043,7 @@ void Simulation::path_planning_pp_task_sequence() {
         int time = start_time;
         bool planned_task_goal = false;
         for (int task_id : candidate.agent.task_sequence) {
+            RuntimeDeadline::check("TA-Prioritized task path planning");
             const Task& task = all_tasks[task_id];
             int first_goal = task_id == candidate.agent.current_task
                 ? candidate.agent.current_goal_index : 0;
@@ -3086,11 +3114,15 @@ void Simulation::path_planning_pp_task_sequence() {
     };
 
     for (int priority = 0; priority < agent_count; priority++) {
+        RuntimeDeadline::check("TA-Prioritized priority selection");
         int best_agent = -1;
         CandidatePlan best_plan;
 
         for (int candidate_id = 0; candidate_id < agent_count;
              candidate_id++) {
+            RuntimeDeadline::check_periodic(
+                (uint64_t)candidate_id,
+                "TA-Prioritized candidate planning");
             if (selected[candidate_id]) continue;
 
             vector<vector<int>> constraints;
@@ -3210,7 +3242,10 @@ int Simulation::astar_with_dummy(
     open.push(start);
 
     bool a_goal_node_was_expanded = false;
+    uint64_t expanded = 0;
     while (!open.empty()) {
+        RuntimeDeadline::check_periodic(
+            expanded++, "TA prioritized/dummy A*");
         TADummyNode* current = open.top();
         open.pop();
 
@@ -3763,6 +3798,8 @@ bool Simulation::pbs_resolve_cascade(PBSNode* node, int replanned_agent, const P
     int cascade_count = 0;
 
     while (!replan.empty()) {
+        RuntimeDeadline::check_periodic(
+            (uint64_t)cascade_count, "PBS cascade replanning");
         if (cascade_count > cascade_budget) return false;
 
         int a = *replan.begin();
@@ -3883,6 +3920,8 @@ bool Simulation::pbs_solve_impl() {
     std::set<std::pair<int,int>> nogood;
 
     while (!dfs_stack.empty() && hl_expanded < max_hl) {
+        RuntimeDeadline::check_periodic(
+            (uint64_t)hl_expanded, "PBS high-level search");
         PBSNode* curr = dfs_stack.top();
         dfs_stack.pop();
 
@@ -3980,6 +4019,8 @@ int Simulation::sta_search(Agent& agent, int start_loc, int begin_time,
 
     int expanded = 0;
     while (!open.empty()) {
+        RuntimeDeadline::check_periodic(
+            (uint64_t)expanded, "STA* low-level search");
         SearchNode* current = open.top();
         open.pop();
         current->in_openlist = false;
@@ -4214,7 +4255,10 @@ int Simulation::search_path2_endpoint(Agent& agent, int target_endpoint_loc) {
     nodes.emplace((unsigned int)agent.loc, start);
     open.push(start);
 
+    uint64_t expanded = 0;
     while (!open.empty()) {
+        RuntimeDeadline::check_periodic(
+            expanded++, "endpoint Path2 search");
         SearchNode* current = open.front();
         open.pop();
         if ((unsigned int)current->timestep >= maxtime - 1) continue;
@@ -4500,7 +4544,10 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
         hv[gloc] = 0;
         queue<int> bfs_q;
         bfs_q.push(gloc);
+        uint64_t bfs_expanded = 0;
         while (!bfs_q.empty()) {
+            RuntimeDeadline::check_periodic(
+                bfs_expanded++, "MLA* heuristic BFS");
             int u = bfs_q.front(); bfs_q.pop();
             for (int d : {1, -1, mapd_map.col, -mapd_map.col}) {
                 int v = u + d;
@@ -4738,6 +4785,8 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
     int mla_expanded = 0;
 
     while (!open_list.empty() && mla_expanded < mla_max_nodes) {
+        RuntimeDeadline::check_periodic(
+            (uint64_t)mla_expanded, "MLA* low-level search");
         MLANode* curr = open_list.top();
         open_list.pop();
         mla_expanded++;
@@ -5118,6 +5167,8 @@ vector<int> Simulation::sipp_search_impl(
     const int max_expansions = min(500000, map_size * 20 * max(1, num_goals));
 
     while (!open.empty() && expanded < max_expansions) {
+        RuntimeDeadline::check_periodic(
+            (uint64_t)expanded, "MLSIPP low-level search");
         SIPPNode* current = open.top();
         open.pop();
 
@@ -5362,7 +5413,10 @@ public:
             if (root >= 0 && root < size() && mp->grid[root]) {
                 std::queue<int> Q; res[root] = 0; Q.push(root);
                 int move[4] = {1, -1, cols, -cols};
+                uint64_t expanded = 0;
                 while (!Q.empty()) {
+                    RuntimeDeadline::check_periodic(
+                        expanded++, "wPBS heuristic BFS");
                     int c = Q.front(); Q.pop();
                     for (int i = 0; i < 4; i++) {
                         int nl = c + move[i];
@@ -5393,7 +5447,10 @@ public:
         std::list<int> open_list;
         boost::unordered_set<int> closed_list;
         open_list.push_back(from); closed_list.insert(from);
+        uint64_t expanded = 0;
         while (!open_list.empty()) {
+            RuntimeDeadline::check_periodic(
+                expanded++, "wPBS priority reachability");
             int curr = open_list.back(); open_list.pop_back();
             auto neighbors = G.find(curr);
             if (neighbors == G.end()) continue;
@@ -5409,7 +5466,10 @@ public:
         std::list<int> open_list;
         boost::unordered_set<int> closed_list;
         open_list.push_back(root);
+        uint64_t expanded = 0;
         while (!open_list.empty()) {
+            RuntimeDeadline::check_periodic(
+                expanded++, "wPBS priority traversal");
             int curr = open_list.back(); open_list.pop_back();
             auto neighbors = G.find(curr);
             if (neighbors == G.end()) continue;
@@ -5715,6 +5775,8 @@ WPath WStateTimeAStar::run(WGraph& G, const WState& start,
     const int cutoff = rt.window;
 
     while (!focal_list.empty()) {
+        RuntimeDeadline::check_periodic(
+            num_expanded, "wPBS MLA* low-level search");
         WStateTimeAStarNode* curr = focal_list.top();
         focal_list.pop();
         open_list.erase(curr->open_handle);
@@ -5925,6 +5987,8 @@ WPath WSippSearch::run(WGraph& G, const WState& start,
 
     SN* sol = nullptr;
     while (!open.empty()) {
+        RuntimeDeadline::check_periodic(
+            num_expanded, "wPBS MLSIPP low-level search");
         SN* cur = open.top(); open.pop();
         int gi = cur->goal_id;
         int abs_t = cur->r + start_abs;
@@ -6231,6 +6295,8 @@ bool WPBS::find_consistent_paths(WPBSNode* node, int agent) {
     if (agent >= 0 && agent < num_of_agents) replan.insert(agent);
     find_replan_agents(node, node->conflicts, replan);
     while (!replan.empty()) {
+        RuntimeDeadline::check_periodic(
+            (uint64_t)count, "wPBS cascade replanning");
         if (count > (int)node->paths.size() * 5) return false;
         int a = *replan.begin();
         replan.erase(a);
@@ -6351,6 +6417,8 @@ bool WPBS::run(const vector<WState>& starts_,
     { solution_found = true; solution_cost = dummy_start->f_val; }
 
     while (!dfs.empty() && !solution_found) {
+        RuntimeDeadline::check_periodic(
+            HL_num_expanded, "wPBS high-level search");
         runtime = (std::clock() - start) * 1.0 / CLOCKS_PER_SEC;
         if (runtime > time_limit) { solution_cost = -1; solution_found = false; break; }
         WPBSNode* curr = pop_node();
@@ -6516,6 +6584,7 @@ void Simulation::path_planning_wpbs() {
 //   task endpoints first, skip own/already-assigned, then home fallback.
 // ============================================================
 void Simulation::wpbs_windowed_solve_impl() {
+    RuntimeDeadline::check("wPBS windowed planning");
     int num_ag = (int)agents.size();
     int max_t = (int)maxtime;
 

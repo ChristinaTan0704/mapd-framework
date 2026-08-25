@@ -7,8 +7,48 @@
 #include <chrono>
 #include <cstdint>
 #include <iostream>
+#include <stdexcept>
 
 using namespace std;
+
+// One wall-clock deadline shared by every search in a simulator process.
+// The framework runs one Simulation per process, so process-local static state
+// keeps the deadline available to both Simulation methods and standalone CBS/
+// wPBS search classes without duplicating timers or changing every API.
+class RuntimeDeadline {
+public:
+    static void start(int limit_seconds) {
+        enabled() = limit_seconds > 0;
+        if (enabled()) {
+            deadline() = chrono::steady_clock::now() +
+                         chrono::seconds(limit_seconds);
+        }
+    }
+
+    static void check(const char* location) {
+        if (enabled() && chrono::steady_clock::now() >= deadline()) {
+            throw runtime_error(
+                string("Runtime timeout in ") + location);
+        }
+    }
+
+    // Checking the monotonic clock for every expanded node is unnecessary.
+    // Expansion counters call this helper every 256 nodes, including node 0.
+    static void check_periodic(uint64_t expanded, const char* location) {
+        if ((expanded & UINT64_C(255)) == 0) check(location);
+    }
+
+private:
+    static bool& enabled() {
+        static bool value = false;
+        return value;
+    }
+
+    static chrono::steady_clock::time_point& deadline() {
+        static chrono::steady_clock::time_point value;
+        return value;
+    }
+};
 
 // Process-wide source for stable search-node tie keys. A key is sampled once
 // when a node is created and remains immutable; sampling inside a heap

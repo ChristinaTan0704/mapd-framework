@@ -74,6 +74,8 @@ struct MAPDConfig {
     // General RNG seed for randomized framework components: LNS and search-node
     // f/g tie-breaking. >=0 is deterministic and <0 is time-based.
     int seed;
+    // Whole-process wall-clock limit in seconds; 0 disables the internal limit.
+    int runtime_limit_seconds;
     EndpointStrategy endpoint_strategy; // endpoint/parking selection axis
 
     // Algorithm-specific tuning parameters. They are ignored by algorithms
@@ -95,7 +97,8 @@ struct MAPDConfig {
     MAPDConfig() : mode(MODE_ONLINE),
         assign_method(AM_DECOUPLED_GREEDY), assign_trigger(AT_ON_FREE_WAITS),
         mapf(MAPF_PP_PER_TASK), single_agent(SA_STA_TASK_EP),
-        dummy_path(true), seed(0), endpoint_strategy(WAIT_OR_NEAREST_SAFE),
+        dummy_path(true), seed(0), runtime_limit_seconds(1800),
+        endpoint_strategy(WAIT_OR_NEAREST_SAFE),
         task_sequence_limit(2), wpbs_replan_window(10), lns_time_limit(1),
         lns_no_improvement_limit(2000), ecbs_focal_weight(1.0),
         cbs_high_level_expansion_limit(INT_MAX),

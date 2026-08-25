@@ -209,7 +209,8 @@ def run_one(args, output_dir: Path, job):
                      agents, frequency))
     extra = [value.format(tour=str(tour_path)) for value in method.extra]
     command = [str(args.executable), "-m", str(map_path), "-t", str(task_path),
-               "-a", method.preset, "--seed", str(args.seed), "-s", "1"] + extra
+               "-a", method.preset, "--seed", str(args.seed),
+               "--runtime_limit", str(args.runtime_limit), "-s", "1"] + extra
     if args.endpoint_strategy:
         command.extend(("--endpoint_strategy", args.endpoint_strategy))
 
@@ -262,6 +263,7 @@ def run_one(args, output_dir: Path, job):
         "agents": agents,
         "frequency": frequency,
         "seed": args.seed,
+        "runtime_limit_s": args.runtime_limit,
         "makespan": makespan,
         "swt": swt,
         "runtime_s": runtime_ms / 1000.0 if runtime_ms is not None else None,
@@ -290,6 +292,7 @@ def write_summary(output_dir: Path, results):
         row["method"].lower()))
     (output_dir / "results.json").write_text(json.dumps(ordered, indent=2) + "\n")
     columns = ("method", "preset", "agents", "frequency", "seed",
+               "runtime_limit_s",
                "makespan", "swt", "runtime_s", "wall_runtime_s",
                "tasks_completed", "tasks_total", "status", "log")
     with (output_dir / "results.csv").open("w", newline="") as handle:
@@ -386,6 +389,9 @@ def main():
         help="override the preset endpoint strategy for every selected method")
     parser.add_argument("--timeout", type=int, default=1800,
                         help="wall-clock timeout per simulator process (seconds)")
+    parser.add_argument(
+        "--runtime-limit", type=int,
+        help="internal simulator timeout; default is --timeout minus 5 seconds")
     parser.add_argument("--max-parallel", type=int, default=5)
     parser.add_argument("--rerun", action="store_true",
                         help="ignore cached per-job JSON files")
@@ -395,6 +401,12 @@ def main():
         parser.error("--smoke and --multigoal-smoke are mutually exclusive")
     if not 1 <= args.max_parallel <= 5:
         parser.error("--max-parallel must be between 1 and 5")
+    if args.timeout <= 0:
+        parser.error("--timeout must be positive")
+    if args.runtime_limit is None:
+        args.runtime_limit = max(1, args.timeout - 5)
+    if args.runtime_limit < 0:
+        parser.error("--runtime-limit must be non-negative")
     if args.seed < 0:
         parser.error("use a non-negative seed for reproducible server runs")
     if not args.executable.is_file():
