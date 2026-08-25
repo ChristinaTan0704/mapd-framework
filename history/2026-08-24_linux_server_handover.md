@@ -21,9 +21,8 @@ python3 scripts/run_server_matrix.py \
 ```
 
 Do not begin the full matrix unless the smoke command exits successfully. The
-full command covers the 27 method labels currently represented in
-`all_paper_algorithms_comparison_2026-08-24.xlsx`, including all eight `(ts 1)`
-variants. Offline TA methods run only against frequency 500.
+full command covers the 27 configured method labels, including all eight
+`(ts 1)` variants. Offline TA methods run only against frequency 500.
 
 ## Reproducibility policy
 

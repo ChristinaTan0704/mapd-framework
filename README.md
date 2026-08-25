@@ -164,5 +164,6 @@ A server result is valid only when every row has:
 3. no collision error;
 4. the intended seed and options recorded in `results.json`.
 
-Compare makespan and SWT with the baseline workbook. Compare runtime only
-between runs made on the same server under similar load.
+Compare the smoke makespan/SWT values with the baselines embedded in the
+runner. Compare runtime only between runs made on the same server under similar
+load.
