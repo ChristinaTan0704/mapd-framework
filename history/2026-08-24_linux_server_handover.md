@@ -194,3 +194,24 @@ Validation status at handoff:
 The package README is `benchmark_instances/README.md`; LKH pairings and costs
 are in `benchmark_instances/lkh_tours/manifest.csv`; provenance limitations are
 recorded in `benchmark_instances/PAPER_COMPLETENESS_AUDIT.md`.
+
+## Nineteen-method generated-benchmark run setup
+
+`scripts/run_server_matrix.py` now supports `--base-methods` plus explicit
+`--map-template`, `--task-template`, `--offline-task-template`, and
+`--tour-template` arguments. `--base-methods` runs the 19 base algorithm rows
+and excludes the eight `(ts 1)` variants. The 17 online methods use the listed
+frequencies; TA-Prioritized and TA-Hybrid run once per agent count on the
+matching `fall` task/tour through `--offline-frequency all`.
+
+The authoritative copy-paste commands for structured SMALL, MEDIUM, LARGE,
+sparse SMALL-to-MEDIUM, and structured-SMALL multi-goal experiments are in the
+root `README.md` under **Nineteen-method generated-benchmark experiments**.
+Run them only after the standard smoke matrix succeeds. Keep
+`--max-parallel 5`, `--timeout 1800`, and `--seed 0`; each output directory is
+resumable and contains `results.csv`, `results.json`, and one log per job.
+
+For LARGE, online methods run the five `t1000_f100` through `t5000_f100`
+workloads. The two offline TA methods run once on the 4,000-task `fall`
+workload using `--offline-task-template`, because no task-count-specific
+offline series is packaged.

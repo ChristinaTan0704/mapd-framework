@@ -74,6 +74,7 @@ METHODS = (
            ("--lns_time", "1", "--single_agent", "MLSIPP",
             "--task_sequence_limit", "1")),
 )
+BASE_METHOD_COUNT = 19
 
 # Seed-0 results from the 2026-08-24 macOS validation.  Runtime is deliberately
 # excluded because it depends on the server.  LNS rows are reported but are not
@@ -148,6 +149,14 @@ def safe_name(value: str) -> str:
     return re.sub(r"[^A-Za-z0-9]+", "_", value).strip("_")
 
 
+def resolve_template(template: str | None, fallback: Path,
+                     agents: int, frequency: str) -> Path:
+    if not template:
+        return fallback
+    path = Path(template.format(agents=agents, frequency=frequency))
+    return path if path.is_absolute() else ROOT / path
+
+
 def metric(pattern: str, output: str, cast):
     match = re.search(pattern, output)
     return cast(match.group(1)) if match else None
@@ -159,7 +168,7 @@ def build_jobs(args, selected_methods):
         if args.multigoal_smoke:
             frequencies = ("multigoal",)
         elif method.offline_only:
-            frequencies = ("500",)
+            frequencies = (args.offline_frequency,)
         else:
             frequencies = ("0.2",) if args.smoke else args.frequencies
         agents = (10,) if args.smoke or args.multigoal_smoke else args.agents
@@ -182,13 +191,22 @@ def run_one(args, output_dir: Path, job):
               flush=True)
         return result
 
-    map_path = args.data_dir / f"kiva-{agents}-500-5.map"
+    map_path = resolve_template(
+        args.map_template, args.data_dir / f"kiva-{agents}-500-5.map",
+        agents, frequency)
+    task_template = (args.offline_task_template
+                     if method.offline_only and args.offline_task_template
+                     else args.task_template)
     task_path = (ROOT / "tests" / "multigoal-5.task"
-                 if args.multigoal_smoke else
-                 args.data_dir / f"kiva-{frequency}.task")
+                 if args.multigoal_smoke else resolve_template(
+                     task_template,
+                     args.data_dir / f"kiva-{frequency}.task",
+                     agents, frequency))
     tour_path = (ROOT / "tests" / "multigoal-10.tour"
-                 if args.multigoal_smoke else
-                 args.tour_dir / f"{agents}-500.tour")
+                 if args.multigoal_smoke else resolve_template(
+                     args.tour_template,
+                     args.tour_dir / f"{agents}-500.tour",
+                     agents, frequency))
     extra = [value.format(tour=str(tour_path)) for value in method.extra]
     command = [str(args.executable), "-m", str(map_path), "-t", str(task_path),
                "-a", method.preset, "--seed", str(args.seed), "-s", "1"] + extra
@@ -331,12 +349,30 @@ def main():
         help="run every method on the committed ten-task, five-goal scenario")
     parser.add_argument("--methods", default="all",
                         help="comma-separated displayed method labels, or all")
+    parser.add_argument(
+        "--base-methods", action="store_true",
+        help="with --methods=all, run the 19 base methods and omit ts-1 variants")
     parser.add_argument("--agents", type=lambda value: parse_list(value, int),
                         default=DEFAULT_AGENTS)
     parser.add_argument("--frequencies", type=lambda value: parse_list(value, str),
                         default=DEFAULT_FREQUENCIES)
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA)
     parser.add_argument("--tour-dir", type=Path, default=ROOT / "tour")
+    parser.add_argument(
+        "--map-template",
+        help="map path template with {agents} and optional {frequency}")
+    parser.add_argument(
+        "--task-template",
+        help="task path template with {agents} and {frequency}")
+    parser.add_argument(
+        "--offline-task-template",
+        help="optional task template used only by offline TA methods")
+    parser.add_argument(
+        "--tour-template",
+        help="offline-tour path template with {agents} and optional {frequency}")
+    parser.add_argument(
+        "--offline-frequency", default="500",
+        help="frequency label used for offline TA jobs (default 500; use all for _fall tasks)")
     parser.add_argument("--executable", type=Path, default=ROOT / "mapd")
     parser.add_argument("--output-dir", type=Path,
                         default=ROOT / "server_results")
@@ -366,8 +402,10 @@ def main():
 
     by_label = {method.label: method for method in METHODS}
     if args.methods == "all":
-        selected = METHODS
+        selected = METHODS[:BASE_METHOD_COUNT] if args.base_methods else METHODS
     else:
+        if args.base_methods:
+            parser.error("--base-methods cannot be combined with explicit --methods")
         requested = [item.strip() for item in args.methods.split(",")]
         unknown = [item for item in requested if item not in by_label]
         if unknown:
@@ -377,16 +415,26 @@ def main():
     jobs = build_jobs(args, selected)
     missing = []
     for method, agents, frequency in jobs:
+        map_path = resolve_template(
+            args.map_template, args.data_dir / f"kiva-{agents}-500-5.map",
+            agents, frequency)
+        task_template = (args.offline_task_template
+                         if method.offline_only and args.offline_task_template
+                         else args.task_template)
         task_path = (ROOT / "tests" / "multigoal-5.task"
-                     if args.multigoal_smoke else
-                     args.data_dir / f"kiva-{frequency}.task")
-        for path in (args.data_dir / f"kiva-{agents}-500-5.map", task_path):
+                     if args.multigoal_smoke else resolve_template(
+                         task_template,
+                         args.data_dir / f"kiva-{frequency}.task",
+                         agents, frequency))
+        for path in (map_path, task_path):
             if not path.is_file():
                 missing.append(path)
         if method.offline_only:
             path = (ROOT / "tests" / "multigoal-10.tour"
-                    if args.multigoal_smoke else
-                    args.tour_dir / f"{agents}-500.tour")
+                    if args.multigoal_smoke else resolve_template(
+                        args.tour_template,
+                        args.tour_dir / f"{agents}-500.tour",
+                        agents, frequency))
             if not path.is_file():
                 missing.append(path)
     if missing:

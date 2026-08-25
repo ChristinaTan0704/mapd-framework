@@ -233,6 +233,88 @@ python3 scripts/run_server_matrix.py \
     --output-dir server_results/ts1
 ```
 
+## Nineteen-method generated-benchmark experiments
+
+`--base-methods` selects the 19 method rows listed in the next section and
+omits the eight additional `(ts 1)` variants. For these commands, the 17 online
+methods run every value supplied through `--frequencies`; TA-Prioritized and
+TA-Hybrid instead run once per agent count using `--offline-frequency all` and
+the matching `_fall` LKH tour.
+
+Run the structured SMALL paper matrix with:
+
+```bash
+python3 scripts/run_server_matrix.py --base-methods \
+    --agents 10,20,30,40,50 --frequencies 0.2,0.5,1,2,5,10,all \
+    --offline-frequency all \
+    --map-template 'benchmark_instances/maps/benchmark_structured_small_a{agents}.map' \
+    --task-template 'benchmark_instances/tasks/benchmark_structured_small_a{agents}_f{frequency}.task' \
+    --tour-template 'benchmark_instances/lkh_tours/benchmark_structured_small_a{agents}_fall.tour' \
+    --seed 0 --max-parallel 5 --timeout 1800 \
+    --output-dir server_results/benchmark_structured_small
+```
+
+Run the structured MEDIUM paper matrix with:
+
+```bash
+python3 scripts/run_server_matrix.py --base-methods \
+    --agents 100,200,300,400,500 --frequencies 50 \
+    --offline-frequency all \
+    --map-template 'benchmark_instances/maps/benchmark_structured_medium_a{agents}.map' \
+    --task-template 'benchmark_instances/tasks/benchmark_structured_medium_a{agents}_f{frequency}.task' \
+    --tour-template 'benchmark_instances/lkh_tours/benchmark_structured_medium_a{agents}_fall.tour' \
+    --seed 0 --max-parallel 5 --timeout 1800 \
+    --output-dir server_results/benchmark_structured_medium
+```
+
+Run the structured LARGE paper workloads with:
+
+```bash
+python3 scripts/run_server_matrix.py --base-methods \
+    --agents 1000 \
+    --frequencies t1000_f100,t2000_f100,t3000_f100,t4000_f100,t5000_f100 \
+    --offline-frequency all \
+    --map-template 'benchmark_instances/maps/benchmark_structured_large_a{agents}.map' \
+    --task-template 'benchmark_instances/tasks/benchmark_structured_large_a{agents}_{frequency}.task' \
+    --offline-task-template 'benchmark_instances/tasks/benchmark_structured_large_a{agents}_fall.task' \
+    --tour-template 'benchmark_instances/lkh_tours/benchmark_structured_large_a{agents}_fall.tour' \
+    --seed 0 --max-parallel 5 --timeout 1800 \
+    --output-dir server_results/benchmark_structured_large
+```
+
+The LARGE command runs each online method on all five task-count workloads and
+runs each offline TA method once on the packaged 4,000-task `fall` workload.
+
+Run the sparse SMALL-to-MEDIUM matrix with:
+
+```bash
+python3 scripts/run_server_matrix.py --base-methods \
+    --agents 10,20,30,40,50 --frequencies 0.2,0.5,1,2,5,10,all \
+    --offline-frequency all \
+    --map-template 'benchmark_instances/maps/benchmark_sparse_small_to_medium_a{agents}.map' \
+    --task-template 'benchmark_instances/tasks/benchmark_sparse_small_to_medium_a{agents}_f{frequency}.task' \
+    --tour-template 'benchmark_instances/lkh_tours/benchmark_sparse_small_to_medium_a{agents}_fall.tour' \
+    --seed 0 --max-parallel 5 --timeout 1800 \
+    --output-dir server_results/benchmark_sparse_small_to_medium
+```
+
+Run the structured-SMALL multi-goal paper matrix with:
+
+```bash
+python3 scripts/run_server_matrix.py --base-methods \
+    --agents 10,20,30,40,50 --frequencies 2,5,10 \
+    --offline-frequency all \
+    --map-template 'benchmark_instances/maps/benchmark_structured_small_a{agents}.map' \
+    --task-template 'benchmark_instances/tasks/benchmark_structured_small_mg_a{agents}_f{frequency}.task' \
+    --tour-template 'benchmark_instances/lkh_tours/benchmark_structured_small_mg_a{agents}_fall.tour' \
+    --seed 0 --max-parallel 5 --timeout 1800 \
+    --output-dir server_results/benchmark_structured_small_mg
+```
+
+These runs are resumable: existing per-job JSON files are reused unless
+`--rerun` is supplied. Review `results.csv`, `results.json`, and every `.log`
+file in the selected output directory before accepting an experiment matrix.
+
 ## Algorithm setup
 
 All rows below also receive `--seed 0`. Preset defaults are
