@@ -15,10 +15,12 @@ struct Agent;
 // ======================== Task ========================
 struct Task {
     int id;
-    int pickup;        // endpoint index for pickup
-    int delivery;      // endpoint index for delivery
-    int pickup_loc;    // grid location of pickup
-    int delivery_loc;  // grid location of delivery
+    // Compatibility aliases for the first and final ordered goals. Algorithms
+    // execute Task::goals and do not assume that a task has exactly two goals.
+    int pickup;        // endpoint index of goals.front()
+    int delivery;      // endpoint index of goals.back()
+    int pickup_loc;    // grid location of goals.front()
+    int delivery_loc;  // grid location of goals.back()
     int release_time;
     int status;        // -1=unassigned, agent_id=assigned, INT_MAX=finished
     int completion_time;

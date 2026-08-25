@@ -31,6 +31,8 @@ REQUIRED = {
     "src/map_loader.cpp",
     "src/path_planners.cpp",
     "src/simulation.cpp",
+    "tests/multigoal-5.task",
+    "tests/multigoal-10.tour",
 }
 
 for agents in (10, 20, 30, 40, 50):

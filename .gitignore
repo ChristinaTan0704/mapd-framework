@@ -45,6 +45,12 @@
 /.github/workflows/*
 !/.github/workflows/linux-smoke.yml
 
+# Focused regression inputs.
+!/tests/
+/tests/*
+!/tests/multigoal-5.task
+!/tests/multigoal-10.tour
+
 # Required small benchmark maps and task streams only.
 !/data/
 /data/*

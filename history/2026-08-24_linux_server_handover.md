@@ -59,3 +59,17 @@ The branch is protected from accidental file additions in two layers:
 
 Use `git add -A`, not `git add *`, because the latter omits hidden paths such as
 `.gitignore` and `.github/` before Git processes ignore rules.
+
+## Multi-goal regression
+
+`tests/multigoal-5.task` contains ten tasks with five ordered goals each, and
+`tests/multigoal-10.tour` assigns all ten for the offline TA methods. Run every
+algorithm against them with:
+
+```bash
+python3 scripts/run_server_matrix.py \
+    --multigoal-smoke --seed 0 --max-parallel 5 --timeout 1800 \
+    --output-dir server_results/multigoal
+```
+
+GitHub Actions runs this check after the standard 27-method smoke matrix.

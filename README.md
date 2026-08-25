@@ -89,7 +89,49 @@ The runner contains the complete 27-method smoke baseline, including the eight
 
 GitHub Actions runs the same repository-manifest, Linux build, and 27-method
 smoke checks on every push and pull request. Its smoke logs are uploaded as the
-`mapd-smoke-results` workflow artifact.
+`mapd-validation-results` workflow artifact.
+
+It also runs every method on ten committed tasks containing five ordered goals
+each:
+
+```bash
+python3 scripts/run_server_matrix.py \
+    --multigoal-smoke --seed 0 --max-parallel 5 --timeout 1800 \
+    --output-dir server_results/multigoal
+```
+
+The regression uses `tests/multigoal-5.task` and, for offline TA methods,
+`tests/multigoal-10.tour`. Success requires completion of all ten complete
+ordered goal sequences and a passing collision check.
+
+## Multi-goal task support
+
+Every supported algorithm consumes the same ordered `Task::goals` sequence.
+The first goal has pickup/release-time semantics, intermediate goals must be
+visited in order, and the final goal determines task completion and SWT. A
+dummy or parking endpoint, when enabled, is selected only after the final task
+goal through `choose_dummy_endpoint()`.
+
+| Family | Multi-goal implementation |
+|---|---|
+| TP/TPTS STA* | Sequential STA* legs visit every ordered goal; task swapping compares arrival at the first goal and completion at the final goal. |
+| TP/TPTS SIPP | One ordered SIPP request contains every goal. |
+| HBH+MLA* | MLA* receives the complete goal sequence and completion is recorded at its final goal. |
+| CENTRAL-CBS | CBS plans one segment at a time; `current_goal_index` triggers the next segment until the final goal is reached. |
+| TA-Prioritized | The offline sequence planner iterates every goal of every assigned task before selecting parking. |
+| TA-Hybrid | Group 2 plans to the first goal; subsequent Group-1 CBS calls advance through every remaining goal. |
+| Hungarian/LNS with PP/PBS/wPBS | Assignment estimates, LNS costs, goal construction, and low-level MLA*/MLSIPP planning all iterate the full ordered goal list. |
+
+Variable-length task input uses one line per task:
+
+```text
+release_time goal_endpoint_1 goal_endpoint_2 ... goal_endpoint_N
+```
+
+The committed regression contains ten tasks with five goals each. Across those
+tasks, the ordered inter-goal legs total 724 steps, whereas travelling directly
+from each first goal to its final goal totals only 204. This makes skipped
+intermediate goals visible in the expected makespan/SWT baselines.
 
 ## Full paper-result matrix
 

@@ -109,6 +109,36 @@ SMOKE_BASELINE = {
     "LNS(1s)+wPBS-MLSIPP (ts 1)": (2512, 13636),
 }
 
+MULTIGOAL_BASELINE = {
+    "TP-STA*": (161, 1062),
+    "TPTS-STA*": (161, 1014),
+    "CENTRAL-CBS": (159, 1033),
+    "CENTRAL-fixed-CBS": (154, 1031),
+    "HBH+MLA*": (161, 1014),
+    "TA-Hybrid-STA*": (123, 812),
+    "TA-Prioritized-STA*": (123, 839),
+    "Hungarian+PBS-MLA*": (162, 1026),
+    "Hungarian+wPBS-MLA*": (197, 1313),
+    "LNS(1s)+PBS-MLA*": (162, 1026),
+    "LNS(1s)+wPBS-MLA*": (197, 1313),
+    "Hungarian+PBS-MLSIPP": (164, 1028),
+    "Hungarian+wPBS-MLSIPP": (202, 1371),
+    "LNS(1s)+PBS-MLSIPP": (164, 1028),
+    "LNS(1s)+wPBS-MLSIPP": (202, 1371),
+    "TP-SIPP": (161, 1045),
+    "TPTS-SIPP": (161, 1014),
+    "Hungarian+PP-SIPP": (164, 1026),
+    "LNS(1s)+PP-SIPP": (164, 1026),
+    "Hungarian+PBS-MLA* (ts 1)": (162, 1026),
+    "Hungarian+wPBS-MLA* (ts 1)": (197, 1313),
+    "LNS(1s)+PBS-MLA* (ts 1)": (162, 1026),
+    "LNS(1s)+wPBS-MLA* (ts 1)": (197, 1313),
+    "Hungarian+PBS-MLSIPP (ts 1)": (164, 1028),
+    "Hungarian+wPBS-MLSIPP (ts 1)": (202, 1371),
+    "LNS(1s)+PBS-MLSIPP (ts 1)": (164, 1028),
+    "LNS(1s)+wPBS-MLSIPP (ts 1)": (202, 1371),
+}
+
 
 def parse_list(value: str, cast):
     return tuple(cast(item.strip()) for item in value.split(",") if item.strip())
@@ -126,11 +156,13 @@ def metric(pattern: str, output: str, cast):
 def build_jobs(args, selected_methods):
     jobs = []
     for method in selected_methods:
-        if method.offline_only:
+        if args.multigoal_smoke:
+            frequencies = ("multigoal",)
+        elif method.offline_only:
             frequencies = ("500",)
         else:
             frequencies = ("0.2",) if args.smoke else args.frequencies
-        agents = (10,) if args.smoke else args.agents
+        agents = (10,) if args.smoke or args.multigoal_smoke else args.agents
         for agents_count in agents:
             for frequency in frequencies:
                 jobs.append((method, agents_count, frequency))
@@ -151,8 +183,12 @@ def run_one(args, output_dir: Path, job):
         return result
 
     map_path = args.data_dir / f"kiva-{agents}-500-5.map"
-    task_path = args.data_dir / f"kiva-{frequency}.task"
-    tour_path = args.tour_dir / f"{agents}-500.tour"
+    task_path = (ROOT / "tests" / "multigoal-5.task"
+                 if args.multigoal_smoke else
+                 args.data_dir / f"kiva-{frequency}.task")
+    tour_path = (ROOT / "tests" / "multigoal-10.tour"
+                 if args.multigoal_smoke else
+                 args.tour_dir / f"{agents}-500.tour")
     extra = [value.format(tour=str(tour_path)) for value in method.extra]
     command = [str(args.executable), "-m", str(map_path), "-t", str(task_path),
                "-a", method.preset, "--seed", str(args.seed), "-s", "1"] + extra
@@ -225,8 +261,15 @@ def run_one(args, output_dir: Path, job):
 
 
 def write_summary(output_dir: Path, results):
+    def frequency_order(value):
+        try:
+            return (0, float(value))
+        except (TypeError, ValueError):
+            return (1, str(value))
+
     ordered = sorted(results, key=lambda row: (
-        row["agents"], float(row["frequency"]), row["method"].lower()))
+        row["agents"], frequency_order(row["frequency"]),
+        row["method"].lower()))
     (output_dir / "results.json").write_text(json.dumps(ordered, indent=2) + "\n")
     columns = ("method", "preset", "agents", "frequency", "seed",
                "makespan", "swt", "runtime_s", "wall_runtime_s",
@@ -256,10 +299,36 @@ def validate_smoke(results):
     return failures
 
 
+def validate_multigoal_smoke(results, exact_metrics=True):
+    failures = []
+    print("\nFive-goal comparison (expected -> observed makespan/SWT):")
+    for result in sorted(results, key=lambda row: row["method"].lower()):
+        expected = MULTIGOAL_BASELINE[result["method"]]
+        observed = (result["makespan"], result["swt"])
+        match = observed == expected
+        policy = "exact" if exact_metrics else "informational"
+        print(f"  {result['method']}: {expected[0]}/{expected[1]} -> "
+              f"{observed[0]}/{observed[1]} "
+              f"({'match' if match else 'DIFF'}, {policy})")
+        if result["status"] != "ok":
+            failures.append(f"{result['method']}: {result['status']}")
+        elif result["tasks_completed"] != 10 or result["tasks_total"] != 10:
+            failures.append(
+                f"{result['method']}: expected 10/10 completed tasks, got "
+                f"{result['tasks_completed']}/{result['tasks_total']}")
+        elif exact_metrics and not match:
+            failures.append(
+                f"{result['method']}: expected {expected}, got {observed}")
+    return failures
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--smoke", action="store_true",
                         help="run every method at 10 agents/0.2 (TA at 10/500) and validate")
+    parser.add_argument(
+        "--multigoal-smoke", action="store_true",
+        help="run every method on the committed ten-task, five-goal scenario")
     parser.add_argument("--methods", default="all",
                         help="comma-separated displayed method labels, or all")
     parser.add_argument("--agents", type=lambda value: parse_list(value, int),
@@ -286,6 +355,8 @@ def main():
                         help="ignore cached per-job JSON files")
     args = parser.parse_args()
 
+    if args.smoke and args.multigoal_smoke:
+        parser.error("--smoke and --multigoal-smoke are mutually exclusive")
     if not 1 <= args.max_parallel <= 5:
         parser.error("--max-parallel must be between 1 and 5")
     if args.seed < 0:
@@ -306,12 +377,16 @@ def main():
     jobs = build_jobs(args, selected)
     missing = []
     for method, agents, frequency in jobs:
-        for path in (args.data_dir / f"kiva-{agents}-500-5.map",
-                     args.data_dir / f"kiva-{frequency}.task"):
+        task_path = (ROOT / "tests" / "multigoal-5.task"
+                     if args.multigoal_smoke else
+                     args.data_dir / f"kiva-{frequency}.task")
+        for path in (args.data_dir / f"kiva-{agents}-500-5.map", task_path):
             if not path.is_file():
                 missing.append(path)
         if method.offline_only:
-            path = args.tour_dir / f"{agents}-500.tour"
+            path = (ROOT / "tests" / "multigoal-10.tour"
+                    if args.multigoal_smoke else
+                    args.tour_dir / f"{agents}-500.tour")
             if not path.is_file():
                 missing.append(path)
     if missing:
@@ -333,6 +408,9 @@ def main():
                 for row in results if row["status"] != "ok"]
     if args.smoke:
         failures = validate_smoke(results)
+    elif args.multigoal_smoke:
+        failures = validate_multigoal_smoke(
+            results, exact_metrics=args.endpoint_strategy is None)
 
     print(f"\nResults: {args.output_dir / 'results.csv'}")
     print(f"Manifest: {args.output_dir / 'results.json'}")
