@@ -70,6 +70,43 @@ and worsened in 4; SWT improved in 16 rows and worsened in 11. Runtime should
 not be compared across machines or concurrent runs because the randomized
 ordering changes the number of expanded nodes.
 
+Latest seed-0 smoke results after randomized tie-breaking:
+
+| Method | Setup | Makespan | SWT | Runtime (s) |
+|---|---:|---:|---:|---:|
+| TP-STA* | 10 / 0.2 | 2541 | 19680 | 0.085 |
+| TPTS-STA* | 10 / 0.2 | 2530 | 14454 | 1.108 |
+| TP-SIPP | 10 / 0.2 | 2541 | 19032 | 0.116 |
+| TPTS-SIPP | 10 / 0.2 | 2513 | 14115 | 0.841 |
+| CENTRAL-CBS | 10 / 0.2 | 2514 | 14056 | 1.348 |
+| CENTRAL-fixed-CBS | 10 / 0.2 | 2514 | 14156 | 0.464 |
+| HBH+MLA* | 10 / 0.2 | 2532 | 14611 | 2.539 |
+| TA-Hybrid-STA* | 10 / offline | 1055 | 263846 | 0.975 |
+| TA-Prioritized-STA* | 10 / offline | 1049 | 263420 | 0.279 |
+| Hungarian+PBS-MLA* | 10 / 0.2 | 2514 | 13814 | 0.307 |
+| Hungarian+wPBS-MLA* | 10 / 0.2 | 2512 | 13743 | 0.225 |
+| Hungarian+PBS-MLSIPP | 10 / 0.2 | 2517 | 13854 | 0.802 |
+| Hungarian+wPBS-MLSIPP | 10 / 0.2 | 2512 | 13678 | 0.214 |
+| Hungarian+PP-SIPP | 10 / 0.2 | 2517 | 13796 | 0.435 |
+| LNS(1s)+PBS-MLA* | 10 / 0.2 | 2514 | 13738 | 7.170 |
+| LNS(1s)+wPBS-MLA* | 10 / 0.2 | 2513 | 13622 | 6.523 |
+| LNS(1s)+PBS-MLSIPP | 10 / 0.2 | 2514 | 13770 | 7.412 |
+| LNS(1s)+wPBS-MLSIPP | 10 / 0.2 | 2513 | 13585 | 6.657 |
+| LNS(1s)+PP-SIPP | 10 / 0.2 | 2514 | 13840 | 7.463 |
+| Hungarian+PBS-MLA* (ts 1) | 10 / 0.2 | 2517 | 13775 | 0.284 |
+| Hungarian+wPBS-MLA* (ts 1) | 10 / 0.2 | 2512 | 13568 | 0.190 |
+| Hungarian+PBS-MLSIPP (ts 1) | 10 / 0.2 | 2514 | 13868 | 0.693 |
+| Hungarian+wPBS-MLSIPP (ts 1) | 10 / 0.2 | 2512 | 13626 | 0.203 |
+| LNS(1s)+PBS-MLA* (ts 1) | 10 / 0.2 | 2514 | 13790 | 6.829 |
+| LNS(1s)+wPBS-MLA* (ts 1) | 10 / 0.2 | 2512 | 13596 | 6.282 |
+| LNS(1s)+PBS-MLSIPP (ts 1) | 10 / 0.2 | 2514 | 13814 | 6.709 |
+| LNS(1s)+wPBS-MLSIPP (ts 1) | 10 / 0.2 | 2512 | 13611 | 5.993 |
+
+The offline TA rows use the frequency-500 task set because those algorithms
+assign the complete task set once. Raw local results are under
+`server_results/random_fg_ties_splitmix_seed0/`; server result directories are
+ignored and are not part of the Git repository.
+
 ## Files to return
 
 Return `server_results/full/results.csv`, `results.json`, and the per-run logs.
