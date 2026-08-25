@@ -237,7 +237,8 @@ python3 scripts/run_server_matrix.py \
 
 All rows below also receive `--seed 0`. Preset defaults are
 `task_sequence_limit=2`, `wpbs_replan_window=10`, `lns_time=1`,
-`lns_no_improvement_limit=2000`, and CBS focal weight 1.0.
+`lns_no_improvement_limit=2000`, CBS focal weight 1.0, and both CBS high- and
+low-level expansion limits `INT_MAX`.
 
 | Displayed method | Required command options | Mode |
 |---|---|---|

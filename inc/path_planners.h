@@ -117,6 +117,7 @@ struct ECBSRequest {
     int columns;
     double focal_weight;
     int high_level_expansion_limit;
+    int low_level_expansion_limit;
     const std::vector<Endpoint>& endpoints;
     int max_time;
 
@@ -126,12 +127,13 @@ struct ECBSRequest {
                 const std::vector<int>& goal_endpoints,
                 const std::vector<std::vector<int>>& constraints,
                 int time, int map_columns, double weight,
-                int expansion_limit,
+                int high_expansion_limit, int low_expansion_limit,
                 const std::vector<Endpoint>& map_endpoints, int horizon)
         : grid(map_grid), start_locations(starts), goal_locations(goals),
           goal_endpoint_indices(goal_endpoints), constraint_paths(constraints),
           current_time(time), columns(map_columns), focal_weight(weight),
-          high_level_expansion_limit(expansion_limit),
+          high_level_expansion_limit(high_expansion_limit),
+          low_level_expansion_limit(low_expansion_limit),
           endpoints(map_endpoints), max_time(horizon) {}
 };
 

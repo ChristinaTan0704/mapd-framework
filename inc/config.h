@@ -87,6 +87,8 @@ struct MAPDConfig {
     double ecbs_focal_weight;
     // CBS/ECBS only: maximum high-level conflict-tree nodes expanded per batch.
     int cbs_high_level_expansion_limit;
+    // CBS/ECBS only: maximum nodes expanded by each low-level ECBS search.
+    int cbs_low_level_expansion_limit;
     // Semi-online only: number of future release batches known in advance.
     int semi_online_lookahead_batches;
 
@@ -97,6 +99,7 @@ struct MAPDConfig {
         task_sequence_limit(2), wpbs_replan_window(10), lns_time_limit(1),
         lns_no_improvement_limit(2000), ecbs_focal_weight(1.0),
         cbs_high_level_expansion_limit(INT_MAX),
+        cbs_low_level_expansion_limit(INT_MAX),
         semi_online_lookahead_batches(1) {}
 };
 

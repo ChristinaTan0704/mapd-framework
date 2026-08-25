@@ -35,7 +35,8 @@ full command covers the 27 configured method labels, including all eight
 - `(ts 1)` variants: sequence limit `1`.
 - wPBS replan window: `10`.
 - CBS focal weight: `1.0` (optimal CBS).
-- CBS high-level expansion limit: `INT_MAX` unless explicitly overridden.
+- CBS high- and low-level expansion limits: `INT_MAX` unless explicitly
+  overridden.
 
 Makespan/SWT should match exactly for non-LNS smoke rows. LNS metric matching
 is informational because its CPU-time budget can permit a different number of

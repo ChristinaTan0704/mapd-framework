@@ -99,6 +99,13 @@ void set_parameters(MAPDConfig& config, const po::variables_map& vm)
             throw invalid_argument(
                 "cbs_high_level_expansion_limit must be positive");
     }
+    if (vm.count("cbs_low_level_expansion_limit")) {
+        config.cbs_low_level_expansion_limit =
+            vm["cbs_low_level_expansion_limit"].as<int>();
+        if (config.cbs_low_level_expansion_limit <= 0)
+            throw invalid_argument(
+                "cbs_low_level_expansion_limit must be positive");
+    }
     if (vm.count("semi_online_lookahead_batches")) {
         config.semi_online_lookahead_batches =
             vm["semi_online_lookahead_batches"].as<int>();
@@ -160,6 +167,7 @@ int main(int argc, char** argv)
         ("lns_no_improvement_limit", po::value<int>(),                 "LNS only: rejected moves before early stop; 0 disables (default 2000)")
         ("ecbs_focal_weight", po::value<double>(),                     "CBS/ECBS only: focal bound; 1.0=optimal CBS, >1.0=ECBS (default 1.0)")
         ("cbs_high_level_expansion_limit", po::value<int>(),           "CBS/ECBS only: maximum high-level expansions per batch (default INT_MAX)")
+        ("cbs_low_level_expansion_limit", po::value<int>(),            "CBS/ECBS only: maximum expansions per low-level search (default INT_MAX)")
         ("semi_online_lookahead_batches", po::value<int>(),            "SEMI_ONLINE only: future task-release batches known in advance (default 1)")
         ("lns_imp",        po::value<int>()->default_value(0),         "LNS only: optional post-run LNS improvement rounds (0=off)")
         ("lns_imp_group",  po::value<int>()->default_value(5),         "LNS only: post-run LNS destroy-group size")

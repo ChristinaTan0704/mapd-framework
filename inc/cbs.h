@@ -61,7 +61,8 @@ public:
                     const vector<int>& heuristic,
                     const vector<bool>& grid,
                     int ag_id, int start_loc, int goal_loc,
-                    int col, int curr_time, int max_time);
+                    int col, int curr_time, int max_time,
+                    int expansion_limit);
 
     bool findPath(double f_weight,
                   const vector<list<pair<int,int>>>* constraints,
@@ -72,6 +73,7 @@ private:
     const vector<int>& heuristic_;
     const vector<bool>& grid_;
     int ag_id_, start_loc_, goal_loc_, curr_time_, max_time_;
+    int expansion_limit_;
     int map_size_;
     int actions_[5];
 
@@ -139,6 +141,7 @@ public:
               const vector<vector<int>>& cons_paths,
               int curr_time, int col, double focal_w,
               int high_level_expansion_limit,
+              int low_level_expansion_limit,
               const vector<Endpoint>& endpoints, int max_time);
 
     bool run();
@@ -150,6 +153,7 @@ private:
     int curr_time_;
     double focal_w_;
     int high_level_expansion_limit_;
+    int low_level_expansion_limit_;
     vector<vector<int>> cons_paths_;
 
     vector<SingleAgentECBS*> search_engines_;

@@ -35,6 +35,7 @@ ECBSResult ECBSPlanner::solve(const ECBSRequest& request) const {
         request.goal_endpoint_indices, request.constraint_paths,
         request.current_time, request.columns, request.focal_weight,
         request.high_level_expansion_limit,
+        request.low_level_expansion_limit,
         request.endpoints, request.max_time);
 
     ECBSResult result;

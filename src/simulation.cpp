@@ -2145,6 +2145,7 @@ void Simulation::path_planning_ecbs(bool assignment_triggered) {
             constraints, (int)cur_time_, mapd_map.col,
             config.ecbs_focal_weight,
             config.cbs_high_level_expansion_limit,
+            config.cbs_low_level_expansion_limit,
             mapd_map.endpoints, (int)maxtime));
         if (!result.solution_found || result.paths.size() != agent_ids.size())
             throw runtime_error(

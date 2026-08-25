@@ -26,10 +26,12 @@ SingleAgentECBS::SingleAgentECBS(const vector<vector<int>>& cons_paths,
                                  const vector<int>& heuristic,
                                  const vector<bool>& grid,
                                  int ag_id, int start_loc, int goal_loc,
-                                 int col, int curr_time, int max_time)
+                                 int col, int curr_time, int max_time,
+                                 int expansion_limit)
     : cons_paths_(cons_paths), heuristic_(heuristic), grid_(grid),
       ag_id_(ag_id), start_loc_(start_loc), goal_loc_(goal_loc),
       curr_time_(curr_time), max_time_(max_time),
+      expansion_limit_(expansion_limit),
       path_cost(0), min_f_val(0), num_expanded(0), num_generated(0)
 {
     map_size_ = grid_.size();
@@ -132,26 +134,19 @@ bool SingleAgentECBS::findPath(double f_weight,
 
     int lastGoalConsTime = extractLastGoalTimestep(goal_loc_, constraints);
 
-    // Expansion cap: a single-agent ECBS search that finds a holdable path does so
-    // with very few expansions (a few hundred even on the largest instances). A search
-    // that has no holdable solution otherwise exhaustively explores the entire
-    // (location x horizon) state space (millions of nodes) before returning false.
-    // Capping at a value far above any real solution lets such doomed searches fail
-    // fast; the caller then falls back to single-agent A* (identical accepted result).
-    // The cap is set high enough that no successful search is ever truncated.
-    const int kExpansionCap = 15000;
-
+    // The default INT_MAX leaves the low-level search effectively uncapped.
+    // A smaller positive limit may be supplied explicitly for experiments.
     while (!focal_list.empty()) {
-        LLNode* curr = focal_list.top(); focal_list.pop();
-        open_list.erase(curr->open_handle);
-        curr->in_openlist = false;
-        num_expanded++;
-
-        if (num_expanded > kExpansionCap) {
+        if (num_expanded >= expansion_limit_) {
             path.clear();
             releaseNodes(allNodes);
             return false;
         }
+
+        LLNode* curr = focal_list.top(); focal_list.pop();
+        open_list.erase(curr->open_handle);
+        curr->in_openlist = false;
+        num_expanded++;
 
         if (curr->loc == goal_loc_ && curr->timestep > lastGoalConsTime) {
             bool hold = true;
@@ -262,9 +257,11 @@ CBSSearch::CBSSearch(const vector<bool>& grid,
     const vector<int>& goal_ep_indices, const vector<vector<int>>& cons_paths,
     int curr_time, int col, double focal_w,
     int high_level_expansion_limit,
+    int low_level_expansion_limit,
     const vector<Endpoint>& endpoints, int max_time)
     : cons_paths_(cons_paths), curr_time_(curr_time), focal_w_(focal_w),
       high_level_expansion_limit_(high_level_expansion_limit),
+      low_level_expansion_limit_(low_level_expansion_limit),
       solution_found(false), solution_cost(-1),
       HL_num_expanded_(0), HL_num_generated_(0)
 {
@@ -282,7 +279,8 @@ CBSSearch::CBSSearch(const vector<bool>& grid,
     for (int i = 0; i < num_agents_; i++) {
         search_engines_[i] = new SingleAgentECBS(
             cons_paths_, endpoints[goal_ep_indices[i]].h_val, grid,
-            i, start_locs[i], goal_locs[i], col, curr_time, max_time);
+            i, start_locs[i], goal_locs[i], col, curr_time, max_time,
+            low_level_expansion_limit_);
     }
 
     bool all_initial_found = true;
