@@ -6,3 +6,16 @@ __pycache__/
 *.o
 .verify/
 mapd
+
+# local tooling / scratch experiment scripts
+skill_tools/
+
+# result tables and spreadsheets
+*.csv
+*.xlsx
+
+# session notes
+history/
+
+# portable Linux/server experiment output
+server_results/
