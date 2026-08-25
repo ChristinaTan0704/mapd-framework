@@ -3689,7 +3689,7 @@ void Simulation::pbs_detect_conflicts_for(int agent_id, const vector<vector<int>
 // inconsistent: the lower-priority one has to be re-planned.
 void Simulation::pbs_find_replan_agents(const PriorityGraph& priorities,
                                         const list<Conflict>& conflicts,
-                                        unordered_set<int>& replan) const {
+                                        set<int>& replan) const {
     for (auto& conf : conflicts) {
         int ca = get<0>(conf), cb = get<1>(conf);
         if (replan.count(ca) || replan.count(cb)) continue;
@@ -3756,7 +3756,7 @@ bool Simulation::pbs_resolve_cascade(PBSNode* node, int replanned_agent, const P
         if (get<0>(conf) != replanned_agent && get<1>(conf) != replanned_agent)
             node->conflicts.push_back(conf);
 
-    unordered_set<int> replan;
+    set<int> replan;
     pbs_find_replan_agents(node->priorities, node->conflicts, replan);
 
     const int cascade_budget = pbs_.num_ag * 5;   // reference: node->paths.size() * 5
@@ -6082,7 +6082,7 @@ private:
     inline void release_closed_list();
     void update_best_node(WPBSNode* node);
     bool wait_at_start(const WPath& path, int start_location, int timestep) const;
-    void find_replan_agents(WPBSNode* node, const list<WConflict>& conflicts, unordered_set<int>& replan);
+    void find_replan_agents(WPBSNode* node, const list<WConflict>& conflicts, set<int>& replan);
     bool validate_consistence(const list<WConflict>& conflicts, const WPriorityGraph& G) const;
 };
 
@@ -6213,7 +6213,7 @@ bool WPBS::wait_at_start(const WPath& path, int start_location, int timestep) co
     return false;
 }
 
-void WPBS::find_replan_agents(WPBSNode* node, const list<WConflict>& conflicts, unordered_set<int>& replan) {
+void WPBS::find_replan_agents(WPBSNode* node, const list<WConflict>& conflicts, set<int>& replan) {
     for (const auto& conflict : conflicts) {
         int a1, a2, v1, v2, t;
         std::tie(a1, a2, v1, v2, t) = conflict;
@@ -6227,7 +6227,7 @@ void WPBS::find_replan_agents(WPBSNode* node, const list<WConflict>& conflicts, 
 
 bool WPBS::find_consistent_paths(WPBSNode* node, int agent) {
     int count = 0;
-    unordered_set<int> replan;
+    set<int> replan;
     if (agent >= 0 && agent < num_of_agents) replan.insert(agent);
     find_replan_agents(node, node->conflicts, replan);
     while (!replan.empty()) {

@@ -313,7 +313,7 @@ private:
                                   int horizon, list<Conflict>& out) const;
     void pbs_find_replan_agents(const PriorityGraph& priorities,
                                 const list<Conflict>& conflicts,
-                                unordered_set<int>& replan) const;
+                                set<int>& replan) const;
     PBSNode* pbs_generate_child(PBSNode* parent, int lower, int higher);
     bool pbs_resolve_cascade(PBSNode* node, int replanned_agent, const PBSNode* parent);
     int  pbs_node_cost(const PBSNode* node) const;
