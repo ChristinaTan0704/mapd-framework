@@ -48,6 +48,13 @@ randomized search-node ties after all normal queue criteria (including equal
 `f` and `g`) match. A negative seed selects the current time and is
 intentionally non-reproducible. First run the smoke matrix:
 
+Search nodes receive one immutable pseudo-random tie key when they are
+created. Comparators never draw randomness directly: they first compare the
+algorithm's normal criteria and use the key only for an exact tie. This keeps
+heap ordering valid while allowing different seeds to explore different
+equal-cost alternatives. The policy is used by STA*, assignment-cost A*,
+dummy-path A*, MLA*, MLSIPP, CBS/ECBS, and the wPBS search queues.
+
 ```bash
 python3 scripts/run_server_matrix.py \
     --smoke \
@@ -88,6 +95,10 @@ Representative seed-0 baselines are:
 
 The runner contains the complete 27-method smoke baseline, including the eight
 `task_sequence_limit=1` variants.
+
+The seed-0 randomized-tie validation was run twice. Every method reproduced
+the same makespan and SWT on the second run. Use a different non-negative
+`--seed` to obtain a different but repeatable equal-cost search ordering.
 
 GitHub Actions runs the same repository-manifest, Linux build, and 27-method
 smoke checks on every push and pull request. Its smoke logs are uploaded as the

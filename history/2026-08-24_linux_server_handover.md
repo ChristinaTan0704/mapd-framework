@@ -26,7 +26,8 @@ full command covers the 27 configured method labels, including all eight
 
 ## Reproducibility policy
 
-- Seed: `0` for every run.
+- Seed: `0` for every comparison run. It controls both LNS and randomized
+  search-node tie-breaking.
 - Maximum concurrent simulator processes: `5`.
 - Per-process wall timeout: `1800` seconds.
 - LNS internal budget: `1` CPU second.
@@ -40,6 +41,34 @@ Makespan/SWT should match exactly for non-LNS smoke rows. LNS metric matching
 is informational because its CPU-time budget can permit a different number of
 iterations on different hardware. All algorithms must nevertheless complete
 500/500 tasks and pass collision checking. Runtime is server-dependent.
+
+## Randomized search-node ties
+
+Commit `e584564` replaced deterministic or implicit exact ties in the search
+queues with stable pseudo-random tie keys. Each node receives its key once at
+creation. A comparator first applies the algorithm's existing criteria—for a
+normal A* queue, minimum `f` and then maximum `g`—and consults the key only
+when those criteria are equal. Randomness is never sampled from inside a heap
+comparator, because doing so would violate strict weak ordering.
+
+The common `--seed` option initializes this stream in `Simulation::init()`:
+
+- the same non-negative seed reproduces the same search order;
+- another non-negative seed explores a different, repeatable ordering;
+- a negative seed selects a time-based, intentionally non-reproducible order.
+
+The change covers STA*, assignment-cost A*, dummy-path A*, MLA*, MLSIPP,
+CBS/ECBS low- and high-level queues, and wPBS low- and high-level selection.
+No new configuration field was added. `RandomTieBreaker` and per-node
+`tie_breaker` values are implementation state only.
+
+The seed-0 27-method smoke matrix was run twice with at most five processes.
+Both runs produced identical makespan/SWT values for every method, completed
+all 500 tasks, and passed collision checks. Compared with the preceding
+deterministic-tie baseline, makespan improved in 7 rows, was unchanged in 16,
+and worsened in 4; SWT improved in 16 rows and worsened in 11. Runtime should
+not be compared across machines or concurrent runs because the randomized
+ordering changes the number of expanded nodes.
 
 ## Files to return
 
