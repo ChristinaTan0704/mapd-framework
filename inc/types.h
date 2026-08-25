@@ -41,7 +41,7 @@ public:
         const auto now = chrono::steady_clock::now();
         if (run_enabled() && now >= run_deadline()) {
             throw runtime_error(
-                string("Runtime timeout in ") + location);
+                string("System runtime timeout in ") + location);
         }
         if (pathfinding_enabled() && now >= pathfinding_deadline()) {
             throw runtime_error(

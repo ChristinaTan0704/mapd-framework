@@ -46,8 +46,10 @@ checked inside CBS, CENTRAL assignment A*, TA-Hybrid, TA-Prioritized,
 PBS/wPBS, STA*, Path2, MLA*, MLSIPP, and LNS search loops. The 600-second
 pathfinding deadline resets at the beginning of each assignment/path-planning
 cycle. Expiration throws `runtime_error`, so the algorithm prints the timeout
-location and stops immediately. The runner's external timeout remains a
-hard-kill fallback. Pass `--runtime-limit 0` or
+location and stops immediately. Pathfinding expiration reports
+`Pathfinding runtime timeout`; whole-run expiration reports
+`System runtime timeout`. The runner's external timeout remains a hard-kill
+fallback. Pass `--runtime-limit 0` or
 `--pathfinding-runtime-limit 0` to the runner only when intentionally
 disabling one of the internal limits; the equivalent executable options use
 underscores.

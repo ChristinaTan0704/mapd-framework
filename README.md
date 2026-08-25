@@ -224,8 +224,9 @@ external `--timeout` (1795 versus 1800 seconds) and sets
 `--pathfinding_runtime_limit` to 600 seconds. The pathfinding deadline resets
 for every assignment/path-planning cycle. CBS, TA, PBS/wPBS, STA*, MLA*,
 MLSIPP, CENTRAL assignment search, endpoint Path2, and LNS immediately raise
-an error when either deadline expires. The external timeout remains the final
-safeguard for code that cannot check the deadline. Runner options
+`Pathfinding runtime timeout` or `System runtime timeout` errors when the
+respective deadline expires. The external timeout remains the final safeguard
+for code that cannot check the deadline. Runner options
 `--runtime-limit 0` and `--pathfinding-runtime-limit 0` disable the respective
 internal limits.
 
