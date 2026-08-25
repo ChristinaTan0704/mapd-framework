@@ -41,22 +41,22 @@ enum SingleAgentMethod {
     SA_SEQ_STA
 };
 enum EndpointStrategy {
-    // Return the agent's own initial/home location.
+    // Return the agent's own initial/home parking endpoint.
     RETURN_TO_HOME,
-    // Choose the nearest endpoint after excluding new dummies, unfinished-task
-    // goals, and the old parking endpoints of other agents.
+    // Choose the nearest task or parking endpoint after excluding new dummies,
+    // unfinished-task goals, and the old parking endpoints of other agents.
     NEAREST_WITH_STRICT_EXCLUSIONS,
-    // Choose a pairwise-distinct task endpoint first, then a home endpoint;
-    // skip the current goal and stay there only as the final fallback.
+    // Choose a pairwise-distinct task endpoint first, then any parking/home
+    // endpoint; skip the current goal and stay there only as the final fallback.
     PAIRWISE_TASK_THEN_HOME,
-    // TP/TPTS Path2: wait if safe; otherwise choose the nearest task or home
+    // TP/TPTS Path2: wait if safe; otherwise choose the nearest task or parking
     // endpoint that avoids future paths and open-task delivery locations.
     WAIT_OR_NEAREST_SAFE,
     // HBH: wait unless the current cell blocks an open task goal; otherwise
-    // move to the nearest reachable non-task endpoint that can be held.
+    // move to the nearest reachable parking (non-task) endpoint that can be held.
     WAIT_OR_NEAREST_FREE_NONTASK,
-    // CENTRAL parking: choose the nearest endpoint not already reserved by a
-    // carrying-task goal, selected task, or earlier parking choice.
+    // CENTRAL: choose the nearest task or parking endpoint not already reserved
+    // by a carrying-task goal, selected task, or earlier parking choice.
     NEAREST_AVAILABLE
 };
 

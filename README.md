@@ -142,6 +142,28 @@ MLA*/MLSIPP rows to produce their `(ts 1)` variants. Do not apply that option
 to TP, TPTS, CENTRAL, HBH, TA, or PP; those paths do not use the PBS/wPBS task
 sequence limit.
 
+## Parking endpoint support
+
+Map character `r` denotes a parking/home endpoint and `e` denotes a task
+endpoint. All algorithm families can use parking endpoints, but they do so at
+the point prescribed by their algorithm. Endpoint selection is dispatched by
+the preset's `endpoint_strategy` and implemented centrally by
+`Simulation::choose_dummy_endpoint()`.
+
+| Methods | Strategy | How parking locations are used |
+|---|---|---|
+| TP, TPTS | `WAIT_OR_NEAREST_SAFE` | Wait at the current endpoint when safe; otherwise Path2 selects the nearest reachable safe task or parking endpoint. |
+| HBH+MLA* | `WAIT_OR_NEAREST_FREE_NONTASK` | An idle blocking agent relocates to the nearest reachable safe parking endpoint. |
+| CENTRAL-CBS, CENTRAL-fixed-CBS | `NEAREST_AVAILABLE` | Hungarian assignment may select any unreserved task or parking endpoint for a free agent. |
+| TA-Prioritized, TA-Hybrid | `RETURN_TO_HOME` | Each agent returns to its own home parking endpoint after its offline sequence. |
+| Hungarian/LNS with PBS or PP | `NEAREST_WITH_STRICT_EXCLUSIONS` | Dummy selection considers both task and parking endpoints after excluding reserved and unfinished-task locations. |
+| Hungarian/LNS with wPBS | `PAIRWISE_TASK_THEN_HOME` | Select a pairwise-distinct task endpoint first, then any available parking endpoint, then remain in place as the final fallback. |
+
+Parking support does not mean every agent is forced to park after each task.
+For example, TP/TPTS terminally hold a safe delivery endpoint and invoke Path2
+only when waiting there would block another task; this preserves the original
+algorithm instead of adding a Hungarian/LNS-style dummy path.
+
 Example single run:
 
 ```bash

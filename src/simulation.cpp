@@ -1843,10 +1843,17 @@ vector<vector<pair<int,int>>> Simulation::build_goal_sequences() {
     return goal_seqs;
 }
 
-// Select an endpoint according to the configured policy. Hungarian/LNS call
-// this to append a dummy endpoint. TP/TPTS call WAIT_OR_NEAREST_SAFE after failing to
-// obtain a task; returning last_goal_loc means wait, while another location
-// means that Path2 must be planned separately.
+// Unified endpoint/parking selector. In the loaded map, task endpoints have
+// Endpoint::is_task_endpoint=true and parking/home endpoints have false. Every
+// supported algorithm delegates its explicit parking/relocation choice to this
+// function, and every strategy admits parking endpoints according to its policy:
+//   * TP/TPTS: nearest safe task or parking endpoint when waiting is unsafe;
+//   * HBH: nearest safe parking endpoint when relocation is required;
+//   * TA: the agent's own home parking endpoint;
+//   * CENTRAL: nearest currently available task or parking endpoint;
+//   * PBS/PP: nearest task or parking endpoint after strict exclusions;
+//   * wPBS: task endpoints first, then any pairwise-free parking endpoint.
+// Returning last_goal_loc means that no relocation path is required.
 int Simulation::choose_dummy_endpoint(int agent_id, int last_goal_loc,
                                       const vector<int>& reserved_endpoints) {
     if (config.endpoint_strategy == WAIT_OR_NEAREST_FREE_NONTASK) {
@@ -1978,14 +1985,15 @@ int Simulation::choose_dummy_endpoint(int agent_id, int last_goal_loc,
         };
 
         // wPBS uses pairwise-distinct task endpoints first, then any available
-        // home endpoint. Staying at the last goal is the ultimate fallback.
+        // parking/home endpoint. Staying at the last goal is the final fallback.
         int endpoint = nearest_endpoint_of_type(true);
         if (endpoint >= 0) return endpoint;
         endpoint = nearest_endpoint_of_type(false);
         return endpoint >= 0 ? endpoint : last_goal_loc;
     }
 
-    // Offline fixed-parking policy: every agent returns to its own home.
+    // Offline fixed-parking policy: every agent returns to its own home parking
+    // endpoint. This is intentionally not a search over other agents' homes.
     if (config.endpoint_strategy == RETURN_TO_HOME)
         return agents[agent_id].initial_loc;
 
