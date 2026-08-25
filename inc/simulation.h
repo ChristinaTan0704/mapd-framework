@@ -154,6 +154,20 @@ struct PBSNode {
     PBSNode() : parent(nullptr), num_collisions(0), earliest_collision(INT_MAX), cost(0) {}
 };
 
+struct DummyEndpointRequest {
+    int agent_id;
+    int reference_location;
+    int current_location;
+    int home_location;
+    vector<int> reserved_endpoints;
+    set<int> forbidden_endpoints;
+    vector<int> candidate_endpoints; // empty means every map endpoint
+    bool relocation_required = false;
+    bool use_safe_relocation_search = false;
+    bool parking_endpoints_only = false;
+    bool exclude_all_open_goals = false;
+};
+
 // ============================================================================
 //  Simulation
 // ============================================================================
@@ -271,8 +285,24 @@ private:
     //  Section 4 — Task sequences -> goal sequences (planner input)
     // ======================================================================
     vector<vector<pair<int,int>>> build_goal_sequences();
-    int  choose_dummy_endpoint(int agent_id, int last_goal_loc,
-                               const vector<int>& reserved_endpoints);
+    DummyEndpointRequest make_token_endpoint_request(
+        int agent_id, int reference_location, bool check_committed_crossings) const;
+    DummyEndpointRequest make_hbh_endpoint_request(
+        int agent_id, int reference_location) const;
+    DummyEndpointRequest make_central_endpoint_request(
+        int agent_id, int reference_location,
+        const vector<int>& reserved_endpoints) const;
+    DummyEndpointRequest make_sequence_endpoint_request(
+        int agent_id, int reference_location,
+        const vector<int>& reserved_endpoints, bool exclude_own_future_goals) const;
+    DummyEndpointRequest make_ta_endpoint_request(
+        int agent_id, int reference_location,
+        const vector<int>& reserved_endpoints, bool fixed_home_only) const;
+    DummyEndpointRequest make_pairwise_endpoint_request(
+        int agent_id, int reference_location,
+        const vector<int>& reserved_endpoints) const;
+    int choose_dummy_endpoint(EndpointStrategy strategy,
+                              const DummyEndpointRequest& request);
     vector<vector<pair<int,int>>> split_into_task_groups(
         int agent_id, const vector<pair<int,int>>& goal_seq) const;
 
@@ -371,8 +401,12 @@ private:
                             int next_time, int hidden_agent) const;
     void sta_update_path(Agent& agent, const SearchNode& goal_node);
     // TP/TPTS WAIT_OR_NEAREST_SAFE is split into endpoint selection and path construction.
-    int search_path2_endpoint(Agent& agent, int target_endpoint_loc);
-    bool plan_path2_to_endpoint(Agent& agent, int endpoint_loc);
+    int search_path2_endpoint(Agent& agent, int target_endpoint_loc,
+                              bool parking_endpoints_only,
+                              bool exclude_all_open_goals);
+    bool plan_path2_to_endpoint(Agent& agent, int endpoint_loc,
+                                bool parking_endpoints_only,
+                                bool exclude_all_open_goals);
     void release_search_nodes(map<unsigned int, SearchNode*>& nodes);
     int astar_with_dummy(Agent& agent, int start_loc, int start_time,
                          int goal_loc, int endpoint_loc,

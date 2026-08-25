@@ -435,11 +435,10 @@ bool Simulation::assign_decoupled_greedy(Agent& agent) {
 
     // WAIT_OR_NEAREST_SAFE returns the current location when waiting is safe, another
     // endpoint when relocation is required, and -1 if no safe endpoint exists.
-    const vector<int> no_assigned_dummies;
-    int endpoint = choose_dummy_endpoint(
-        agent.id, agent.loc, no_assigned_dummies);
+    int endpoint = choose_dummy_endpoint(config.endpoint_strategy,
+        make_token_endpoint_request(agent.id, agent.loc, false));
     if (endpoint >= 0 && endpoint != agent.loc &&
-        plan_path2_to_endpoint(agent, endpoint)) {
+        plan_path2_to_endpoint(agent, endpoint, false, false)) {
         return true;
     }
 
@@ -576,18 +575,15 @@ bool Simulation::assign_tpts(Agent& agent, int depth) {
         rollback_candidate();
     }
 
-    const vector<int> no_assigned_dummies;
-    int endpoint = choose_dummy_endpoint(
-        agent.id, agent.loc, no_assigned_dummies);
-    if (endpoint == agent.loc) {
-        for (unsigned int t = cur_time_ + 1; t < maxtime; t++) {
-            agent.path[t] = agent.path[cur_time_];
-            path_table_[agent.id][t] = agent.path[cur_time_];
-        }
-        agent.finish_time = cur_time_ + 1;
-        return true;
-    }
-    if (endpoint >= 0 && plan_path2_to_endpoint(agent, endpoint)) {
+    int endpoint = choose_dummy_endpoint(config.endpoint_strategy,
+        make_token_endpoint_request(agent.id, agent.loc, true));
+    // Validate a stationary endpoint too. During a TPTS steal the replacement
+    // path may hide the displaced agent's old reservation, so installing an
+    // unchecked wait at that agent's forced home can create a real collision.
+    if (endpoint >= 0 &&
+        plan_path2_to_endpoint(agent, endpoint, false, false)) {
+        if (endpoint == agent.loc)
+            agent.finish_time = cur_time_ + 1;
         return true;
     }
 
@@ -718,14 +714,16 @@ void Simulation::assign_hbh_mla() {
     // Paper Algorithm 2: an unassigned available agent waits unless its
     // current location is needed by an open task; in that case it relocates to
     // the closest free non-task endpoint selected by the unified policy.
-    const vector<int> no_reserved_endpoints;
     for (int agent_id : available_agents) {
         if (assigned_agents.count(agent_id)) continue;
         Agent& agent = agents[agent_id];
-        int endpoint = choose_dummy_endpoint(
-            agent_id, agent.loc, no_reserved_endpoints);
+        DummyEndpointRequest request =
+            make_hbh_endpoint_request(agent_id, agent.loc);
+        int endpoint = choose_dummy_endpoint(config.endpoint_strategy, request);
         if (endpoint >= 0 && endpoint != agent.loc &&
-            plan_path2_to_endpoint(agent, endpoint)) {
+            plan_path2_to_endpoint(agent, endpoint,
+                request.parking_endpoints_only,
+                request.exclude_all_open_goals)) {
             agent.last_endpoint = endpoint;
             continue;
         }
@@ -1001,8 +999,9 @@ void Simulation::assign_central_hungarian() {
 
     if ((int)candidate_endpoint_ids.size() < (int)agent_ids.size()) {
         for (int agent_id : agent_ids) {
-            int endpoint_location = choose_dummy_endpoint(
-                agent_id, agents[agent_id].loc, reserved_endpoints);
+            int endpoint_location = choose_dummy_endpoint(config.endpoint_strategy,
+                make_central_endpoint_request(
+                    agent_id, agents[agent_id].loc, reserved_endpoints));
             int endpoint_id = mapd_map.ep_index(endpoint_location);
             if (endpoint_id < 0)
                 throw runtime_error(
@@ -1410,9 +1409,13 @@ void Simulation::assign_repeated_hungarian() {
     // The old endpoints are encoded by the committed path tails; the event
     // flag only records that at least one task needs a retry.
     unordered_set<int> old_dummy_endpoints;
+    // NEAREST_AVAILABLE relaxes selection of the new dummy endpoint, but an
+    // endpoint held by the preceding committed plan remains occupied until its
+    // agent actually moves. Defer overlapping tasks under either PBS policy.
     const bool defer_old_dummy_conflicts =
         config.dummy_path &&
-        config.endpoint_strategy == NEAREST_WITH_STRICT_EXCLUSIONS;
+        (config.endpoint_strategy == NEAREST_WITH_STRICT_EXCLUSIONS ||
+         config.endpoint_strategy == NEAREST_AVAILABLE);
     if (defer_old_dummy_conflicts) {
         for (const auto& path : path_table_)
             if (!path.empty())
@@ -1848,17 +1851,124 @@ vector<vector<pair<int,int>>> Simulation::build_goal_sequences() {
         else                       free_agents.push_back(i);
     }
     for (int i : busy_agents) {
-        int dummy = choose_dummy_endpoint(i, goal_seqs[i].back().first, assigned_dummies);
+        int dummy = choose_dummy_endpoint(config.endpoint_strategy,
+            make_sequence_endpoint_request(
+            i, goal_seqs[i].back().first, assigned_dummies, true));
         assigned_dummies[i] = dummy;
         goal_seqs[i].push_back({dummy, 0});
     }
     for (int i : free_agents) {
-        int dummy = choose_dummy_endpoint(i, (int)agents[i].loc, assigned_dummies);
+        int dummy = choose_dummy_endpoint(config.endpoint_strategy,
+            make_sequence_endpoint_request(
+            i, (int)agents[i].loc, assigned_dummies, true));
         assigned_dummies[i] = dummy;
         goal_seqs[i].push_back({dummy, 0});
     }
 
     return goal_seqs;
+}
+
+DummyEndpointRequest Simulation::make_token_endpoint_request(
+    int agent_id, int reference_location,
+    bool check_committed_crossings) const {
+    DummyEndpointRequest request{agent_id, reference_location,
+        (int)agents[agent_id].loc, agents[agent_id].initial_loc, {}};
+    request.use_safe_relocation_search = true;
+    request.relocation_required = !mapd_map.is_endpoint[reference_location];
+    for (Task* task : open_tasks_)
+        for (int goal = 1; goal < (int)task->goals.size(); goal++)
+            if (task->goals[goal] == reference_location)
+                request.relocation_required = true;
+    if (check_committed_crossings)
+        for (unsigned int time = cur_time_;
+             time < maxtime && !request.relocation_required; time++)
+            for (int other = 0; other < (int)agents.size(); other++)
+                if (other != agent_id &&
+                    path_table_[other][time] ==
+                        (unsigned int)reference_location) {
+                    request.relocation_required = true;
+                    break;
+                }
+    return request;
+}
+
+DummyEndpointRequest Simulation::make_hbh_endpoint_request(
+    int agent_id, int reference_location) const {
+    DummyEndpointRequest request{agent_id, reference_location,
+        (int)agents[agent_id].loc, agents[agent_id].initial_loc, {}};
+    request.use_safe_relocation_search = true;
+    request.parking_endpoints_only =
+        config.endpoint_strategy == WAIT_OR_NEAREST_FREE_NONTASK;
+    request.exclude_all_open_goals = true;
+    request.relocation_required = !mapd_map.is_endpoint[reference_location];
+    for (Task* task : open_tasks_)
+        for (int goal : task->goals)
+            if (goal == reference_location)
+                request.relocation_required = true;
+    for (unsigned int time = cur_time_ + 1;
+         time < maxtime && !request.relocation_required; time++)
+        for (int other = 0; other < (int)agents.size(); other++)
+            if (other != agent_id &&
+                path_table_[other][time] ==
+                    (unsigned int)reference_location) {
+                request.relocation_required = true;
+                break;
+            }
+    return request;
+}
+
+DummyEndpointRequest Simulation::make_central_endpoint_request(
+    int agent_id, int reference_location,
+    const vector<int>& reserved_endpoints) const {
+    return {agent_id, reference_location, (int)agents[agent_id].loc,
+        agents[agent_id].initial_loc, reserved_endpoints};
+}
+
+DummyEndpointRequest Simulation::make_sequence_endpoint_request(
+    int agent_id, int reference_location,
+    const vector<int>& reserved_endpoints,
+    bool exclude_own_future_goals) const {
+    DummyEndpointRequest request{agent_id, reference_location,
+        (int)agents[agent_id].loc, agents[agent_id].initial_loc,
+        reserved_endpoints};
+    for (Task* task : open_tasks_)
+        for (int goal : task->goals)
+            request.forbidden_endpoints.insert(goal);
+    for (int other = 0; other < (int)agents.size(); other++) {
+        if (other == agent_id) continue;
+        for (int task_id : agents[other].task_sequence)
+            for (int goal : all_tasks[task_id].goals)
+                request.forbidden_endpoints.insert(goal);
+        request.forbidden_endpoints.insert(
+            (int)path_table_[other][maxtime - 1]);
+    }
+    if (exclude_own_future_goals)
+        for (int task_id : agents[agent_id].task_sequence)
+            for (int goal : all_tasks[task_id].goals)
+                if (goal != request.current_location)
+                    request.forbidden_endpoints.insert(goal);
+    return request;
+}
+
+DummyEndpointRequest Simulation::make_ta_endpoint_request(
+    int agent_id, int reference_location,
+    const vector<int>& reserved_endpoints, bool fixed_home_only) const {
+    DummyEndpointRequest request = make_sequence_endpoint_request(
+        agent_id, reference_location, reserved_endpoints, true);
+    if (fixed_home_only) {
+        request.candidate_endpoints = {request.home_location};
+    } else {
+        request.candidate_endpoints = {
+            request.current_location, request.home_location};
+    }
+    return request;
+}
+
+DummyEndpointRequest Simulation::make_pairwise_endpoint_request(
+    int agent_id, int reference_location,
+    const vector<int>& reserved_endpoints) const {
+    return {agent_id, reference_location, (int)agents[agent_id].loc,
+        agents[agent_id].initial_loc, reserved_endpoints};
 }
 
 // Unified endpoint/parking selector. In the loaded map, task endpoints have
@@ -1872,130 +1982,53 @@ vector<vector<pair<int,int>>> Simulation::build_goal_sequences() {
 //   * PBS/PP: nearest task or parking endpoint after strict exclusions;
 //   * wPBS: task endpoints first, then any pairwise-free parking endpoint.
 // Returning last_goal_loc means that no relocation path is required.
-int Simulation::choose_dummy_endpoint(int agent_id, int last_goal_loc,
-                                      const vector<int>& reserved_endpoints) {
-    const bool nearest_available_path2 =
-        config.endpoint_strategy == NEAREST_AVAILABLE &&
-        (config.assign_method == AM_DECOUPLED_GREEDY ||
-         config.assign_method == AM_DECOUPLED_GREEDY_SWAPS ||
-         config.assign_method == AM_CENTRALIZED_GREEDY);
-    if (config.endpoint_strategy == WAIT_OR_NEAREST_FREE_NONTASK ||
-        (nearest_available_path2 &&
-         config.assign_method == AM_CENTRALIZED_GREEDY)) {
+int Simulation::choose_dummy_endpoint(
+    EndpointStrategy strategy, const DummyEndpointRequest& request) {
+    const int agent_id = request.agent_id;
+    const int last_goal_loc = request.reference_location;
+    const vector<int>& reserved_endpoints = request.reserved_endpoints;
+    if (strategy == WAIT_OR_NEAREST_FREE_NONTASK) {
         // HBH Algorithm 2: wait unless this location is needed by an open
         // task. If it is, relocate to the nearest reachable endpoint that can
         // be held without colliding with another committed path. The native
         // HBH policy restricts the candidate to parking endpoints; the common
         // NEAREST_AVAILABLE override permits any otherwise-safe endpoint.
-        bool need_move = !mapd_map.is_endpoint[last_goal_loc];
-        for (Task* task : open_tasks_)
-            for (int goal_location : task->goals)
-                if (goal_location == last_goal_loc) {
-                    need_move = true;
-                    break;
-                }
-
-        // "Free endpoint" also means that no already committed path needs the
-        // cell in the future; otherwise replacing this agent's old path with a
-        // stationary wait could invalidate a path planned earlier.
-        for (unsigned int timestep = cur_time_ + 1;
-             timestep < maxtime && !need_move; timestep++)
-            for (int other = 0; other < (int)agents.size(); other++)
-                if (other != agent_id &&
-                    path_table_[other][timestep] ==
-                        (unsigned int)last_goal_loc) {
-                    need_move = true;
-                    break;
-                }
-        if (!need_move) return last_goal_loc;
+        if (!request.relocation_required) return last_goal_loc;
 
         Agent probe = agents[agent_id];
         probe.loc = last_goal_loc;
-        return search_path2_endpoint(probe, -1);
+        return search_path2_endpoint(
+            probe, -1, request.parking_endpoints_only,
+            request.exclude_all_open_goals);
     }
 
-    if (config.endpoint_strategy == WAIT_OR_NEAREST_SAFE ||
-        (nearest_available_path2 &&
-         config.assign_method != AM_CENTRALIZED_GREEDY)) {
+    if (strategy == WAIT_OR_NEAREST_SAFE ||
+        (strategy == NEAREST_AVAILABLE &&
+         request.use_safe_relocation_search)) {
         // TP/TPTS Path2 policy:
         //   * return the current endpoint when waiting there is safe;
         //   * otherwise choose the nearest reachable task/home endpoint that
         //     avoids open-task post-pickup goals and other agents' future paths.
-        bool need_move = !mapd_map.is_endpoint[last_goal_loc];
-
-        // TP and TPTS must vacate a location needed after pickup by an open
-        // task. Index 0 keeps the original pickup semantics; every later goal
-        // generalizes the original delivery-location Path2 condition.
-        for (Task* task : open_tasks_)
-            for (int goal_index = 1;
-                 goal_index < (int)task->goals.size(); goal_index++)
-                if (task->goals[goal_index] == last_goal_loc) {
-                    need_move = true;
-                    break;
-                }
-
-        // Algorithm 2 additionally moves a TPTS agent when another committed
-        // path will cross its current endpoint in the future.
-        if (config.assign_method == AM_DECOUPLED_GREEDY_SWAPS) {
-            for (unsigned int t = cur_time_; t < maxtime && !need_move; t++)
-                for (int other = 0; other < (int)agents.size(); other++)
-                    if (other != agent_id &&
-                        path_table_[other][t] ==
-                            (unsigned int)last_goal_loc) {
-                        need_move = true;
-                        break;
-                    }
-        }
-
-        if (!need_move) return last_goal_loc;
+        if (!request.relocation_required) return last_goal_loc;
 
         // Selection returns only the endpoint. Use a temporary agent because
         // the time-space BFS also reconstructs the route to determine the
         // nearest reachable safe endpoint; the real path is planned afterward.
         Agent probe = agents[agent_id];
         probe.loc = last_goal_loc;
-        return search_path2_endpoint(probe, -1);
+        return search_path2_endpoint(
+            probe, -1, request.parking_endpoints_only,
+            request.exclude_all_open_goals);
     }
 
-    if (config.endpoint_strategy == NEAREST_AVAILABLE) {
+    if (strategy == NEAREST_AVAILABLE) {
         // The caller supplies endpoints already selected in this planning
         // batch. CENTRAL additionally supplies occupied task goals and jointly
         // replans its free-agent batch, so its established behavior needs no
         // further exclusions here.
-        set<int> forbidden;
+        set<int> forbidden = request.forbidden_endpoints;
         for (int location : reserved_endpoints)
             if (location >= 0) forbidden.insert(location);
-
-        const bool offline_ta =
-            config.assign_method == AM_LKH3_TSP ||
-            config.assign_method == AM_LKH3_TSP_REASSIGN;
-        if (offline_ta) {
-            // TA planning treats every not-yet-planned agent's home as a
-            // permanent reservation. Its own home is therefore the only
-            // parking endpoint guaranteed to be available without changing
-            // the offline prioritized/hybrid planning invariant.
-            return agents[agent_id].initial_loc;
-        }
-
-        if (config.assign_method != AM_CENTRAL_HUNGARIAN) {
-            // Other families may plan sequentially or invoke Path2 for only one
-            // agent. In those contexts an endpoint is "available" only if it
-            // is not still required by an open task, assigned to another
-            // agent's pending task sequence, or permanently held by another
-            // committed path. The requesting agent's own completed task goals
-            // remain candidates, including its current delivery endpoint.
-            for (Task* task : open_tasks_)
-                for (int goal_location : task->goals)
-                    forbidden.insert(goal_location);
-
-            for (int other = 0; other < (int)agents.size(); other++) {
-                if (other == agent_id) continue;
-                for (int task_id : agents[other].task_sequence)
-                    for (int goal_location : all_tasks[task_id].goals)
-                        forbidden.insert(goal_location);
-                forbidden.insert((int)path_table_[other][maxtime - 1]);
-            }
-        }
 
         if (mapd_map.is_endpoint[last_goal_loc] &&
             !forbidden.count(last_goal_loc))
@@ -2004,9 +2037,16 @@ int Simulation::choose_dummy_endpoint(int agent_id, int last_goal_loc,
         int best_location = -1;
         int best_distance = INT_MAX;
         for (const Endpoint& endpoint : mapd_map.endpoints) {
+            if (!request.candidate_endpoints.empty() &&
+                find(request.candidate_endpoints.begin(),
+                     request.candidate_endpoints.end(), endpoint.loc) ==
+                    request.candidate_endpoints.end())
+                continue;
             if (forbidden.count(endpoint.loc)) continue;
             int distance = endpoint.h_val[last_goal_loc];
-            if (distance < best_distance) {
+            // Match the deterministic endpoint ordering used by the PBS-safe
+            // selector: the later endpoint wins equal-distance ties.
+            if (distance <= best_distance) {
                 best_distance = distance;
                 best_location = endpoint.loc;
             }
@@ -2014,7 +2054,7 @@ int Simulation::choose_dummy_endpoint(int agent_id, int last_goal_loc,
         return best_location;
     }
 
-    if (config.endpoint_strategy == PAIRWISE_TASK_THEN_HOME) {
+    if (strategy == PAIRWISE_TASK_THEN_HOME) {
         // wPBS policy: only the newly selected endpoints must be pairwise
         // distinct. Prefer task endpoints, then home endpoints, while skipping
         // the agent's current/last goal.
@@ -2054,32 +2094,19 @@ int Simulation::choose_dummy_endpoint(int agent_id, int last_goal_loc,
 
     // Offline fixed-parking policy: every agent returns to its own home parking
     // endpoint. This is intentionally not a search over other agents' homes.
-    if (config.endpoint_strategy == RETURN_TO_HOME)
-        return agents[agent_id].initial_loc;
+    if (strategy == RETURN_TO_HOME)
+        return request.home_location;
 
-    if (config.endpoint_strategy != NEAREST_WITH_STRICT_EXCLUSIONS)
+    if (strategy != NEAREST_WITH_STRICT_EXCLUSIONS)
         throw logic_error("unsupported endpoint strategy");
 
     // PBS/PP strict policy: new dummy endpoints must be distinct and must avoid
     // unfinished-task goals plus the old parking endpoints of other agents.
-    set<int> forbidden;
+    set<int> forbidden = request.forbidden_endpoints;
 
     for (int i = 0; i < (int)reserved_endpoints.size(); i++)
         if (i != agent_id && reserved_endpoints[i] >= 0)
             forbidden.insert(reserved_endpoints[i]);
-
-    for (auto it = open_tasks_.begin(); it != open_tasks_.end(); ++it)
-        for (int gloc : (*it)->goals) forbidden.insert(gloc);
-    for (auto& ag : agents)
-        for (int tid : ag.task_sequence)
-            for (int gloc : all_tasks[tid].goals) forbidden.insert(gloc);
-    // Other agents still physically occupy their OLD parking cell until they
-    // actually move, so those cells are blocked too — otherwise our goal
-    // could be permanently held by somebody else's committed path.
-    for (int i = 0; i < (int)agents.size(); i++) {
-        if (i == agent_id) continue;
-        forbidden.insert((int)path_table_[i][(int)maxtime - 1]);
-    }
 
     int best_loc = -1;
     int best_dist = INT_MAX;
@@ -2089,7 +2116,7 @@ int Simulation::choose_dummy_endpoint(int agent_id, int last_goal_loc,
         int d = mapd_map.endpoints[e].h_val[last_goal_loc];
         if (d <= best_dist) { best_dist = d; best_loc = loc; }
     }
-    if (best_loc < 0) best_loc = agents[agent_id].initial_loc;   // fall back home
+    if (best_loc < 0) best_loc = request.home_location;
     return best_loc;
 }
 
@@ -2468,7 +2495,9 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
             int goal = task.goals[probe.current_goal_index];
             int goal_endpoint = mapd_map.ep_index(goal);
             vector<int> reserved(agent_count, -1);
-            int parking = choose_dummy_endpoint(agent_id, goal, reserved);
+            int parking = choose_dummy_endpoint(config.endpoint_strategy,
+                make_ta_endpoint_request(
+                agent_id, goal, reserved, true));
             int parking_endpoint = mapd_map.ep_index(parking);
             if (goal_endpoint < 0 || parking_endpoint < 0)
                 throw runtime_error(
@@ -2485,6 +2514,22 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                     mapd_map.endpoints[goal_endpoint].h_val,
                     mapd_map.endpoints[parking_endpoint].h_val,
                     fixed_paths, 0, false, constraints);
+            if (arrival < 0 &&
+                parking != agents[agent_id].initial_loc) {
+                parking = agents[agent_id].initial_loc;
+                parking_endpoint = mapd_map.ep_index(parking);
+                arrival = astar_with_dummy(
+                    probe, probe.loc, now, goal, parking,
+                    mapd_map.endpoints[goal_endpoint].h_val,
+                    mapd_map.endpoints[parking_endpoint].h_val,
+                    fixed_paths, 0, true, constraints);
+                if (arrival < 0)
+                    arrival = astar_with_dummy(
+                        probe, probe.loc, now, goal, parking,
+                        mapd_map.endpoints[goal_endpoint].h_val,
+                        mapd_map.endpoints[parking_endpoint].h_val,
+                        fixed_paths, 0, false, constraints);
+            }
             if (arrival < 0) return -1;
             path.assign(probe.path.begin(), probe.path.end());
             return arrival;
@@ -2859,8 +2904,9 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                 int pickup = task.goals.front();
                 int pickup_endpoint = mapd_map.ep_index(pickup);
                 vector<int> reserved(agent_count, -1);
-                int parking = choose_dummy_endpoint(
-                    agent_id, pickup, reserved);
+                int parking = choose_dummy_endpoint(config.endpoint_strategy,
+                    make_ta_endpoint_request(
+                    agent_id, pickup, reserved, true));
                 int parking_endpoint = mapd_map.ep_index(parking);
                 if (pickup_endpoint < 0 || parking_endpoint < 0)
                     throw runtime_error(
@@ -2890,6 +2936,17 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                         mapd_map.endpoints[pickup_endpoint].h_val,
                         mapd_map.endpoints[parking_endpoint].h_val,
                         constraints, task.release_time, false);
+                    if (result < 0 &&
+                        parking != agents[agent_id].initial_loc) {
+                        parking = agents[agent_id].initial_loc;
+                        parking_endpoint = mapd_map.ep_index(parking);
+                        result = astar_with_dummy(
+                            agents[agent_id], agents[agent_id].loc, now,
+                            pickup, parking,
+                            mapd_map.endpoints[pickup_endpoint].h_val,
+                            mapd_map.endpoints[parking_endpoint].h_val,
+                            constraints, task.release_time, false);
+                    }
                     if (result >= 0) {
                         arrival[agent_id] = result;
                         continue;
@@ -2926,8 +2983,9 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                 int pickup = task.goals.front();
                 int pickup_endpoint = mapd_map.ep_index(pickup);
                 vector<int> reserved(agent_count, -1);
-                int parking = choose_dummy_endpoint(
-                    agent_id, pickup, reserved);
+                int parking = choose_dummy_endpoint(config.endpoint_strategy,
+                    make_ta_endpoint_request(
+                    agent_id, pickup, reserved, true));
                 int parking_endpoint = mapd_map.ep_index(parking);
 
                 vector<vector<int>> constraints = fixed_paths;
@@ -2944,6 +3002,16 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                     mapd_map.endpoints[pickup_endpoint].h_val,
                     mapd_map.endpoints[parking_endpoint].h_val,
                     constraints, task.release_time, false);
+                if (result < 0 &&
+                    parking != agents[agent_id].initial_loc) {
+                    parking = agents[agent_id].initial_loc;
+                    parking_endpoint = mapd_map.ep_index(parking);
+                    result = astar_with_dummy(
+                        probe, probe.loc, now, pickup, parking,
+                        mapd_map.endpoints[pickup_endpoint].h_val,
+                        mapd_map.endpoints[parking_endpoint].h_val,
+                        constraints, task.release_time, false);
+                }
                 if (result < 0) {
                     failed_agent = agent_id;
                     dummy_success = false;
@@ -3032,8 +3100,9 @@ void Simulation::path_planning_pp_task_sequence() {
         }
 
         int parking = config.dummy_path
-            ? choose_dummy_endpoint(
-                agent_id, final_goal, selected_endpoints)
+            ? choose_dummy_endpoint(config.endpoint_strategy,
+                make_ta_endpoint_request(
+                agent_id, final_goal, selected_endpoints, false))
             : final_goal;
         int parking_endpoint = mapd_map.ep_index(parking);
         if (parking_endpoint < 0)
@@ -3158,11 +3227,12 @@ void Simulation::path_planning_pp_task_sequence() {
         selected[best_agent] = true;
         selected_agents.push_back(best_agent);
         selected_endpoints[best_agent] = choose_dummy_endpoint(
-            best_agent,
+            config.endpoint_strategy,
+            make_ta_endpoint_request(best_agent,
             agents[best_agent].task_sequence.empty()
                 ? (int)agents[best_agent].loc
                 : all_tasks[agents[best_agent].task_sequence.back()].goals.back(),
-            selected_endpoints);
+            selected_endpoints, false));
 
         for (const PlannedTaskTime& timing : best_plan.task_times) {
             Task& task = all_tasks[timing.task_id];
@@ -3417,7 +3487,9 @@ void Simulation::path_planning_pp_per_task() {
 
         int last_goal = goals.empty() ? (int)agent.loc : goals.back().first;
         if (config.dummy_path) {
-            int dummy = choose_dummy_endpoint(agent_id, last_goal, assigned_dummies);
+            int dummy = choose_dummy_endpoint(config.endpoint_strategy,
+                make_sequence_endpoint_request(
+                agent_id, last_goal, assigned_dummies, true));
             assigned_dummies[agent_id] = dummy;
             goals.push_back({dummy, 0});
         } else if (goals.empty()) {
@@ -4234,21 +4306,9 @@ pair<int,int> Simulation::plan_task_sipp(Agent& agent, Task& task,
     return {first_goal_time, final_goal_time};
 }
 
-int Simulation::search_path2_endpoint(Agent& agent, int target_endpoint_loc) {
-    const bool hbh_non_task_policy =
-        config.endpoint_strategy == WAIT_OR_NEAREST_FREE_NONTASK;
-    const bool hbh_open_goal_policy =
-        hbh_non_task_policy ||
-        (config.endpoint_strategy == NEAREST_AVAILABLE &&
-         config.assign_method == AM_CENTRALIZED_GREEDY);
-    if (target_endpoint_loc < 0 &&
-        config.endpoint_strategy != NEAREST_AVAILABLE &&
-        config.endpoint_strategy != WAIT_OR_NEAREST_SAFE &&
-        !hbh_non_task_policy) {
-        throw logic_error(
-            "automatic Path2 endpoint search requires a wait-or-relocate "
-            "endpoint strategy");
-    }
+int Simulation::search_path2_endpoint(
+    Agent& agent, int target_endpoint_loc,
+    bool parking_endpoints_only, bool exclude_all_open_goals) {
 
     queue<SearchNode*> open;
     map<unsigned int, SearchNode*> nodes;
@@ -4275,7 +4335,7 @@ int Simulation::search_path2_endpoint(Agent& agent, int target_endpoint_loc) {
             target_endpoint_loc < 0 && current->loc == agent.loc;
         int endpoint_id = mapd_map.ep_index(current->loc);
         bool endpoint_type_allowed = endpoint_id >= 0 &&
-            (!hbh_non_task_policy ||
+            (!parking_endpoints_only ||
              !mapd_map.endpoints[endpoint_id].is_task_endpoint);
         if (endpoint_type_allowed && !selecting_origin &&
             (target_endpoint_loc < 0 || current->loc == target_endpoint_loc)) {
@@ -4289,7 +4349,7 @@ int Simulation::search_path2_endpoint(Agent& agent, int target_endpoint_loc) {
                         occupied = true;
                         break;
                     }
-            if (hbh_open_goal_policy) {
+            if (exclude_all_open_goals) {
                 // HBH must not relocate onto any goal of an open task.
                 for (Task* task : open_tasks_)
                     for (int goal_location : task->goals)
@@ -4336,8 +4396,12 @@ int Simulation::search_path2_endpoint(Agent& agent, int target_endpoint_loc) {
     return -1;
 }
 
-bool Simulation::plan_path2_to_endpoint(Agent& agent, int endpoint_loc) {
-    if (search_path2_endpoint(agent, endpoint_loc) != endpoint_loc)
+bool Simulation::plan_path2_to_endpoint(
+    Agent& agent, int endpoint_loc,
+    bool parking_endpoints_only, bool exclude_all_open_goals) {
+    if (search_path2_endpoint(
+            agent, endpoint_loc, parking_endpoints_only,
+            exclude_all_open_goals) != endpoint_loc)
         return false;
 
     for (unsigned int t = cur_time_; t < path_table_[agent.id].size(); t++)
@@ -6618,16 +6682,18 @@ void Simulation::wpbs_windowed_solve_impl() {
         for (int i = 0; i < num_ag; i++) {
             if (goal_seqs[i].empty()) continue;
             int last_loc = goal_seqs[i].back().first;
-            int dummy = choose_dummy_endpoint(
-                i, last_loc, assigned_dummies);
+            int dummy = choose_dummy_endpoint(config.endpoint_strategy,
+                make_pairwise_endpoint_request(
+                i, last_loc, assigned_dummies));
             goal_seqs[i].push_back({dummy, 0});
             assigned_dummies[i] = dummy;
         }
         for (int i = 0; i < num_ag; i++) {
             if (!goal_seqs[i].empty()) continue;
             int last_loc = start_locs[i];
-            int dummy = choose_dummy_endpoint(
-                i, last_loc, assigned_dummies);
+            int dummy = choose_dummy_endpoint(config.endpoint_strategy,
+                make_pairwise_endpoint_request(
+                i, last_loc, assigned_dummies));
             goal_seqs[i].push_back({dummy, 0});
             assigned_dummies[i] = dummy;
         }
