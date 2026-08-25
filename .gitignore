@@ -2,12 +2,11 @@
 # unless explicitly required to build, test, or reproduce the paper matrix.
 /*
 
-# Root build, documentation, executable source, and reviewed workbook.
+# Root build, documentation, executable source.
 !/.gitignore
 !/Makefile
 !/README.md
 !/driver.cpp
-!/all_paper_algorithms_comparison_2026-08-24.xlsx
 !/output/
 /output/*
 !/output/all_paper_algorithms_comparison_2026-08-24.xlsx
