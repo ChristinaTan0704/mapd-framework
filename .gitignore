@@ -8,6 +8,9 @@
 !/README.md
 !/driver.cpp
 !/all_paper_algorithms_comparison_2026-08-24.xlsx
+!/output/
+/output/*
+!/output/all_paper_algorithms_comparison_2026-08-24.xlsx
 
 # Active headers only.
 !/inc/

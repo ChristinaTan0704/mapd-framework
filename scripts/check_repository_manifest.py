@@ -17,6 +17,7 @@ REQUIRED = {
     "Makefile",
     "README.md",
     "all_paper_algorithms_comparison_2026-08-24.xlsx",
+    "output/all_paper_algorithms_comparison_2026-08-24.xlsx",
     "driver.cpp",
     "history/2026-08-24_linux_server_handover.md",
     "inc/cbs.h",
@@ -44,11 +45,14 @@ BENCHMARKS = {
 BENCHMARK_FREQUENCIES = (
     "0.2", "0.5", "1", "2", "5", "10", "50", "100", "500", "all",
 )
+EXTRA_BENCHMARK_FREQUENCIES = {
+    "structured_medium": ("20",),
+    "structured_large": ("4", "20", "40", "200"),
+}
 
 REQUIRED.update({
     "benchmark_instances/README.md",
     "benchmark_instances/PAPER_COMPLETENESS_AUDIT.md",
-    "benchmark_instances/SHA256SUMS",
     "benchmark_instances/lkh_tours/README.md",
     "benchmark_instances/lkh_tours/SHA256SUMS",
     "benchmark_instances/lkh_tours/manifest.csv",
@@ -83,7 +87,9 @@ for benchmark, agent_counts in BENCHMARKS.items():
         REQUIRED.add(
             "benchmark_instances/lkh_tours/"
             f"benchmark_{benchmark}_a{agents}_fall.tour")
-        for frequency in BENCHMARK_FREQUENCIES:
+        frequencies = (BENCHMARK_FREQUENCIES +
+                       EXTRA_BENCHMARK_FREQUENCIES.get(benchmark, ()))
+        for frequency in frequencies:
             REQUIRED.add(
                 "benchmark_instances/tasks/"
                 f"benchmark_{benchmark}_a{agents}_f{frequency}.task")
@@ -124,12 +130,18 @@ def main() -> int:
         for path in unexpected:
             print(f"  {path}", file=sys.stderr)
 
-    workbook = ROOT / "all_paper_algorithms_comparison_2026-08-24.xlsx"
-    workbook_valid = workbook.is_file() and zipfile.is_zipfile(workbook)
-    if not workbook_valid:
+    workbooks = (
+        ROOT / "all_paper_algorithms_comparison_2026-08-24.xlsx",
+        ROOT / "output" / "all_paper_algorithms_comparison_2026-08-24.xlsx",
+    )
+    invalid_workbooks = [
+        workbook for workbook in workbooks
+        if not workbook.is_file() or not zipfile.is_zipfile(workbook)
+    ]
+    for workbook in invalid_workbooks:
         print(f"Invalid or missing workbook: {workbook}", file=sys.stderr)
 
-    if missing or unexpected or not workbook_valid:
+    if missing or unexpected or invalid_workbooks:
         return 1
 
     print(f"Repository manifest passed: {len(tracked)} approved files.")

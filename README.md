@@ -4,8 +4,10 @@ This repository contains the current implementations and benchmark inputs for
 TP/TPTS, CENTRAL, HBH, TA, Hungarian, and LNS-based MAPD algorithms.
 
 The reviewed result workbook is
-`all_paper_algorithms_comparison_2026-08-24.xlsx`. Other generated spreadsheets
-and CSV files are intentionally excluded by `.gitignore`.
+`all_paper_algorithms_comparison_2026-08-24.xlsx`. A second tracked copy is
+available at `output/all_paper_algorithms_comparison_2026-08-24.xlsx` for
+output collection. Other generated spreadsheets and CSV files are
+intentionally excluded by `.gitignore`.
 
 ## Linux server setup
 
