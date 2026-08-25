@@ -4,9 +4,42 @@
 #include <deque>
 #include <string>
 #include <climits>
+#include <chrono>
+#include <cstdint>
 #include <iostream>
 
 using namespace std;
+
+// Process-wide source for stable search-node tie keys. A key is sampled once
+// when a node is created and remains immutable; sampling inside a heap
+// comparator would make its ordering non-transitive and corrupt the heap.
+class RandomTieBreaker {
+public:
+    static void seed(int configured_seed) {
+        if (configured_seed >= 0) {
+            state() = static_cast<uint64_t>(configured_seed);
+        } else {
+            const auto now = chrono::high_resolution_clock::now()
+                                 .time_since_epoch().count();
+            state() = static_cast<uint64_t>(now);
+        }
+    }
+
+    // SplitMix64 is inexpensive enough for every generated search node while
+    // still providing well-distributed, reproducible priority keys.
+    static uint64_t next() {
+        uint64_t value = (state() += UINT64_C(0x9e3779b97f4a7c15));
+        value = (value ^ (value >> 30)) * UINT64_C(0xbf58476d1ce4e5b9);
+        value = (value ^ (value >> 27)) * UINT64_C(0x94d049bb133111eb);
+        return value ^ (value >> 31);
+    }
+
+private:
+    static uint64_t& state() {
+        static uint64_t instance = 0;
+        return instance;
+    }
+};
 
 // Forward declarations
 struct Task;

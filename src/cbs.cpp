@@ -6,15 +6,16 @@
 // ============================================================
 
 LLNode::LLNode(int l, double g, double h, LLNode* p, int t, int c, bool io)
-    : loc(l), g_val(g), h_val(h), parent(p), timestep(t),
-      num_internal_conf(c), in_openlist(io) {}
+    : loc(l), timestep(t), g_val(g), h_val(h), num_internal_conf(c),
+      tie_breaker(RandomTieBreaker::next()), parent(p), in_openlist(io) {}
 
 // ============================================================
 // HLNode constructor
 // ============================================================
 
 HLNode::HLNode() : agent_id(-1), g_val(0), h_val(0), sum_min_f_vals(0),
-                   ll_min_f_val(0), path_cost(0), parent(nullptr),
+                   ll_min_f_val(0), path_cost(0),
+                   tie_breaker(RandomTieBreaker::next()), parent(nullptr),
                    time_generated(0), time_expanded(0) {}
 
 // ============================================================

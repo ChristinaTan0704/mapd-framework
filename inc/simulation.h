@@ -53,14 +53,17 @@ struct SearchNode {
     int g_val;
     int h_val;
     int timestep;
+    std::uint64_t tie_breaker;
     SearchNode* parent;
     bool in_openlist;
 
     SearchNode(int location, int g, int h, SearchNode* previous, int time)
         : loc(location), g_val(g), h_val(h), timestep(time),
+          tie_breaker(RandomTieBreaker::next()),
           parent(previous), in_openlist(true) {}
     SearchNode(int location, int g, SearchNode* previous, int time)
         : loc(location), g_val(g), h_val(0), timestep(time),
+          tie_breaker(RandomTieBreaker::next()),
           parent(previous), in_openlist(true) {}
     int getFVal() const { return g_val + h_val; }
 };
@@ -69,7 +72,9 @@ struct CompareNode {
     bool operator()(const SearchNode* lhs, const SearchNode* rhs) const {
         if (lhs->getFVal() != rhs->getFVal())
             return lhs->getFVal() > rhs->getFVal();
-        return lhs->g_val <= rhs->g_val;
+        if (lhs->g_val != rhs->g_val)
+            return lhs->g_val < rhs->g_val;
+        return lhs->tie_breaker > rhs->tie_breaker;
     }
 };
 

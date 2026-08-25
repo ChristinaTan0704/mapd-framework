@@ -71,8 +71,8 @@ struct MAPDConfig {
     // Whether to append a post-delivery path to the selected endpoint. The
     // endpoint may equal the delivery location, yielding a zero-length dummy.
     bool dummy_path;
-    // General RNG seed for randomized framework components. Currently consumed
-    // by LNS; >=0 is deterministic and <0 uses time(NULL).
+    // General RNG seed for randomized framework components: LNS and search-node
+    // f/g tie-breaking. >=0 is deterministic and <0 is time-based.
     int seed;
     EndpointStrategy endpoint_strategy; // endpoint/parking selection axis
 

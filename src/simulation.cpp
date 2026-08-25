@@ -59,6 +59,7 @@
 void Simulation::init(const string& map_file, const string& task_file,
                       const MAPDConfig& cfg, const string& tour_file) {
     config = cfg;
+    RandomTieBreaker::seed(config.seed);
     tour_file_ = tour_file;
 
     // --- instance ---
@@ -840,16 +841,19 @@ int Simulation::central_path_cost(
     if (endpoint_index < 0) return map_size;
     const Endpoint& goal = mapd_map.endpoints[endpoint_index];
 
-    struct CostNode { int loc, g, f, time; };
+    struct CostNode { int loc, g, f, time; uint64_t tie_breaker; };
     auto compare = [](const CostNode& lhs, const CostNode& rhs) {
-        return lhs.f > rhs.f;
+        if (lhs.f != rhs.f) return lhs.f > rhs.f;
+        if (lhs.g != rhs.g) return lhs.g < rhs.g;
+        return lhs.tie_breaker > rhs.tie_breaker;
     };
     priority_queue<CostNode, vector<CostNode>, decltype(compare)> open(compare);
     visited.clear();
 
     int initial_h = goal.h_val[start_loc];
     if (initial_h == INT_MAX) return map_size;
-    open.push({start_loc, 0, initial_h, start_time});
+    open.push({start_loc, 0, initial_h, start_time,
+               RandomTieBreaker::next()});
 
     const int max_time = (int)maxtime - 1;
     const int actions[5] = {0, -mapd_map.col, 1, mapd_map.col, -1};
@@ -911,7 +915,8 @@ int Simulation::central_path_cost(
 
             int h = goal.h_val[next_loc];
             if (h == INT_MAX) continue;
-            open.push({next_loc, current.g + 1, current.g + 1 + h, next_time});
+            open.push({next_loc, current.g + 1, current.g + 1 + h, next_time,
+                       RandomTieBreaker::next()});
         }
     }
     return map_size;
@@ -3159,11 +3164,13 @@ struct TADummyNode {
     TADummyNode* parent;
     bool visited_goal;
     int goal_length;
+    uint64_t tie_breaker;
 
     TADummyNode(int loc, int cost, int heuristic, int time,
                 TADummyNode* previous, bool visited, int length)
         : location(loc), g(cost), h(heuristic), timestep(time),
-          parent(previous), visited_goal(visited), goal_length(length) {}
+          parent(previous), visited_goal(visited), goal_length(length),
+          tie_breaker(RandomTieBreaker::next()) {}
 
     int f() const { return g + h; }
 };
@@ -3171,7 +3178,8 @@ struct TADummyNode {
 struct CompareTADummyNode {
     bool operator()(const TADummyNode* lhs, const TADummyNode* rhs) const {
         if (lhs->f() != rhs->f()) return lhs->f() > rhs->f();
-        return lhs->g <= rhs->g;
+        if (lhs->g != rhs->g) return lhs->g < rhs->g;
+        return lhs->tie_breaker > rhs->tie_breaker;
     }
 };
 }
@@ -4312,10 +4320,12 @@ struct MLANode {
     int h_val;
     int timestep;
     int goal_id;
+    uint64_t tie_breaker;
     MLANode* parent;
 
     MLANode(int l, int g, int h, int t, int gi, MLANode* p)
-        : loc(l), g_val(g), h_val(h), timestep(t), goal_id(gi), parent(p) {}
+        : loc(l), g_val(g), h_val(h), timestep(t), goal_id(gi),
+          tie_breaker(RandomTieBreaker::next()), parent(p) {}
     int getFVal() const { return g_val + h_val; }
 };
 
@@ -4323,7 +4333,8 @@ struct CompareMLANode {
     bool operator()(const MLANode* a, const MLANode* b) const {
         if (a->getFVal() != b->getFVal()) return a->getFVal() > b->getFVal();
         if (a->goal_id != b->goal_id) return a->goal_id < b->goal_id;   // prefer progress
-        return a->g_val <= b->g_val;
+        if (a->g_val != b->g_val) return a->g_val < b->g_val;
+        return a->tie_breaker > b->tie_breaker;
     }
 };
 
@@ -5051,6 +5062,7 @@ vector<int> Simulation::sipp_search_impl(
         int timestep;
         int goal_id;
         int interval;
+        uint64_t tie_breaker;
         SIPPNode* parent;
 
         int f() const { return g + h; }
@@ -5058,7 +5070,8 @@ vector<int> Simulation::sipp_search_impl(
     struct CompareSIPPNode {
         bool operator()(const SIPPNode* a, const SIPPNode* b) const {
             if (a->f() != b->f()) return a->f() > b->f();
-            return a->g <= b->g;
+            if (a->g != b->g) return a->g < b->g;
+            return a->tie_breaker > b->tie_breaker;
         }
     };
     struct SIPPKeyHash {
@@ -5093,7 +5106,8 @@ vector<int> Simulation::sipp_search_impl(
     }
 
     SIPPNode* root = new SIPPNode{
-        start_loc, 0, initial_h, start_time, 0, start_interval, nullptr};
+        start_loc, 0, initial_h, start_time, 0, start_interval,
+        RandomTieBreaker::next(), nullptr};
     open.push(root);
     nodes.push_back(root);
     best_arrival[state_key(start_loc, start_interval, 0)] = 0;
@@ -5154,7 +5168,8 @@ vector<int> Simulation::sipp_search_impl(
 
                 best_arrival[key] = g;
                 SIPPNode* node = new SIPPNode{
-                    next_loc, g, h, arrival, next_goal_id, interval, current};
+                    next_loc, g, h, arrival, next_goal_id, interval,
+                    RandomTieBreaker::next(), current};
                 open.push(node);
                 nodes.push_back(node);
             };
@@ -5207,7 +5222,7 @@ vector<int> Simulation::sipp_search_impl(
                         best_arrival[key] = g;
                         SIPPNode* node = new SIPPNode{
                             current->loc, g, h, arrival, next_goal_id,
-                            next_interval, current};
+                            next_interval, RandomTieBreaker::next(), current};
                         open.push(node);
                         nodes.push_back(node);
                     }
@@ -5601,30 +5616,35 @@ public:
     int goal_id;
     int goal_length;
     bool vis_goal;
+    uint64_t tie_breaker;
 
     struct compare_node {
         bool operator()(const WStateTimeAStarNode* n1, const WStateTimeAStarNode* n2) const {
-            if (n1->g_val + n1->h_val == n2->g_val + n2->h_val)
-                return n1->g_val <= n2->g_val;
-            return n1->g_val + n1->h_val >= n2->g_val + n2->h_val;
+            if (n1->getFVal() != n2->getFVal())
+                return n1->getFVal() > n2->getFVal();
+            if (n1->g_val != n2->g_val) return n1->g_val < n2->g_val;
+            return n1->tie_breaker > n2->tie_breaker;
         }
     };
     struct secondary_compare_node {
         bool operator()(const WStateTimeAStarNode* n1, const WStateTimeAStarNode* n2) const {
             if (n1->conflicts == n2->conflicts) {
-                if (n1->goal_id == n2->goal_id)
-                    return n1->g_val <= n2->g_val;
-                return n1->goal_id <= n2->goal_id;
+                if (n1->goal_id == n2->goal_id) {
+                    if (n1->g_val != n2->g_val)
+                        return n1->g_val < n2->g_val;
+                    return n1->tie_breaker > n2->tie_breaker;
+                }
+                return n1->goal_id < n2->goal_id;
             }
-            return n1->conflicts >= n2->conflicts;
+            return n1->conflicts > n2->conflicts;
         }
     };
     fibonacci_heap<WStateTimeAStarNode*, compare<WStateTimeAStarNode::compare_node> >::handle_type open_handle;
     fibonacci_heap<WStateTimeAStarNode*, compare<WStateTimeAStarNode::secondary_compare_node> >::handle_type focal_handle;
 
-    WStateTimeAStarNode() : g_val(0), h_val(0), parent(nullptr), conflicts(0), depth(0), in_openlist(false), visit_goal_time(0), goal_id(0), vis_goal(false) {}
+    WStateTimeAStarNode() : g_val(0), h_val(0), parent(nullptr), conflicts(0), depth(0), in_openlist(false), visit_goal_time(0), goal_id(0), vis_goal(false), tie_breaker(RandomTieBreaker::next()) {}
     WStateTimeAStarNode(const WState& state, double g_val, double h_val, WStateTimeAStarNode* parent, int conflicts) :
-        state(state), g_val(g_val), h_val(h_val), parent(parent), conflicts(conflicts), in_openlist(false) {
+        state(state), g_val(g_val), h_val(h_val), parent(parent), conflicts(conflicts), in_openlist(false), tie_breaker(RandomTieBreaker::next()) {
         if (parent != nullptr) {
             depth = parent->depth + 1;
             goal_id = parent->goal_id;
@@ -5813,6 +5833,7 @@ private:
     struct SN {
         int loc, iv, goal_id, r;   // r == relative timestep == g_val (unit costs)
         double h;
+        uint64_t tie_breaker;
         SN* parent;
         double f() const { return (double)r + h; }
     };
@@ -5823,11 +5844,7 @@ private:
             if (a->f() != b->f()) return a->f() > b->f();      // larger f  -> worse
             if (a->goal_id != b->goal_id) return a->goal_id < b->goal_id; // lower goal_id -> worse
             if (a->r != b->r) return a->r < b->r;              // lower g   -> worse
-            // Final deterministic tie-break among otherwise-identical nodes.  WStateTimeAStar
-            // leaves this to fibonacci-heap internals; empirically preferring the smaller cell
-            // index tracks the MLA* low-level's committed windows most closely (all wPBS-MLSIPP
-            // cells then land within the +-2% band of their wPBS-MLA* counterparts).
-            return a->loc > b->loc;                            // smaller loc -> better (on top)
+            return a->tie_breaker > b->tie_breaker;
         }
     };
 };
@@ -5889,7 +5906,8 @@ WPath WSippSearch::run(WGraph& G, const WState& start,
         return ((uint64_t)(uint32_t)loc << 32) | ((uint64_t)(gi & 0xFFFF) << 16) | (uint32_t)(r & 0xFFFF);
     };
     auto push = [&](int loc, int iv, int gi, int r, double h) {
-        SN* nd = new SN{loc, iv, gi, r, h, nullptr};
+        SN* nd = new SN{loc, iv, gi, r, h,
+                        RandomTieBreaker::next(), nullptr};
         arena.push_back(nd);
         return nd;
     };
@@ -5987,9 +6005,11 @@ public:
     int earliest_collision;
     uint64_t time_expanded;
     uint64_t time_generated;
+    uint64_t tie_breaker;
     void clear() { conflicts.clear(); priorities.clear(); }
     WPBSNode() : parent(nullptr), g_val(0), h_val(0), f_val(0), depth(0), makespan(0),
-        num_of_collisions(0), earliest_collision(INT_MAX), time_expanded(0), time_generated(0) {}
+        num_of_collisions(0), earliest_collision(INT_MAX), time_expanded(0),
+        time_generated(0), tie_breaker(RandomTieBreaker::next()) {}
 };
 
 // ------------------------------------------------------------------ WPBS
@@ -6358,8 +6378,13 @@ bool WPBS::run(const vector<WState>& starts_,
 
         if (!solution_found) {
             if (n[0] != nullptr && n[1] != nullptr) {
-                if (n[0]->f_val < n[1]->f_val ||
-                    (n[0]->f_val == n[1]->f_val && n[0]->num_of_collisions < n[1]->num_of_collisions))
+                const bool first_is_better =
+                    n[0]->f_val < n[1]->f_val ||
+                    (n[0]->f_val == n[1]->f_val &&
+                     (n[0]->num_of_collisions < n[1]->num_of_collisions ||
+                      (n[0]->num_of_collisions == n[1]->num_of_collisions &&
+                       n[0]->tie_breaker < n[1]->tie_breaker)));
+                if (first_is_better)
                 { push_node(n[1]); push_node(n[0]); }
                 else { push_node(n[0]); push_node(n[1]); }
             }

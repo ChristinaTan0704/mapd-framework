@@ -13,6 +13,7 @@ struct LLNode {
     int loc, timestep;
     double g_val, h_val;
     int num_internal_conf;
+    std::uint64_t tie_breaker;
     LLNode* parent;
     bool in_openlist;
 
@@ -21,17 +22,19 @@ struct LLNode {
     struct CompareOpen {
         bool operator()(const LLNode* a, const LLNode* b) const {
             if (a->getFVal() != b->getFVal()) return a->getFVal() > b->getFVal();
-            return a->g_val <= b->g_val;
+            if (a->g_val != b->g_val) return a->g_val < b->g_val;
+            return a->tie_breaker > b->tie_breaker;
         }
     };
     struct CompareFocal {
         bool operator()(const LLNode* a, const LLNode* b) const {
             if (a->num_internal_conf == b->num_internal_conf) {
-                if (a->getFVal() == b->getFVal())
-                    return a->g_val <= b->g_val;
-                return a->getFVal() >= b->getFVal();
+                if (a->getFVal() != b->getFVal())
+                    return a->getFVal() > b->getFVal();
+                if (a->g_val != b->g_val) return a->g_val < b->g_val;
+                return a->tie_breaker > b->tie_breaker;
             }
-            return a->num_internal_conf >= b->num_internal_conf;
+            return a->num_internal_conf > b->num_internal_conf;
         }
     };
 
@@ -91,19 +94,24 @@ struct HLNode {
     double sum_min_f_vals;
     double ll_min_f_val;
     double path_cost;
+    std::uint64_t tie_breaker;
     HLNode* parent;
     int time_generated;
     int time_expanded;
 
     struct CompareOpen {
         bool operator()(const HLNode* a, const HLNode* b) const {
-            return a->sum_min_f_vals >= b->sum_min_f_vals;
+            if (a->sum_min_f_vals != b->sum_min_f_vals)
+                return a->sum_min_f_vals > b->sum_min_f_vals;
+            if (a->g_val != b->g_val) return a->g_val > b->g_val;
+            return a->tie_breaker > b->tie_breaker;
         }
     };
     struct CompareFocal {
         bool operator()(const HLNode* a, const HLNode* b) const {
-            if (a->h_val == b->h_val) return a->g_val >= b->g_val;
-            return a->h_val >= b->h_val;
+            if (a->h_val != b->h_val) return a->h_val > b->h_val;
+            if (a->g_val != b->g_val) return a->g_val > b->g_val;
+            return a->tie_breaker > b->tie_breaker;
         }
     };
 

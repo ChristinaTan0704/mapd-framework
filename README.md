@@ -43,8 +43,10 @@ rules.
 
 ## Reproducibility gate
 
-Always use seed `0` when comparing machines. A negative seed selects the
-current time and is intentionally non-reproducible. First run the smoke matrix:
+Always use seed `0` when comparing machines. The seed controls both LNS and
+randomized search-node ties after all normal queue criteria (including equal
+`f` and `g`) match. A negative seed selects the current time and is
+intentionally non-reproducible. First run the smoke matrix:
 
 ```bash
 python3 scripts/run_server_matrix.py \
@@ -73,16 +75,16 @@ Representative seed-0 baselines are:
 
 | Method | Setup | Makespan | SWT |
 |---|---:|---:|---:|
-| TP-STA* | 10 / 0.2 | 2532 | 19417 |
-| TPTS-STA* | 10 / 0.2 | 2532 | 14666 |
-| CENTRAL-CBS | 10 / 0.2 | 2513 | 14039 |
-| HBH+MLA* | 10 / 0.2 | 2532 | 14728 |
-| Hungarian+PBS-MLA* | 10 / 0.2 | 2514 | 13925 |
-| Hungarian+wPBS-MLA* | 10 / 0.2 | 2514 | 13722 |
-| LNS(1s)+PBS-MLA* | 10 / 0.2 | 2514 | 13927 |
-| LNS(1s)+wPBS-MLA* | 10 / 0.2 | 2513 | 13620 |
-| TA-Prioritized-STA* | 10 / offline | 1052 | 263486 |
-| TA-Hybrid-STA* | 10 / offline | 1053 | 264939 |
+| TP-STA* | 10 / 0.2 | 2541 | 19680 |
+| TPTS-STA* | 10 / 0.2 | 2530 | 14454 |
+| CENTRAL-CBS | 10 / 0.2 | 2514 | 14056 |
+| HBH+MLA* | 10 / 0.2 | 2532 | 14611 |
+| Hungarian+PBS-MLA* | 10 / 0.2 | 2514 | 13814 |
+| Hungarian+wPBS-MLA* | 10 / 0.2 | 2512 | 13743 |
+| LNS(1s)+PBS-MLA* | 10 / 0.2 | 2514 | 13738 |
+| LNS(1s)+wPBS-MLA* | 10 / 0.2 | 2513 | 13622 |
+| TA-Prioritized-STA* | 10 / offline | 1049 | 263420 |
+| TA-Hybrid-STA* | 10 / offline | 1055 | 263846 |
 
 The runner contains the complete 27-method smoke baseline, including the eight
 `task_sequence_limit=1` variants.
