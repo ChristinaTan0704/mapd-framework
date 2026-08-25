@@ -29,6 +29,18 @@ The complete small benchmark is already under `data/Instances/small/`, and TA
 tour files are under `tour/`. Keep both directories when copying the repository
 to a server.
 
+This branch uses an explicit `.gitignore` allow-list. To stage changes, use:
+
+```bash
+git add -A
+python3 scripts/check_repository_manifest.py
+```
+
+Prefer `git add -A` or `git add .` over `git add *`: the shell expansion `*`
+does not include hidden paths such as `.gitignore` and `.github/`. The manifest
+check also rejects any unrelated file that is force-added despite the ignore
+rules.
+
 ## Reproducibility gate
 
 Always use seed `0` when comparing machines. A negative seed selects the
@@ -74,6 +86,10 @@ Representative seed-0 baselines are:
 
 The runner contains the complete 27-method smoke baseline, including the eight
 `task_sequence_limit=1` variants.
+
+GitHub Actions runs the same repository-manifest, Linux build, and 27-method
+smoke checks on every push and pull request. Its smoke logs are uploaded as the
+`mapd-smoke-results` workflow artifact.
 
 ## Full paper-result matrix
 

@@ -1,43 +1,75 @@
-# OS and editor files
-.DS_Store
-Thumbs.db
-~$*
-*~
-*.swp
-*.swo
+# This server branch is intentionally allow-listed. Everything is ignored
+# unless explicitly required to build, test, or reproduce the paper matrix.
+/*
 
-# C/C++ build products and debug bundles
-*.o
-mapd
-mapd_*
-*.dSYM/
+# Root build, documentation, executable source, and reviewed workbook.
+!/.gitignore
+!/Makefile
+!/README.md
+!/driver.cpp
+!/all_paper_algorithms_comparison_2026-08-24.xlsx
 
-# Python caches and environments
-__pycache__/
-*.py[cod]
-.venv/
-venv/
+# Active headers only.
+!/inc/
+/inc/*
+!/inc/cbs.h
+!/inc/config.h
+!/inc/map_loader.h
+!/inc/path_planners.h
+!/inc/simulation.h
+!/inc/types.h
 
-# Generated experiment output and scratch work
-.verify/
-output/
-server_results/
-skill_tools/
-*.log
-*.tmp
-*.png
-*.jpg
-*.jpeg
-*.bak
-*.bak_*
-*.throughput
-*.par
-*.tsptw
+# Active implementation files only.
+!/src/
+/src/*
+!/src/cbs.cpp
+!/src/map_loader.cpp
+!/src/path_planners.cpp
+!/src/simulation.cpp
 
-# Result tables are generated artifacts. Keep only the reviewed workbook below.
-*.csv
-*.xlsx
-!all_paper_algorithms_comparison_2026-08-24.xlsx
+# Reproduction and repository checks.
+!/scripts/
+/scripts/*
+!/scripts/run_server_matrix.py
+!/scripts/check_repository_manifest.py
 
-# Local session notes; the reviewed server handover is already tracked.
-history/
+# Reviewed handover only.
+!/history/
+/history/*
+!/history/2026-08-24_linux_server_handover.md
+
+# GitHub validation workflow.
+!/.github/
+/.github/*
+!/.github/workflows/
+/.github/workflows/*
+!/.github/workflows/linux-smoke.yml
+
+# Required small benchmark maps and task streams only.
+!/data/
+/data/*
+!/data/Instances/
+/data/Instances/*
+!/data/Instances/small/
+/data/Instances/small/*
+!/data/Instances/small/kiva-10-500-5.map
+!/data/Instances/small/kiva-20-500-5.map
+!/data/Instances/small/kiva-30-500-5.map
+!/data/Instances/small/kiva-40-500-5.map
+!/data/Instances/small/kiva-50-500-5.map
+!/data/Instances/small/kiva-0.2.task
+!/data/Instances/small/kiva-0.5.task
+!/data/Instances/small/kiva-1.task
+!/data/Instances/small/kiva-2.task
+!/data/Instances/small/kiva-5.task
+!/data/Instances/small/kiva-10.task
+!/data/Instances/small/kiva-500.task
+
+# Precomputed LKH3 tours required by the two offline TA algorithms.
+!/tour/
+/tour/*
+!/tour/10-500.tour
+!/tour/20-500.tour
+!/tour/30-500.tour
+!/tour/40-500.tour
+!/tour/50-500.tour

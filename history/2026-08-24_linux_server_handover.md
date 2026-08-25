@@ -50,3 +50,12 @@ without reconstructing CLI options from the displayed method name.
 The branch includes the reviewed reference workbook
 `all_paper_algorithms_comparison_2026-08-24.xlsx`. It is the only Excel file
 explicitly allowed by `.gitignore`.
+
+The branch is protected from accidental file additions in two layers:
+
+1. `.gitignore` is an explicit allow-list of the runtime package.
+2. `scripts/check_repository_manifest.py` fails locally and in GitHub Actions
+   if a required file is missing or an unrelated file becomes tracked.
+
+Use `git add -A`, not `git add *`, because the latter omits hidden paths such as
+`.gitignore` and `.github/` before Git processes ignore rules.

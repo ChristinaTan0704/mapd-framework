@@ -1,0 +1,47 @@
+name: Linux build and MAPD smoke test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential g++ make \
+            libboost-program-options-dev libdlib-dev python3
+
+      - name: Verify minimal repository manifest
+        run: python3 scripts/check_repository_manifest.py
+
+      - name: Build
+        run: make -j"$(nproc)"
+
+      - name: Run seed-0 smoke matrix
+        run: |
+          python3 scripts/run_server_matrix.py \
+            --smoke \
+            --seed 0 \
+            --max-parallel 5 \
+            --timeout 1800 \
+            --output-dir server_results/ci-smoke
+
+      - name: Upload smoke logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mapd-smoke-results
+          path: server_results/ci-smoke/
+          if-no-files-found: warn
