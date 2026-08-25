@@ -1,3 +1,8 @@
+// ARCHIVED GENERATED SNAPSHOT: this file is not compiled by the framework.
+// It was extracted from src/simulation.cpp.all_methods.bak and intentionally
+// preserves historical config names. Current behavior is defined by config.h
+// and src/simulation.cpp.
+
 #include <random>
 #include <deque>
 #include <chrono>

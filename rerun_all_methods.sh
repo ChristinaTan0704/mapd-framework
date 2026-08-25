@@ -1,5 +1,5 @@
 #!/bin/bash
-# Rerun all 18 methods for agents=10,50. Max 4 parallel. Outputs CSV.
+# Rerun all supported methods for agents=10,50. Max 4 parallel. Outputs CSV.
 set -u
 
 MAPD="/Users/jiaqit/Desktop/paper/MAPD_framework_imp/mapd"
@@ -69,22 +69,23 @@ wait_slot() {
 METHODS=(
     "TP-STA*|TP|"
     "TPTS-STA*|TPTS|"
-    "CENTRAL-ECBS|CENTRAL|"
+    "CENTRAL-CBS|CENTRAL-CBS|"
+    "CENTRAL-fixed-CBS|CENTRAL-fixed|"
+    "HBH+MLA*|HBH_MLA|"
     "TA-Hybrid-STA*|TA_HYBRID|--tour TOUR/AGENTS-500.tour"
     "TA-Prioritized-STA*|TA_PRIORITIZED|--tour TOUR/AGENTS-500.tour"
     "Hungarian+PBS-MLA*|HUNGARIAN_PBS|"
     "Hungarian+wPBS-MLA*|HUNGARIAN_wPBS|"
     "LNS(1s)+PBS-MLA*|LNS_PBS|--lns_time 1"
     "LNS(1s)+wPBS-MLA*|LNS_wPBS|--lns_time 1"
-    "Hungarian+PBS-MLSIPP|HUNGARIAN_PBS|--sipp"
-    "Hungarian+wPBS-MLSIPP|HUNGARIAN_wPBS|--sipp"
-    "LNS(1s)+PBS-MLSIPP|LNS_PBS|--lns_time 1 --sipp"
-    "LNS(1s)+wPBS-MLSIPP|LNS_wPBS|--lns_time 1 --sipp"
-    "TP-SIPP|TP|--single_agent MLA --sipp"
-    "TPTS-SIPP|TPTS|--single_agent MLA --sipp"
-    "CENTRAL-ECBS-SIPP|CENTRAL|--sipp"
-    "Hungarian+PP-SIPP|HUNGARIAN_PBS|--mapf PP --sipp"
-    "LNS(1s)+PP-SIPP|LNS_PBS|--mapf PP --lns_time 1 --sipp"
+    "Hungarian+PBS-MLSIPP|HUNGARIAN_PBS|--single_agent MLSIPP"
+    "Hungarian+wPBS-MLSIPP|HUNGARIAN_wPBS|--single_agent MLSIPP"
+    "LNS(1s)+PBS-MLSIPP|LNS_PBS|--lns_time 1 --single_agent MLSIPP"
+    "LNS(1s)+wPBS-MLSIPP|LNS_wPBS|--lns_time 1 --single_agent MLSIPP"
+    "TP-SIPP|TP|--single_agent MLSIPP"
+    "TPTS-SIPP|TPTS|--single_agent MLSIPP"
+    "Hungarian+PP-SIPP|HUNGARIAN_PBS|--mapf PP --single_agent MLSIPP"
+    "LNS(1s)+PP-SIPP|LNS_PBS|--mapf PP --lns_time 1 --single_agent MLSIPP"
 )
 
 FREQS=(0.2 0.5 1 2 5 10 500)

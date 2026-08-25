@@ -4,22 +4,25 @@
 //
 //      Token Passing greedy assignment, with optional TPTS task swaps,
 //      using sequential STA* or MLSIPP
-//      Centralized Hungarian assignment with ECBS
 //      Offline LKH3 tour assignment with prioritized sequential STA*
 //      Repeated Hungarian, with or without the 1-second LNS improvement
+//      CENTRAL/CENTRAL-fixed with segment-by-segment CBS through arbitrary
+//      ordered task goals
 //      PBS / wPBS with MLA* or MLSIPP; PP with MLSIPP
 //        mode              = ONLINE / OFFLINE / SEMI_ONLINE
 //        assign_method     = DECOUPLED_GREEDY / DECOUPLED_GREEDY_SWAPS /
-//                            CENTRAL_HUNGARIAN / REPEATED_HUNGARIAN /
+//                            CENTRALIZED_GREEDY /
+//                            REPEATED_HUNGARIAN /
 //                            LKH3_TSP /
 //                            REPEATED_HUNGARIAN_LNS
-//        assign_trigger    = ON_FREE_WAITS / EVERY_TIMESTEP /
-//                            ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT
-//        mapf              = CBS / PBS / wPBS / DECOUPLED_PP
+//        assign_trigger    = ON_FREE_WAITS /
+//                            ON_NEW_TASK_OR_AGENT_BECOMES_FREE /
+//                            ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE
+//        mapf              = PBS / wPBS / PP_PER_TASK / PP_TASK_SEQUENCE
 //        single_agent      = STA_TASK_EP / SEQ_STA /
 //                            MLA_SEQUENCE / MLSIPP_SEQUENCE
 //        dummy_path       = true / false
-//        endpoint_strategy = FLEXIBLE_STRICT
+//        endpoint_strategy = NEAREST_WITH_STRICT_EXCLUSIONS
 //        anytime_improvement = false
 //
 //  The class is laid out along the framework's axes, so a new algorithm is
@@ -160,7 +163,8 @@ public:
     void run();
     bool fullCollisionCheck(const string& alg_name) const;
     void showTask() const;
-    void saveOutput(const string& filepath, double runtime_ms) const;
+    void saveOutput(const string& filepath, double runtime_ms,
+                    const string& algorithm_name) const;
     // Optional post-processing (config.anytime_improvement). Not implemented for
     // this algorithm — the LNS-PBS preset sets anytime_improvement = false.
     int realpath_lns_imp(int num_rounds, int group_size = 5);
@@ -182,11 +186,14 @@ private:
     vector<vector<int>> task_indices_by_time;  // task ids indexed by release time
 
     vector<vector<unsigned int>> path_table_;  // path_table_[agent][t] = cell (committed)
-    list<Task*> open_tasks_;                   // T: released, unfinished, unassigned pool
+    // Complete assignment pool for the selected method. For Hungarian/LNS it
+    // includes released, unfinished, unassigned tasks, including suffixes
+    // removed by the planned-prefix limit.
+    list<Task*> open_tasks_;
     unsigned int cur_time_ = 0;                // t
     unsigned int maxtime = 0;                  // planning horizon bound
     int t_task = 0;                            // last task release time
-    int last_released_time_ = -1;              // up to which timestep T has been filled
+    int last_released_time_ = -1;              // latest task-release time revealed to assignment
 
     // ======================================================================
     //  Section 1 — Algorithm 1: the unified main loop
@@ -196,7 +203,6 @@ private:
     void task_assignment_and_path_planning();   // Computation
     void advance_time();                        // agents move, t <- t+1
     void advance_time_tp();                     // TP processes free agents before advancing
-    void advance_time_central();                // CENTRAL advances one timestep
 
     bool any_agent_busy() const {
         for (auto& a : agents)
@@ -205,33 +211,25 @@ private:
     }
     bool all_task_sequences_empty() const;
     void clamp_next_ts_to_task_release(unsigned int& next_ts) const;
-    void task_goals(const Task& task, int& first_goal, int& last_goal) const;
 
     // ======================================================================
     //  Section 2 — Computation: dispatchers on the config axes
     // ======================================================================
-    // Per-iteration data passed from task assignment to path planning.  This
-    // is deliberately local to task_assignment_and_path_planning(); it is not
-    // persistent simulation state.
-    struct ComputationContext {
-        vector<int> central_agent_ids;
-        vector<int> central_assigned_task_ids;
-        vector<int> central_goal_endpoint_ids;
-    };
-
-    bool should_assign() const;      // assign_trigger
-    void task_assignment(ComputationContext& context); // assign_method
+    bool should_assign();            // test and consume assign_trigger events
+    void task_assignment();          // assign_method
     bool should_replan(bool assignment_triggered) const;
-    void path_planning(const ComputationContext& context); // mapf
+    void path_planning(bool assignment_triggered); // mapf
 
-    // Assignment-trigger state that cannot be derived from the current task
-    // pool alone. A newly available agent is detected after movement and must
-    // be remembered until the next assignment phase.
+    // Assignment-trigger state is separate from open_tasks_: that pool may
+    // contain truncated suffixes that should not cause reassignment by
+    // themselves. The task-event flag represents a new task reveal or a
+    // strict-PBS task deferred for retry in the next iteration.
     void process_events();
+    bool new_or_deferred_task_event_ = false;
     bool new_available_agent_ = false; // newly available for event-triggered reassignment
     unsigned int last_path_planning_time_ = 0;
 
-    // Offline TA input retained between initialization and the one assignment.
+    // LKH3 tour input used by the offline TA algorithms.
     string tour_file_;
 
     // ======================================================================
@@ -242,13 +240,12 @@ private:
     void assign_tpts_step();
     bool assign_tpts(Agent& agent, int depth = 0);
     void tpts_purge_picked_up_tasks();
+    void assign_hbh_mla();
     void assign_ta_tsp();
+    void assign_ta_hybrid();
     void central_phase1_instant_pickup();
     Task* central_current_task(int agent_id);
-    void central_plan_single_delivery(int agent_id, Task* task);
-    void assign_central_hungarian(vector<int>& agent_ids,
-                                  vector<int>& assigned_task_ids,
-                                  vector<int>& goal_endpoint_ids);
+    void assign_central_hungarian();
     int central_path_cost(int agent_id, int start_loc, int goal_loc,
                           int start_time, const vector<vector<int>>& constraints,
                           const vector<char>* vertex_reservations,
@@ -256,6 +253,7 @@ private:
                           unordered_map<long long, int>& visited);
     void assign_repeated_hungarian_lns();      // Hungarian, then the 1 s LNS spin
     void assign_repeated_hungarian();          //   Phase 1
+    void truncate_online_task_sequences();     // keep only the executable C-task prefix
     int  hungarian_arrival_estimate(const Agent& ag, const Task& task) const;
     bool lns_has_reassignable_task() const;
     int  estimate_sequence_cost(int agent_id) const;
@@ -269,7 +267,7 @@ private:
     // ======================================================================
     vector<vector<pair<int,int>>> build_goal_sequences();
     int  choose_dummy_endpoint(int agent_id, int last_goal_loc,
-                               const vector<int>& assigned_dummies);
+                               const vector<int>& reserved_endpoints);
     vector<vector<pair<int,int>>> split_into_task_groups(
         int agent_id, const vector<pair<int,int>>& goal_seq) const;
 
@@ -280,17 +278,12 @@ private:
     // PBSPlanner/wPBSPlanner, which in turn select SIPPPlanner/MLAStarPlanner
     // using explicit per-search request objects. The *_impl methods below are
     // private kernels and are callable only by those friend strategy classes.
-    void path_planning_pp();
-    void plan_ta_prioritized();
+    void path_planning_pp_per_task();
+    void path_planning_pp_task_sequence();
+    void path_planning_ta_hybrid(bool assignment_triggered);
     void path_planning_pbs();
     void path_planning_wpbs();
-    void path_planning_ecbs(const vector<int>& agent_ids,
-                            const vector<int>& assigned_task_ids,
-                            const vector<int>& goal_endpoint_ids);
-    void central_plan_prioritized_fallback(
-        const vector<int>& agent_ids,
-        const vector<int>& assigned_task_ids,
-        const vector<int>& goal_endpoint_ids);
+    void path_planning_ecbs(bool assignment_triggered);
     void wpbs_windowed_solve_impl();
     bool pbs_solve_impl();
 
@@ -363,7 +356,7 @@ private:
                                 bool use_old_paths,
                                 bool skip_holding = false);
 
-    // TP's existing STA* kernel and endpoint-vacating fallback.
+    // TP/TPTS ordered-goal low-level planning and endpoint-vacating fallback.
     pair<int,int> plan_task_sta_impl(Agent& agent, Task& task, int hidden_agent = -1);
     pair<int,int> plan_task_sipp(Agent& agent, Task& task, int hidden_agent = -1);
     pair<int,int> plan_token_task(Agent& agent, Task& task, int hidden_agent = -1);
@@ -372,14 +365,17 @@ private:
     bool sta_is_constrained(int agent_id, int current_loc, int next_loc,
                             int next_time, int hidden_agent) const;
     void sta_update_path(Agent& agent, const SearchNode& goal_node);
-    bool move_to_endpoint(Agent& agent);
+    // TP/TPTS WAIT_OR_NEAREST_SAFE is split into endpoint selection and path construction.
+    int search_path2_endpoint(Agent& agent, int target_endpoint_loc);
+    bool plan_path2_to_endpoint(Agent& agent, int endpoint_loc);
     void release_search_nodes(map<unsigned int, SearchNode*>& nodes);
     int astar_with_dummy(Agent& agent, int start_loc, int start_time,
                          int goal_loc, int endpoint_loc,
                          const vector<int>& h_goal,
                          const vector<int>& h_endpoint,
                          const vector<vector<int>>& constraint_paths,
-                         int release_time, bool goal_optimal = true);
+                         int release_time, bool goal_optimal = true,
+                         const vector<tuple<int,int,int>>& cbs_constraints = {});
 
     // Reused safe-interval buffers; only cells touched by the previous search
     // are reset, avoiding an O(map size) allocation for every PBS low-level call.

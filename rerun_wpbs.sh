@@ -78,7 +78,7 @@ count_total() {
     for NAGS in "${MAPS[@]}"; do
         for FREQ in "${FREQS[@]}"; do
             # Online algorithms: all freqs
-            t=$((t + 14))  # 14 online algorithms
+            t=$((t + 12))  # 12 online algorithms
             # Offline algorithms: only freq=500
             if [ "$FREQ" = "500" ]; then
                 t=$((t + 4))  # 4 offline algorithms (TA-*)
@@ -95,19 +95,17 @@ for NAGS in "${MAPS[@]}"; do
 
         # 1. TP + 2SIPP*
         for ARGS in \
-            "TP-2SIPP $NAGS $FREQ -a TP --sipp" \
-            "TP-MLSIPP $NAGS $FREQ -a TP --single_agent MLA --sipp" \
-            "TPTS-2SIPP $NAGS $FREQ -a TPTS --sipp" \
-            "TPTS-MLSIPP $NAGS $FREQ -a TPTS --single_agent MLA --sipp" \
-            "CENTRAL-CBS $NAGS $FREQ -a CENTRAL" \
-            "CENTRAL-PBS $NAGS $FREQ -a CENTRAL --mapf PBS" \
-            "HBH-MLSIPP $NAGS $FREQ -a HBH_MLA --sipp" \
+            "TP-2SIPP $NAGS $FREQ -a TP --single_agent MLSIPP" \
+            "TP-MLSIPP $NAGS $FREQ -a TP --single_agent MLSIPP" \
+            "TPTS-2SIPP $NAGS $FREQ -a TPTS --single_agent MLSIPP" \
+            "TPTS-MLSIPP $NAGS $FREQ -a TPTS --single_agent MLSIPP" \
+            "HBH-MLSIPP $NAGS $FREQ -a HBH_MLA --single_agent MLSIPP" \
             "HUNGARIAN-PBS $NAGS $FREQ -a HUNGARIAN_PBS" \
             "HUNGARIAN-wPBS $NAGS $FREQ -a HUNGARIAN_wPBS" \
-            "HUNGARIAN-PP-MLSIPP $NAGS $FREQ -a HUNGARIAN_PBS --mapf PP --sipp" \
+            "HUNGARIAN-PP-MLSIPP $NAGS $FREQ -a HUNGARIAN_PBS --mapf PP --single_agent MLSIPP" \
             "LNS1s-HUNGARIAN-PBS $NAGS $FREQ -a LNS_PBS --lns_time 1" \
             "LNS1s-HUNGARIAN-wPBS $NAGS $FREQ -a LNS_wPBS --lns_time 1" \
-            "LNS1s-HUNGARIAN-PP-MLSIPP $NAGS $FREQ -a LNS_PBS --mapf PP --sipp --lns_time 1"
+            "LNS1s-HUNGARIAN-PP-MLSIPP $NAGS $FREQ -a LNS_PBS --mapf PP --single_agent MLSIPP --lns_time 1"
         do
             COUNT=$((COUNT + 1))
             ALGO=$(echo "$ARGS" | awk '{print $1}')
@@ -125,8 +123,8 @@ for NAGS in "${MAPS[@]}"; do
             TOUR_FILE="$TOUR/${NAGS}-500.tour"
             if [ -f "$TOUR_FILE" ]; then
                 for ARGS in \
-                    "TA-PRIORITIZED-2SIPP $NAGS $FREQ -a TA_PRIORITIZED --sipp --tour $TOUR_FILE" \
-                    "TA-PRIORITIZED-MLSIPP $NAGS $FREQ -a TA_PRIORITIZED --sipp --single_agent MLA --tour $TOUR_FILE" \
+                    "TA-PRIORITIZED-2SIPP $NAGS $FREQ -a TA_PRIORITIZED --single_agent MLSIPP --tour $TOUR_FILE" \
+                    "TA-PRIORITIZED-MLSIPP $NAGS $FREQ -a TA_PRIORITIZED --single_agent MLSIPP --tour $TOUR_FILE" \
                     "TA-HYBRID $NAGS $FREQ -a TA_HYBRID --tour $TOUR_FILE"
                 do
                     COUNT=$((COUNT + 1))

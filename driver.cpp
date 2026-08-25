@@ -12,28 +12,81 @@ void set_parameters(MAPDConfig& config, const po::variables_map& vm)
 {
     config = get_preset(vm["algo"].as<string>());
 
-    if (vm.count("ecbs_weight"))
-        config.ecbs_weight = vm["ecbs_weight"].as<double>();
-    if (vm.count("replan_window"))
-        config.replan_window = vm["replan_window"].as<int>();
-    if (vm.count("lns_time"))
-        config.lns_time_limit = vm["lns_time"].as<int>();
+    if (vm.count("mode")) {
+        string mode = vm["mode"].as<string>();
+        if (mode == "ONLINE") config.mode = MODE_ONLINE;
+        else if (mode == "OFFLINE") config.mode = MODE_OFFLINE;
+        else if (mode == "SEMI_ONLINE") config.mode = MODE_SEMI_ONLINE;
+        else
+            throw invalid_argument(
+                "mode must be ONLINE, OFFLINE, or SEMI_ONLINE");
+    }
+
+    // Both LKH3-based TA algorithms are defined for the offline setting: the
+    // complete task set must be known when the tour is read. TA-Hybrid may
+    // reassign that fixed task set later, but it does not reveal new tasks.
+    if ((config.assign_method == AM_LKH3_TSP ||
+         config.assign_method == AM_LKH3_TSP_REASSIGN) &&
+        config.mode != MODE_OFFLINE) {
+        throw invalid_argument(
+            "TA-Prioritized and TA-Hybrid support OFFLINE mode only");
+    }
+
     string sa = vm["single_agent"].as<string>();
     if (sa == "MLA") config.single_agent = SA_MLA_SEQUENCE;
     else if (sa == "MLSIPP" || sa == "SIPP") config.single_agent = SA_MLSIPP_SEQUENCE;
     else if (sa == "STA") config.single_agent = SA_STA_TASK_EP;
     string mf = vm["mapf"].as<string>();
-    if (mf == "CBS") config.mapf = MAPF_CBS;
-    else if (mf == "PBS") config.mapf = MAPF_PBS;
+    if (mf == "PBS") config.mapf = MAPF_PBS;
     else if (mf == "wPBS") config.mapf = MAPF_wPBS;
-    else if (mf == "PP") config.mapf = MAPF_DECOUPLED_PP;
-    string mm = vm["mla_mode"].as<string>();
-    if (mm == "seq") config.mla_mode = MLA_SEQ;
-    else if (mm == "task") config.mla_mode = MLA_TASKWISE;
-    else if (mm == "sta") config.mla_mode = MLA_SEQ_STA;
-    config.use_sipp = vm["sipp"].as<bool>();
-    if (config.use_sipp) config.single_agent = SA_MLSIPP_SEQUENCE;
-    config.lns_seed = vm["seed"].as<int>();
+    else if (mf == "CBS") config.mapf = MAPF_CBS;
+    else if (mf == "PP" || mf == "PP_PER_TASK") config.mapf = MAPF_PP_PER_TASK;
+    else if (mf == "PP_TASK_SEQUENCE") config.mapf = MAPF_PP_TASK_SEQUENCE;
+    else if (mf != "default")
+        throw invalid_argument("unsupported MAPF override: " + mf);
+    config.seed = vm["seed"].as<int>();
+
+    // Algorithm-specific overrides. Other algorithms retain these values but
+    // never read them.
+    if (vm.count("task_sequence_limit")) {
+        config.task_sequence_limit = vm["task_sequence_limit"].as<int>();
+        if (config.task_sequence_limit <= 0)
+            throw invalid_argument("task_sequence_limit must be positive");
+    }
+    if (vm.count("wpbs_replan_window")) {
+        config.wpbs_replan_window = vm["wpbs_replan_window"].as<int>();
+        if (config.wpbs_replan_window <= 0)
+            throw invalid_argument("wpbs_replan_window must be positive");
+    }
+    if (vm.count("lns_time"))
+        config.lns_time_limit = vm["lns_time"].as<int>();
+    if (vm.count("lns_no_improvement_limit")) {
+        config.lns_no_improvement_limit =
+            vm["lns_no_improvement_limit"].as<int>();
+        if (config.lns_no_improvement_limit < 0)
+            throw invalid_argument(
+                "lns_no_improvement_limit must be non-negative");
+    }
+    if (vm.count("ecbs_focal_weight")) {
+        config.ecbs_focal_weight = vm["ecbs_focal_weight"].as<double>();
+        if (config.ecbs_focal_weight < 1.0)
+            throw invalid_argument(
+                "ecbs_focal_weight must be at least 1.0");
+    }
+    if (vm.count("cbs_high_level_expansion_limit")) {
+        config.cbs_high_level_expansion_limit =
+            vm["cbs_high_level_expansion_limit"].as<int>();
+        if (config.cbs_high_level_expansion_limit <= 0)
+            throw invalid_argument(
+                "cbs_high_level_expansion_limit must be positive");
+    }
+    if (vm.count("semi_online_lookahead_batches")) {
+        config.semi_online_lookahead_batches =
+            vm["semi_online_lookahead_batches"].as<int>();
+        if (config.semi_online_lookahead_batches < 0)
+            throw invalid_argument(
+                "semi_online_lookahead_batches must be non-negative");
+    }
 }
 
 string basename_no_ext(const string& path) {
@@ -48,7 +101,8 @@ string mapf_name(MAPFMethod m) {
     case MAPF_CBS: return "CBS";
     case MAPF_PBS: return "PBS";
     case MAPF_wPBS: return "wPBS";
-    case MAPF_DECOUPLED_PP: return "PP";
+    case MAPF_PP_PER_TASK: return "PP_PER_TASK";
+    case MAPF_PP_TASK_SEQUENCE: return "PP_TASK_SEQUENCE";
     default: return "PP";
     }
 }
@@ -70,20 +124,25 @@ int main(int argc, char** argv)
         ("map,m",          po::value<string>()->required(),            "input map file")
         ("task,t",         po::value<string>()->required(),            "input task file")
         ("algo,a",         po::value<string>()->default_value("TP"),   "algorithm")
-        ("ecbs_weight,w",  po::value<double>()->default_value(1.0),    "ECBS suboptimality weight")
-        ("replan_window",  po::value<int>()->default_value(10),        "replanning window for wPBS")
-        ("lns_time",       po::value<int>()->default_value(1),         "LNS improvement time limit (s)")
-        ("lns_imp",        po::value<int>()->default_value(0),         "REALPATH_LNS_IMP rounds (0=off)")
-        ("lns_imp_group",  po::value<int>()->default_value(5),         "REALPATH_LNS_IMP destroy group")
+        ("mode",           po::value<string>(),                        "task-information mode: ONLINE, OFFLINE, or SEMI_ONLINE")
         ("single_agent",   po::value<string>()->default_value("default"), "low-level: STA, MLA, or MLSIPP")
-        ("mapf",           po::value<string>()->default_value("default"), "MAPF override: CBS, PBS, wPBS, PP")
-        ("mla_mode",       po::value<string>()->default_value("default"), "MLA mode: seq (SeqMLA*), task (task-by-task), default")
-        ("sipp",           po::bool_switch()->default_value(false),    "use SIPP instead of MLA* for PBS low-level")
-        ("seed",           po::value<int>()->default_value(0),         "LNS RNG seed (>=0 deterministic, <0 = time(NULL))")
+        ("mapf",           po::value<string>()->default_value("default"), "MAPF override: CBS, PBS, wPBS, PP (or PP_PER_TASK), PP_TASK_SEQUENCE")
+        ("seed",           po::value<int>()->default_value(0),         "general RNG seed (>=0 deterministic, <0 = time(NULL))")
         ("tour",           po::value<string>()->default_value(""),     "LKH3 tour file")
         ("save_output",    po::bool_switch()->default_value(false),    "save output to ./output/")
         ("output_dir",     po::value<string>()->default_value("./output"), "output directory")
         ("screen,s",       po::value<int>()->default_value(1),         "screen output (0=none, 1=results)")
+        // Algorithm-specific tuning options. They do not affect algorithms
+        // that do not use the named component.
+        ("task_sequence_limit", po::value<int>(),                       "PBS/wPBS only: maximum tasks planned per agent (default 2)")
+        ("wpbs_replan_window", po::value<int>(),                       "wPBS only: executed steps between replans (default 10)")
+        ("lns_time",       po::value<int>()->default_value(1),         "LNS only: assignment-improvement budget (s)")
+        ("lns_no_improvement_limit", po::value<int>(),                 "LNS only: rejected moves before early stop; 0 disables (default 2000)")
+        ("ecbs_focal_weight", po::value<double>(),                     "CBS/ECBS only: focal bound; 1.0=optimal CBS, >1.0=ECBS (default 1.0)")
+        ("cbs_high_level_expansion_limit", po::value<int>(),           "CBS/ECBS only: maximum high-level expansions per batch (default INT_MAX)")
+        ("semi_online_lookahead_batches", po::value<int>(),            "SEMI_ONLINE only: future task-release batches known in advance (default 1)")
+        ("lns_imp",        po::value<int>()->default_value(0),         "LNS only: optional post-run LNS improvement rounds (0=off)")
+        ("lns_imp_group",  po::value<int>()->default_value(5),         "LNS only: post-run LNS destroy-group size")
     ;
 
     po::variables_map vm;
@@ -95,8 +154,9 @@ int main(int argc, char** argv)
             cout << desc << endl;
             cout << "Examples:" << endl;
             cout << "  ./mapd -m kiva.map -t kiva.task -a TP" << endl;
+            cout << "  ./mapd -m kiva.map -t kiva.task -a CENTRAL-CBS" << endl;
             cout << "  ./mapd -m kiva.map -t kiva.task -a HBH_MLA --save_output" << endl;
-            cout << "  ./mapd -m kiva.map -t kiva.task -a CENTRAL --mapf PBS --save_output" << endl;
+            cout << "  ./mapd -m kiva.map -t kiva.task -a HUNGARIAN_PBS --mapf PP --single_agent MLSIPP" << endl;
             return 0;
         }
 
@@ -110,6 +170,7 @@ int main(int argc, char** argv)
     string map_file  = vm["map"].as<string>();
     string task_file = vm["task"].as<string>();
     string tour_file = vm["tour"].as<string>();
+    string algorithm_name = vm["algo"].as<string>();
     int screen       = vm["screen"].as<int>();
     int lns_imp_rounds = vm["lns_imp"].as<int>();
     int lns_imp_group  = vm["lns_imp_group"].as<int>();
@@ -127,25 +188,26 @@ int main(int argc, char** argv)
     if (screen >= 1) {
         cout << "Map: " << map_file << endl;
         cout << "Task: " << task_file << endl;
-        cout << "Algorithm: " << config.name << endl;
+        cout << "Algorithm: " << algorithm_name << endl;
         string sa_override = vm["single_agent"].as<string>();
         string mf_override = vm["mapf"].as<string>();
         if (sa_override != "default") cout << "Single-agent: " << sa_override << endl;
         if (mf_override != "default") cout << "MAPF: " << mf_override << endl;
-        if (config.mapf == MAPF_CBS)
-            cout << "ECBS weight: " << config.ecbs_weight << endl;
         if (lns_imp_rounds > 0)
             cout << "REALPATH_LNS_IMP: " << lns_imp_rounds << " rounds, group_size=" << lns_imp_group << endl;
-        string mm_str = vm["mla_mode"].as<string>();
-        if (mm_str != "default") cout << "MLA mode: " << mm_str << endl;
         cout << endl;
     }
 
     clock_t t_start = clock();
 
     Simulation sim;
-    sim.init(map_file, task_file, config, tour_file);
-    sim.run();
+    try {
+        sim.init(map_file, task_file, config, tour_file);
+        sim.run();
+    } catch (const runtime_error& e) {
+        cerr << "Error: " << e.what() << endl;
+        return 1;
+    }
 
     double elapsed_base = (double)(clock() - t_start) / CLOCKS_PER_SEC * 1000.0;
 
@@ -167,7 +229,7 @@ int main(int argc, char** argv)
 
     double elapsed = (double)(clock() - t_start) / CLOCKS_PER_SEC * 1000.0;
 
-    sim.fullCollisionCheck(config.name);
+    sim.fullCollisionCheck(algorithm_name);
 
     if (screen >= 1) {
         cout << endl;
@@ -182,7 +244,7 @@ int main(int argc, char** argv)
         // Build descriptive filename
         string map_name = basename_no_ext(map_file);
         string task_name = basename_no_ext(task_file);
-        string algo = config.name;
+        string algo = algorithm_name;
         string sa_str = vm["single_agent"].as<string>();
         string mf_str = vm["mapf"].as<string>();
 
@@ -194,7 +256,7 @@ int main(int argc, char** argv)
         filename += "_" + map_name + "_" + task_name + ".txt";
 
         string filepath = output_dir + "/" + filename;
-        sim.saveOutput(filepath, elapsed);
+        sim.saveOutput(filepath, elapsed, algorithm_name);
 
         if (screen >= 1)
             cout << "Output saved to: " << filepath << endl;

@@ -22,11 +22,11 @@ struct Task {
     int release_time;
     int status;        // -1=unassigned, agent_id=assigned, INT_MAX=finished
     int completion_time;
-    int ag_arrive_start; // timestep when assigned agent arrives at pickup
-    int start_wait_time; // min time at pickup
-    int goal_wait_time;  // min time at delivery
+    int ag_arrive_start; // assigned agent's arrival at first ordered goal
+    int start_wait_time; // min time at first ordered goal
+    int goal_wait_time;  // min time at final ordered goal
 
-    // Multi-goal: ordered sequence of grid locations to visit
+    // Multi-goal: complete ordered sequence of grid locations to visit.
     // For standard MAPD: {pickup_loc, delivery_loc}
     // For MG-MAPD: {goal1_loc, goal2_loc, ..., goalN_loc}
     vector<int> goals;
@@ -59,10 +59,15 @@ struct Agent {
     int initial_loc;   // starting location (non-task endpoint)
     AgentStatus status;
     int current_task;  // task id or -1
+    // Index of the next goal to visit in current_task. This must persist across
+    // replans so an MG-MAPD task can resume after intermediate goals.
+    int current_goal_index;
     unsigned int finish_time; // timestep when current path ends
     vector<unsigned int> path; // path[timestep] = location
+    // Current assigned endpoint location for one-endpoint planning methods
+    // such as CENTRAL; initialized to the agent's home location.
     int last_endpoint;
-    deque<int> task_sequence; // for TA methods
+    deque<int> task_sequence; // ordered assigned-task queue
 
     // TA-Hybrid specific fields
     int dummy_start_step;      // timestep where dummy path begins
@@ -74,7 +79,7 @@ struct Agent {
     vector<int> non_dummy_path; // path without dummy (for constraint in cost flow)
 
     Agent() : id(-1), loc(-1), initial_loc(-1), status(AG_FREE),
-              current_task(-1), finish_time(0), last_endpoint(-1),
+              current_task(-1), current_goal_index(0), finish_time(0), last_endpoint(-1),
               dummy_start_step(0), park_loc(-1), delivering(false),
               task_ptr(nullptr), goal_loc(-1), release_time_agent(0) {}
 
@@ -84,6 +89,7 @@ struct Agent {
         initial_loc = _loc;
         status = AG_FREE;
         current_task = -1;
+        current_goal_index = 0;
         finish_time = 0;
         last_endpoint = _loc;
         dummy_start_step = 0;

@@ -10,7 +10,6 @@ All paths verified **collision-free**. All 500/500 tasks completed.
 | TA_HYBRID | **1050** | 1037 | +1.3% |
 | TA_PRIORITIZED | **1052** | 1053 | -0.1% |
 | HBH_MLA | **1095** | — | — |
-| CENTRAL | 1126 | 1101 | +2.3% |
 | TP | 1133 | 1136 | -0.3% |
 | TPTS | 1145 | 1105 | +3.6% |
 | HUNGARIAN_PBS | 1190 | 1138 | +4.6% |
@@ -24,20 +23,20 @@ All paths verified **collision-free**. All 500/500 tasks completed.
 |-----------|------|-----------|-----|
 | HUNGARIAN_PBS | **2513** | 2512 | +0.04% |
 | HUNGARIAN_wPBS | **2513** | 2513 | exact |
-| CENTRAL | 2514 | 2516 | -0.1% |
-| HBH_MLA | **2514** | — | — |
+| HBH_MLA | **2532** | — | — |
 | TP | **2532** | 2532 | exact |
 | TPTS | **2532** | 2532 | exact |
 
-### Algorithms Implemented (10 + post-processing)
+### Algorithms Implemented (11 + post-processing)
 
 | # | Algorithm | Type | Assignment | MAPF | Dummy path? |
 |---|-----------|------|------------|------|----------|
 | 1 | TP | Online/IA | Decoupled Greedy | PP (2x A*) | Yes (may be zero-length) |
 | 2 | TPTS | Online/IA | Greedy+Swaps | PP (2x A*) | Yes (may be zero-length) |
-| 3 | CENTRAL | Online/IA | Hungarian | CBS/ECBS | Yes (may be zero-length) |
-| 4 | HBH_MLA | Online/IA | Centralized Greedy | PP (MLA*) | Yes (may be zero-length) |
-| 5 | TA_PRIORITIZED | Offline/TA | LKH3 TSP | PP (SEQ_STA) | Yes |
+| 3 | CENTRAL-CBS | Online/IA | Hungarian every timestep | CBS, two-stage | No |
+| 3b | CENTRAL-fixed-CBS | Online/IA | Hungarian on new-task/free-agent events | CBS, event-driven two-stage | No |
+| 4 | HBH_MLA | Online or semi-online/IA | H-value centralized greedy | PP (MLA*) | Yes (may be zero-length) |
+| 5 | TA_PRIORITIZED | Offline/TA | LKH3 TSP tour | Paper-order PP (SEQ_STA), arbitrary ordered goals | Yes |
 | 6 | TA_HYBRID | Offline/TA | LKH3 TSP | Two-Group (Flow+CBS) | Yes |
 | 7 | HUNGARIAN_PBS | Online/TA | Repeated Hungarian | PBS (MLA*) | Yes |
 | 8 | HUNGARIAN_wPBS | Online/TA | Repeated Hungarian | wPBS (MLA*) | Yes |
@@ -54,8 +53,9 @@ make clean && make
 # Online algorithms
 ./mapd -m <map> -t <tasks> -a TP
 ./mapd -m <map> -t <tasks> -a TPTS
+./mapd -m <map> -t <tasks> -a CENTRAL-CBS
+./mapd -m <map> -t <tasks> -a CENTRAL-fixed
 ./mapd -m <map> -t <tasks> -a HBH_MLA
-./mapd -m <map> -t <tasks> -a CENTRAL [-w <ecbs_weight>]
 ./mapd -m <map> -t <tasks> -a HUNGARIAN_PBS
 ./mapd -m <map> -t <tasks> -a HUNGARIAN_wPBS
 ./mapd -m <map> -t <tasks> -a LNS_PBS [--lns_time <seconds>]

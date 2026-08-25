@@ -8,9 +8,9 @@ class Simulation;
 struct Agent;
 struct Task;
 
-// TP plans one task as two sequential space-time A* searches: current position
-// to pickup, then pickup to delivery. The planner writes the committed path into
-// the supplied agent and returns the two arrival times.
+// TP/TPTS plan one task as sequential space-time A* searches through every
+// ordered Task::goals location. The planner writes the committed path into the
+// supplied agent and returns (first-goal arrival, final-goal arrival).
 struct STAStarRequest {
     Agent& agent;
     Task& task;
@@ -116,6 +116,7 @@ struct ECBSRequest {
     int current_time;
     int columns;
     double focal_weight;
+    int high_level_expansion_limit;
     const std::vector<Endpoint>& endpoints;
     int max_time;
 
@@ -125,10 +126,12 @@ struct ECBSRequest {
                 const std::vector<int>& goal_endpoints,
                 const std::vector<std::vector<int>>& constraints,
                 int time, int map_columns, double weight,
+                int expansion_limit,
                 const std::vector<Endpoint>& map_endpoints, int horizon)
         : grid(map_grid), start_locations(starts), goal_locations(goals),
           goal_endpoint_indices(goal_endpoints), constraint_paths(constraints),
           current_time(time), columns(map_columns), focal_weight(weight),
+          high_level_expansion_limit(expansion_limit),
           endpoints(map_endpoints), max_time(horizon) {}
 };
 

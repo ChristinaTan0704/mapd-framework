@@ -79,7 +79,6 @@ FREQS=(0.2 0.5 1 2 5 10 500)
 
 for NAGS in "${AGENTS[@]}"; do
     for FREQ in "${FREQS[@]}"; do
-        add_job "CENTRAL $NAGS $FREQ -a CENTRAL"
         add_job "TP $NAGS $FREQ -a TP"
         add_job "TPTS $NAGS $FREQ -a TPTS"
         add_job "HUNGARIAN-PBS $NAGS $FREQ -a HUNGARIAN_PBS"

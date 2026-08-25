@@ -130,6 +130,7 @@ public:
               const vector<int>& goal_ep_indices,
               const vector<vector<int>>& cons_paths,
               int curr_time, int col, double focal_w,
+              int high_level_expansion_limit,
               const vector<Endpoint>& endpoints, int max_time);
 
     bool run();
@@ -140,6 +141,7 @@ private:
     int map_size_;
     int curr_time_;
     double focal_w_;
+    int high_level_expansion_limit_;
     vector<vector<int>> cons_paths_;
 
     vector<SingleAgentECBS*> search_engines_;

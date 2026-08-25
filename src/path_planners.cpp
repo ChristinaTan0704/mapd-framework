@@ -34,6 +34,7 @@ ECBSResult ECBSPlanner::solve(const ECBSRequest& request) const {
         request.grid, request.start_locations, request.goal_locations,
         request.goal_endpoint_indices, request.constraint_paths,
         request.current_time, request.columns, request.focal_weight,
+        request.high_level_expansion_limit,
         request.endpoints, request.max_time);
 
     ECBSResult result;

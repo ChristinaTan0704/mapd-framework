@@ -1,4 +1,5 @@
 #pragma once
+#include <climits>
 #include <string>
 #include <stdexcept>
 using namespace std;
@@ -6,7 +7,6 @@ using namespace std;
 // ============ Enums matching pseudocode Section 0 ============
 
 enum Mode { MODE_ONLINE, MODE_OFFLINE, MODE_SEMI_ONLINE };
-enum AssignType { ASSIGN_IA, ASSIGN_TA };
 enum AssignMethod {
     AM_DECOUPLED_GREEDY,
     AM_CENTRALIZED_GREEDY,
@@ -21,13 +21,13 @@ enum AssignMethod {
 enum AssignTrigger {
     AT_ON_FREE_WAITS,
     AT_EVERY_TIMESTEP,
-    AT_ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT,
-    // Legacy name retained so the archived all-methods source still compiles.
-    AT_ON_UNASSIGNED_OR_FREE = AT_ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT,
+    AT_ON_NEW_TASK_OR_AGENT_BECOMES_FREE,
+    AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE,
     AT_ONCE
 };
 enum MAPFMethod {
-    MAPF_DECOUPLED_PP,
+    MAPF_PP_PER_TASK,
+    MAPF_PP_TASK_SEQUENCE,
     MAPF_CBS,
     MAPF_PBS,
     MAPF_wPBS,
@@ -40,21 +40,30 @@ enum SingleAgentMethod {
     SA_MLSIPP_SEQUENCE,
     SA_SEQ_STA
 };
-enum MLAMode {
-    MLA_DEFAULT,
-    MLA_SEQ,
-    MLA_TASKWISE,
-    MLA_SEQ_STA   // Sequential single-goal A* (matches reference StateTimeA*)
+enum EndpointStrategy {
+    // Return the agent's own initial/home location.
+    RETURN_TO_HOME,
+    // Choose the nearest endpoint after excluding new dummies, unfinished-task
+    // goals, and the old parking endpoints of other agents.
+    NEAREST_WITH_STRICT_EXCLUSIONS,
+    // Choose a pairwise-distinct task endpoint first, then a home endpoint;
+    // skip the current goal and stay there only as the final fallback.
+    PAIRWISE_TASK_THEN_HOME,
+    // TP/TPTS Path2: wait if safe; otherwise choose the nearest task or home
+    // endpoint that avoids future paths and open-task delivery locations.
+    WAIT_OR_NEAREST_SAFE,
+    // HBH: wait unless the current cell blocks an open task goal; otherwise
+    // move to the nearest reachable non-task endpoint that can be held.
+    WAIT_OR_NEAREST_FREE_NONTASK,
+    // CENTRAL parking: choose the nearest endpoint not already reserved by a
+    // carrying-task goal, selected task, or earlier parking choice.
+    NEAREST_AVAILABLE
 };
-enum CoupledMode { CM_NONE, CM_SWAPS_ONLY, CM_REASSIGN_ONLY, CM_FULLY_COUPLED };
-enum EndpointStrategy { EP_TASK_ENDPOINT, EP_FIXED_PARKING, EP_FLEXIBLE_STRICT, EP_FLEXIBLE_PAIRWISE };
 
 // ============ Config struct ============
 
 struct MAPDConfig {
-    string name;
     Mode mode;
-    AssignType assign_type;
     AssignMethod assign_method;
     AssignTrigger assign_trigger;
     MAPFMethod mapf;
@@ -62,127 +71,155 @@ struct MAPDConfig {
     // Whether to append a post-delivery path to the selected endpoint. The
     // endpoint may equal the delivery location, yielding a zero-length dummy.
     bool dummy_path;
-    int replan_window;   // for wPBS
-    double ecbs_weight;  // for ECBS/CBS (1.0 = optimal)
-    int lns_time_limit;  // LNS improvement time limit in seconds (0 = no LNS)
-    MLAMode mla_mode;
-    bool use_sipp;  // legacy CLI compatibility; maps to SA_MLSIPP_SEQUENCE
-    int lns_seed;   // RNG seed for the LNS assignment loop: >=0 deterministic, <0 = time(NULL)
-    CoupledMode coupled;               // task-assignment/pathfinding coupling axis
+    // General RNG seed for randomized framework components. Currently consumed
+    // by LNS; >=0 is deterministic and <0 uses time(NULL).
+    int seed;
     EndpointStrategy endpoint_strategy; // endpoint/parking selection axis
-    bool windowed;                     // windowed replanning: the clock advances at
-                                       // most replan_window steps between replans
-                                       // (a planning-horizon property, true for wPBS)
 
-    MAPDConfig() : name("Custom"), mode(MODE_ONLINE), assign_type(ASSIGN_IA),
+    // Algorithm-specific tuning parameters. They are ignored by algorithms
+    // that do not use the corresponding planning or assignment component.
+    int task_sequence_limit; // PBS/wPBS only: maximum tasks planned per agent
+    int wpbs_replan_window; // wPBS only: executed steps between replans
+    int lns_time_limit;     // LNS only: assignment-improvement budget in seconds
+    // LNS only: consecutive rejected moves before early stop; 0 disables it.
+    int lns_no_improvement_limit;
+    // CBS/ECBS only: focal bound; 1.0 is optimal CBS and >1.0 is ECBS.
+    double ecbs_focal_weight;
+    // CBS/ECBS only: maximum high-level conflict-tree nodes expanded per batch.
+    int cbs_high_level_expansion_limit;
+    // Semi-online only: number of future release batches known in advance.
+    int semi_online_lookahead_batches;
+
+    MAPDConfig() : mode(MODE_ONLINE),
         assign_method(AM_DECOUPLED_GREEDY), assign_trigger(AT_ON_FREE_WAITS),
-        mapf(MAPF_DECOUPLED_PP), single_agent(SA_STA_TASK_EP),
-        dummy_path(true), replan_window(10), ecbs_weight(1.0),
-        lns_time_limit(1), mla_mode(MLA_TASKWISE), use_sipp(false), lns_seed(0),
-        coupled(CM_NONE), endpoint_strategy(EP_TASK_ENDPOINT), windowed(false) {}
+        mapf(MAPF_PP_PER_TASK), single_agent(SA_STA_TASK_EP),
+        dummy_path(true), seed(0), endpoint_strategy(WAIT_OR_NEAREST_SAFE),
+        task_sequence_limit(2), wpbs_replan_window(10), lns_time_limit(1),
+        lns_no_improvement_limit(2000), ecbs_focal_weight(1.0),
+        cbs_high_level_expansion_limit(INT_MAX),
+        semi_online_lookahead_batches(1) {}
 };
 
 // ============ Algorithm Presets ============
 
 inline MAPDConfig get_preset(const string& name) {
     MAPDConfig c;
-    c.name = name;
 
     if (name == "TP") {
-        c.mode = MODE_ONLINE; c.assign_type = ASSIGN_IA;
+        c.mode = MODE_ONLINE;
         c.assign_method = AM_DECOUPLED_GREEDY;
         c.assign_trigger = AT_ON_FREE_WAITS;
-        c.mapf = MAPF_DECOUPLED_PP;
+        c.mapf = MAPF_PP_PER_TASK;
         c.single_agent = SA_STA_TASK_EP;
         c.dummy_path = true;
-        c.coupled = CM_NONE; c.endpoint_strategy = EP_TASK_ENDPOINT;
+        c.endpoint_strategy = WAIT_OR_NEAREST_SAFE;
     }
     else if (name == "TPTS") {
-        c.mode = MODE_ONLINE; c.assign_type = ASSIGN_IA;
+        c.mode = MODE_ONLINE;
         c.assign_method = AM_DECOUPLED_GREEDY_SWAPS;
         c.assign_trigger = AT_ON_FREE_WAITS;
-        c.mapf = MAPF_DECOUPLED_PP;
+        c.mapf = MAPF_PP_PER_TASK;
         c.single_agent = SA_STA_TASK_EP;
         c.dummy_path = true;
-        c.coupled = CM_SWAPS_ONLY; c.endpoint_strategy = EP_TASK_ENDPOINT;
+        c.endpoint_strategy = WAIT_OR_NEAREST_SAFE;
     }
-    else if (name == "CENTRAL") {
-        c.mode = MODE_ONLINE; c.assign_type = ASSIGN_IA;
+    else if (name == "CENTRAL" || name == "CENTRAL_CBS" ||
+             name == "CENTRAL-CBS" || name == "CENTRAL-ECBS") {
+        c.mode = MODE_ONLINE;
         c.assign_method = AM_CENTRAL_HUNGARIAN;
         c.assign_trigger = AT_EVERY_TIMESTEP;
         c.mapf = MAPF_CBS;
         c.single_agent = SA_STA_TASK_EP;
-        c.dummy_path = true;
-        c.coupled = CM_NONE; c.endpoint_strategy = EP_TASK_ENDPOINT;
+        // CENTRAL plans only to the next assigned endpoint; it does not append
+        // a separate post-delivery dummy path.
+        c.dummy_path = false;
+        c.endpoint_strategy = NEAREST_AVAILABLE;
     }
-    else if (name == "HBH_MLA") {
-        c.mode = MODE_ONLINE; c.assign_type = ASSIGN_IA;
+    else if (name == "CENTRAL_FIXED" || name == "CENTRAL-FIXED" ||
+             name == "CENTRAL-fixed" || name == "CENTRAL_FIXED_CBS" ||
+             name == "CENTRAL-fixed-CBS" ||
+             name == "CENTRAL_FIXED_ECBS" ||
+             name == "CENTRAL-fixed-ECBS") {
+        c.mode = MODE_ONLINE;
+        c.assign_method = AM_CENTRAL_HUNGARIAN;
+        c.assign_trigger = AT_ON_NEW_TASK_OR_AGENT_BECOMES_FREE;
+        c.mapf = MAPF_CBS;
+        c.single_agent = SA_STA_TASK_EP;
+        // CENTRAL-fixed retains the endpoint-holding policy but avoids
+        // recomputing the free-agent assignment on every timestep.
+        c.dummy_path = false;
+        c.endpoint_strategy = NEAREST_AVAILABLE;
+    }
+    else if (name == "HBH_MLA" || name == "HBH+MLA*" ||
+             name == "HBH-MLA*") {
+        c.mode = MODE_ONLINE;
         c.assign_method = AM_CENTRALIZED_GREEDY;
         c.assign_trigger = AT_ON_FREE_WAITS;
-        c.mapf = MAPF_DECOUPLED_PP;
+        c.mapf = MAPF_PP_PER_TASK;
         c.single_agent = SA_MLA_SEQUENCE;
         c.dummy_path = true;
-        c.coupled = CM_NONE; c.endpoint_strategy = EP_TASK_ENDPOINT;
+        c.endpoint_strategy = WAIT_OR_NEAREST_FREE_NONTASK;
     }
     else if (name == "TA_PRIORITIZED") {
-        c.mode = MODE_OFFLINE; c.assign_type = ASSIGN_TA;
+        c.mode = MODE_OFFLINE;
         c.assign_method = AM_LKH3_TSP;
         c.assign_trigger = AT_ONCE;
-        c.mapf = MAPF_DECOUPLED_PP;
+        c.mapf = MAPF_PP_TASK_SEQUENCE;
         c.single_agent = SA_SEQ_STA;
         c.dummy_path = true;
-        c.coupled = CM_NONE; c.endpoint_strategy = EP_FIXED_PARKING;
+        c.endpoint_strategy = RETURN_TO_HOME;
     }
     else if (name == "TA_HYBRID") {
-        c.mode = MODE_OFFLINE; c.assign_type = ASSIGN_TA;
+        c.mode = MODE_OFFLINE;
         c.assign_method = AM_LKH3_TSP_REASSIGN;
-        c.assign_trigger = AT_ONCE;
+        // The initial offline release starts the LKH3 assignment. Later calls
+        // reassign the fixed task set when an agent becomes available.
+        c.assign_trigger =
+            AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE;
         c.mapf = MAPF_TA_HYBRID_TWO_GROUP;
         c.single_agent = SA_STA_TASK_EP;
         c.dummy_path = true;
-        c.coupled = CM_REASSIGN_ONLY; c.endpoint_strategy = EP_FIXED_PARKING;
+        c.endpoint_strategy = RETURN_TO_HOME;
     }
     else if (name == "HUNGARIAN_PBS") {
-        c.mode = MODE_ONLINE; c.assign_type = ASSIGN_TA;
+        c.mode = MODE_ONLINE;
         c.assign_method = AM_REPEATED_HUNGARIAN;
-        c.assign_trigger = AT_ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT;
+        c.assign_trigger = AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE;
         c.mapf = MAPF_PBS;
         c.single_agent = SA_MLA_SEQUENCE;
         c.dummy_path = true;
-        c.coupled = CM_NONE; c.endpoint_strategy = EP_FLEXIBLE_STRICT;
+        c.endpoint_strategy = NEAREST_WITH_STRICT_EXCLUSIONS;
     }
     else if (name == "HUNGARIAN_wPBS") {
-        c.mode = MODE_ONLINE; c.assign_type = ASSIGN_TA;
+        c.mode = MODE_ONLINE;
         c.assign_method = AM_REPEATED_HUNGARIAN;
-        c.assign_trigger = AT_ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT;
+        c.assign_trigger = AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE;
         c.mapf = MAPF_wPBS;
         c.single_agent = SA_MLA_SEQUENCE;
         c.dummy_path = true;
-        c.replan_window = 15; // Match reference: --planning_window=15 --simulation_window=15
-        c.windowed = true;
-        c.coupled = CM_NONE; c.endpoint_strategy = EP_FLEXIBLE_PAIRWISE;
+        c.wpbs_replan_window = 10; // paper/reference planning window
+        c.endpoint_strategy = PAIRWISE_TASK_THEN_HOME;
     }
     else if (name == "LNS_PBS") {
-        c.mode = MODE_ONLINE; c.assign_type = ASSIGN_TA;
+        c.mode = MODE_ONLINE;
         c.assign_method = AM_REPEATED_HUNGARIAN_LNS;
-        c.assign_trigger = AT_ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT;
+        c.assign_trigger = AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE;
         c.mapf = MAPF_PBS;
         c.single_agent = SA_MLA_SEQUENCE;
         c.dummy_path = true;
         c.lns_time_limit = 1;
-        c.coupled = CM_NONE; c.endpoint_strategy = EP_FLEXIBLE_STRICT;
+        c.endpoint_strategy = NEAREST_WITH_STRICT_EXCLUSIONS;
     }
     else if (name == "LNS_wPBS") {
-        c.mode = MODE_ONLINE; c.assign_type = ASSIGN_TA;
+        c.mode = MODE_ONLINE;
         c.assign_method = AM_REPEATED_HUNGARIAN_LNS;
-        c.assign_trigger = AT_ON_UNASSIGNED_TASK_OR_NEW_AVAILABLE_AGENT;
+        c.assign_trigger = AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE;
         c.mapf = MAPF_wPBS;
         c.single_agent = SA_MLA_SEQUENCE;
         c.dummy_path = true;
-        c.replan_window = 15; // Match reference: --simulation_window=15 --planning_window=15
-        c.windowed = true;
+        c.wpbs_replan_window = 10; // paper/reference planning window
         c.lns_time_limit = 1;
-        c.coupled = CM_NONE; c.endpoint_strategy = EP_FLEXIBLE_PAIRWISE;
+        c.endpoint_strategy = PAIRWISE_TASK_THEN_HOME;
     }
     else {
         throw invalid_argument("unsupported algorithm preset: " + name);

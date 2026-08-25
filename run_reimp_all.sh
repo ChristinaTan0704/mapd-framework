@@ -1,7 +1,6 @@
 #!/bin/bash
 # Run all reimplementation experiments to match reference results
-# Methods: TP, TPTS, CENTRAL (with CBS/PBS/2SIPP/MLSIPP variants),
-#          HBH+MLSIPP, TA-Prioritized, TA-Hybrid,
+# Methods: TP, TPTS, HBH+MLSIPP, TA-Prioritized, TA-Hybrid,
 #          Hungarian-PBS/wPBS/PP+MLSIPP, LNS versions
 
 MAPD="/Users/jiaqit/Desktop/paper/MAPD_framework_imp/mapd"
@@ -78,7 +77,7 @@ for AG in "${AGENTS[@]}"; do
         wait_for_slot
         run_one "TP+2SIPP" "$AG" "$FREQ" -a TP &
         wait_for_slot
-        run_one "TP+MLSIPP" "$AG" "$FREQ" -a TP --single_agent MLA --sipp &
+        run_one "TP+MLSIPP" "$AG" "$FREQ" -a TP --single_agent MLSIPP &
     done
 done
 wait
@@ -93,34 +92,16 @@ for AG in "${AGENTS[@]}"; do
         wait_for_slot
         run_one "TPTS+2SIPP" "$AG" "$FREQ" -a TPTS &
         wait_for_slot
-        run_one "TPTS+MLSIPP" "$AG" "$FREQ" -a TPTS --single_agent MLA --sipp &
+        run_one "TPTS+MLSIPP" "$AG" "$FREQ" -a TPTS --single_agent MLSIPP &
     done
 done
 wait
 echo "--- Group 2 complete ---"
 
 ###############################################################################
-# Group 3: CENTRAL variants (all frequencies)
+# Group 3: HBH+MLSIPP (all frequencies)
 ###############################################################################
-echo "--- Group 3: CENTRAL variants ---"
-for AG in "${AGENTS[@]}"; do
-    for FREQ in "${FREQS[@]}"; do
-        # CENTRAL + CBS (use w=2.0 for 50ag/500)
-        W="1.0"
-        [ "$AG" = "50" ] && [ "$FREQ" = "500" ] && W="2.0"
-        wait_for_slot
-        run_one "CENTRAL+CBS" "$AG" "$FREQ" -a CENTRAL --mapf CBS -w "$W" &
-        wait_for_slot
-        run_one "CENTRAL+PBS" "$AG" "$FREQ" -a CENTRAL --mapf PBS &
-    done
-done
-wait
-echo "--- Group 3 complete ---"
-
-###############################################################################
-# Group 4: HBH+MLSIPP (all frequencies)
-###############################################################################
-echo "--- Group 4: HBH+MLSIPP ---"
+echo "--- Group 3: HBH+MLSIPP ---"
 for AG in "${AGENTS[@]}"; do
     for FREQ in "${FREQS[@]}"; do
         wait_for_slot
@@ -128,12 +109,12 @@ for AG in "${AGENTS[@]}"; do
     done
 done
 wait
-echo "--- Group 4 complete ---"
+echo "--- Group 3 complete ---"
 
 ###############################################################################
-# Group 5: TA-Prioritized variants (offline, freq=500 only)
+# Group 4: TA-Prioritized variants (offline, freq=500 only)
 ###############################################################################
-echo "--- Group 5: TA-Prioritized variants ---"
+echo "--- Group 4: TA-Prioritized variants ---"
 for AG in "${AGENTS[@]}"; do
     TF="$TOURDIR/${AG}-500.tour"
     if [ -f "$TF" ]; then
@@ -146,12 +127,12 @@ for AG in "${AGENTS[@]}"; do
     fi
 done
 wait
-echo "--- Group 5 complete ---"
+echo "--- Group 4 complete ---"
 
 ###############################################################################
-# Group 6: TA-Hybrid (offline, freq=500 only)
+# Group 5: TA-Hybrid (offline, freq=500 only)
 ###############################################################################
-echo "--- Group 6: TA-Hybrid ---"
+echo "--- Group 5: TA-Hybrid ---"
 for AG in "${AGENTS[@]}"; do
     TF="$TOURDIR/${AG}-500.tour"
     if [ -f "$TF" ]; then
@@ -160,12 +141,12 @@ for AG in "${AGENTS[@]}"; do
     fi
 done
 wait
-echo "--- Group 6 complete ---"
+echo "--- Group 5 complete ---"
 
 ###############################################################################
-# Group 7: Hungarian variants (all frequencies)
+# Group 6: Hungarian variants (all frequencies)
 ###############################################################################
-echo "--- Group 7: Hungarian variants ---"
+echo "--- Group 6: Hungarian variants ---"
 for AG in "${AGENTS[@]}"; do
     for FREQ in "${FREQS[@]}"; do
         wait_for_slot
@@ -177,12 +158,12 @@ for AG in "${AGENTS[@]}"; do
     done
 done
 wait
-echo "--- Group 7 complete ---"
+echo "--- Group 6 complete ---"
 
 ###############################################################################
-# Group 8: LNS(1s)-Hungarian variants (all frequencies)
+# Group 7: LNS(1s)-Hungarian variants (all frequencies)
 ###############################################################################
-echo "--- Group 8: LNS(1s) variants ---"
+echo "--- Group 7: LNS(1s) variants ---"
 for AG in "${AGENTS[@]}"; do
     for FREQ in "${FREQS[@]}"; do
         wait_for_slot
@@ -194,7 +175,7 @@ for AG in "${AGENTS[@]}"; do
     done
 done
 wait
-echo "--- Group 8 complete ---"
+echo "--- Group 7 complete ---"
 
 echo ""
 echo "=== All experiments complete at $(date) ==="

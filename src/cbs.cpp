@@ -260,8 +260,10 @@ CBSSearch::CBSSearch(const vector<bool>& grid,
     const vector<int>& start_locs, const vector<int>& goal_locs,
     const vector<int>& goal_ep_indices, const vector<vector<int>>& cons_paths,
     int curr_time, int col, double focal_w,
+    int high_level_expansion_limit,
     const vector<Endpoint>& endpoints, int max_time)
     : cons_paths_(cons_paths), curr_time_(curr_time), focal_w_(focal_w),
+      high_level_expansion_limit_(high_level_expansion_limit),
       solution_found(false), solution_cost(-1),
       HL_num_expanded_(0), HL_num_generated_(0)
 {
@@ -476,17 +478,15 @@ void CBSSearch::updateFocalList(double old_lb, double new_lb) {
 }
 
 bool CBSSearch::run() {
-    // High-level expansion cap.  Optimal (w=1) CBS can blow up exponentially on a
+    // Configurable high-level expansion cap. Optimal (w=1) CBS can blow up exponentially on a
     // hard congested sub-instance (e.g. a delivery agent parked on its goal that another
     // agent must cross — CBS keeps adding ever-later vertex constraints without progress).
     // A real solvable CBS instance in these MAPD sub-problems resolves in a handful of
-    // HL expansions (single/low double digits even on the largest cells).  When the cap
-    // is hit we return false; the caller already falls back to sequential single-agent A*
-    // (always terminates, collision-free against the same cons_paths).  The cap is far
-    // above any genuine solution so fast cases are bit-for-bit unchanged.
-    const int kHLExpansionCap = 200;
+    // HL expansions. When the cap is hit, return false to the caller. The
+    // framework default is INT_MAX (effectively uncapped) and can be
+    // overridden from the command line.
     while (!hl_focal_.empty() && !solution_found) {
-        if (HL_num_expanded_ >= kHLExpansionCap) {
+        if (HL_num_expanded_ >= high_level_expansion_limit_) {
             solution_found = false;
             return false;
         }
