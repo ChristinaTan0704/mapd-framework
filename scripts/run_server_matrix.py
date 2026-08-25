@@ -140,6 +140,8 @@ def build_jobs(args, selected_methods):
 def run_one(args, output_dir: Path, job):
     method, agents, frequency = job
     stem = f"{safe_name(method.label)}_{agents}_{frequency}"
+    if args.endpoint_strategy:
+        stem += f"_endpoint_{safe_name(args.endpoint_strategy)}"
     cache_path = output_dir / f"{stem}.json"
     log_path = output_dir / f"{stem}.log"
     if cache_path.exists() and not args.rerun:
@@ -154,6 +156,8 @@ def run_one(args, output_dir: Path, job):
     extra = [value.format(tour=str(tour_path)) for value in method.extra]
     command = [str(args.executable), "-m", str(map_path), "-t", str(task_path),
                "-a", method.preset, "--seed", str(args.seed), "-s", "1"] + extra
+    if args.endpoint_strategy:
+        command.extend(("--endpoint_strategy", args.endpoint_strategy))
 
     started = time.monotonic()
     timed_out = False
@@ -268,6 +272,13 @@ def main():
     parser.add_argument("--output-dir", type=Path,
                         default=ROOT / "server_results")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--endpoint-strategy",
+        choices=("WAIT_OR_NEAREST_SAFE", "RETURN_TO_HOME",
+                 "NEAREST_WITH_STRICT_EXCLUSIONS",
+                 "PAIRWISE_TASK_THEN_HOME",
+                 "WAIT_OR_NEAREST_FREE_NONTASK", "NEAREST_AVAILABLE"),
+        help="override the preset endpoint strategy for every selected method")
     parser.add_argument("--timeout", type=int, default=1800,
                         help="wall-clock timeout per simulator process (seconds)")
     parser.add_argument("--max-parallel", type=int, default=5)

@@ -44,6 +44,25 @@ void set_parameters(MAPDConfig& config, const po::variables_map& vm)
     else if (mf == "PP_TASK_SEQUENCE") config.mapf = MAPF_PP_TASK_SEQUENCE;
     else if (mf != "default")
         throw invalid_argument("unsupported MAPF override: " + mf);
+
+    if (vm.count("endpoint_strategy")) {
+        string strategy = vm["endpoint_strategy"].as<string>();
+        if (strategy == "WAIT_OR_NEAREST_SAFE")
+            config.endpoint_strategy = WAIT_OR_NEAREST_SAFE;
+        else if (strategy == "RETURN_TO_HOME")
+            config.endpoint_strategy = RETURN_TO_HOME;
+        else if (strategy == "NEAREST_WITH_STRICT_EXCLUSIONS")
+            config.endpoint_strategy = NEAREST_WITH_STRICT_EXCLUSIONS;
+        else if (strategy == "PAIRWISE_TASK_THEN_HOME")
+            config.endpoint_strategy = PAIRWISE_TASK_THEN_HOME;
+        else if (strategy == "WAIT_OR_NEAREST_FREE_NONTASK")
+            config.endpoint_strategy = WAIT_OR_NEAREST_FREE_NONTASK;
+        else if (strategy == "NEAREST_AVAILABLE")
+            config.endpoint_strategy = NEAREST_AVAILABLE;
+        else
+            throw invalid_argument(
+                "unsupported endpoint strategy: " + strategy);
+    }
     config.seed = vm["seed"].as<int>();
 
     // Algorithm-specific overrides. Other algorithms retain these values but
@@ -127,6 +146,7 @@ int main(int argc, char** argv)
         ("mode",           po::value<string>(),                        "task-information mode: ONLINE, OFFLINE, or SEMI_ONLINE")
         ("single_agent",   po::value<string>()->default_value("default"), "low-level: STA, MLA, or MLSIPP")
         ("mapf",           po::value<string>()->default_value("default"), "MAPF override: CBS, PBS, wPBS, PP (or PP_PER_TASK), PP_TASK_SEQUENCE")
+        ("endpoint_strategy", po::value<string>(),                       "endpoint override: WAIT_OR_NEAREST_SAFE, RETURN_TO_HOME, NEAREST_WITH_STRICT_EXCLUSIONS, PAIRWISE_TASK_THEN_HOME, WAIT_OR_NEAREST_FREE_NONTASK, or NEAREST_AVAILABLE")
         ("seed",           po::value<int>()->default_value(0),         "general RNG seed (>=0 deterministic, <0 = time(NULL))")
         ("tour",           po::value<string>()->default_value(""),     "LKH3 tour file")
         ("save_output",    po::bool_switch()->default_value(false),    "save output to ./output/")
@@ -193,6 +213,9 @@ int main(int argc, char** argv)
         string mf_override = vm["mapf"].as<string>();
         if (sa_override != "default") cout << "Single-agent: " << sa_override << endl;
         if (mf_override != "default") cout << "MAPF: " << mf_override << endl;
+        if (vm.count("endpoint_strategy"))
+            cout << "Endpoint strategy: "
+                 << vm["endpoint_strategy"].as<string>() << endl;
         if (lns_imp_rounds > 0)
             cout << "REALPATH_LNS_IMP: " << lns_imp_rounds << " rounds, group_size=" << lns_imp_group << endl;
         cout << endl;

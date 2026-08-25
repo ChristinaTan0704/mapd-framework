@@ -1856,10 +1856,19 @@ vector<vector<pair<int,int>>> Simulation::build_goal_sequences() {
 // Returning last_goal_loc means that no relocation path is required.
 int Simulation::choose_dummy_endpoint(int agent_id, int last_goal_loc,
                                       const vector<int>& reserved_endpoints) {
-    if (config.endpoint_strategy == WAIT_OR_NEAREST_FREE_NONTASK) {
+    const bool nearest_available_path2 =
+        config.endpoint_strategy == NEAREST_AVAILABLE &&
+        (config.assign_method == AM_DECOUPLED_GREEDY ||
+         config.assign_method == AM_DECOUPLED_GREEDY_SWAPS ||
+         config.assign_method == AM_CENTRALIZED_GREEDY);
+    if (config.endpoint_strategy == WAIT_OR_NEAREST_FREE_NONTASK ||
+        (nearest_available_path2 &&
+         config.assign_method == AM_CENTRALIZED_GREEDY)) {
         // HBH Algorithm 2: wait unless this location is needed by an open
-        // task. If it is, relocate to the nearest reachable non-task endpoint
-        // that can be held without colliding with another committed path.
+        // task. If it is, relocate to the nearest reachable endpoint that can
+        // be held without colliding with another committed path. The native
+        // HBH policy restricts the candidate to parking endpoints; the common
+        // NEAREST_AVAILABLE override permits any otherwise-safe endpoint.
         bool need_move = !mapd_map.is_endpoint[last_goal_loc];
         for (Task* task : open_tasks_)
             for (int goal_location : task->goals)
@@ -1887,7 +1896,9 @@ int Simulation::choose_dummy_endpoint(int agent_id, int last_goal_loc,
         return search_path2_endpoint(probe, -1);
     }
 
-    if (config.endpoint_strategy == WAIT_OR_NEAREST_SAFE) {
+    if (config.endpoint_strategy == WAIT_OR_NEAREST_SAFE ||
+        (nearest_available_path2 &&
+         config.assign_method != AM_CENTRALIZED_GREEDY)) {
         // TP/TPTS Path2 policy:
         //   * return the current endpoint when waiting there is safe;
         //   * otherwise choose the nearest reachable task/home endpoint that
@@ -1929,13 +1940,44 @@ int Simulation::choose_dummy_endpoint(int agent_id, int last_goal_loc,
     }
 
     if (config.endpoint_strategy == NEAREST_AVAILABLE) {
-        // CENTRAL constructs its candidate set before calling this function.
-        // The supplied locations contain occupied delivery endpoints, all
-        // pickup/delivery endpoints in T', and parking endpoints already
-        // selected for earlier agents.
+        // The caller supplies endpoints already selected in this planning
+        // batch. CENTRAL additionally supplies occupied task goals and jointly
+        // replans its free-agent batch, so its established behavior needs no
+        // further exclusions here.
         set<int> forbidden;
         for (int location : reserved_endpoints)
             if (location >= 0) forbidden.insert(location);
+
+        const bool offline_ta =
+            config.assign_method == AM_LKH3_TSP ||
+            config.assign_method == AM_LKH3_TSP_REASSIGN;
+        if (offline_ta) {
+            // TA planning treats every not-yet-planned agent's home as a
+            // permanent reservation. Its own home is therefore the only
+            // parking endpoint guaranteed to be available without changing
+            // the offline prioritized/hybrid planning invariant.
+            return agents[agent_id].initial_loc;
+        }
+
+        if (config.assign_method != AM_CENTRAL_HUNGARIAN) {
+            // Other families may plan sequentially or invoke Path2 for only one
+            // agent. In those contexts an endpoint is "available" only if it
+            // is not still required by an open task, assigned to another
+            // agent's pending task sequence, or permanently held by another
+            // committed path. The requesting agent's own completed task goals
+            // remain candidates, including its current delivery endpoint.
+            for (Task* task : open_tasks_)
+                for (int goal_location : task->goals)
+                    forbidden.insert(goal_location);
+
+            for (int other = 0; other < (int)agents.size(); other++) {
+                if (other == agent_id) continue;
+                for (int task_id : agents[other].task_sequence)
+                    for (int goal_location : all_tasks[task_id].goals)
+                        forbidden.insert(goal_location);
+                forbidden.insert((int)path_table_[other][maxtime - 1]);
+            }
+        }
 
         if (mapd_map.is_endpoint[last_goal_loc] &&
             !forbidden.count(last_goal_loc))
@@ -4142,10 +4184,17 @@ pair<int,int> Simulation::plan_task_sipp(Agent& agent, Task& task,
 int Simulation::search_path2_endpoint(Agent& agent, int target_endpoint_loc) {
     const bool hbh_non_task_policy =
         config.endpoint_strategy == WAIT_OR_NEAREST_FREE_NONTASK;
-    if (config.endpoint_strategy != WAIT_OR_NEAREST_SAFE &&
+    const bool hbh_open_goal_policy =
+        hbh_non_task_policy ||
+        (config.endpoint_strategy == NEAREST_AVAILABLE &&
+         config.assign_method == AM_CENTRALIZED_GREEDY);
+    if (target_endpoint_loc < 0 &&
+        config.endpoint_strategy != NEAREST_AVAILABLE &&
+        config.endpoint_strategy != WAIT_OR_NEAREST_SAFE &&
         !hbh_non_task_policy) {
         throw logic_error(
-            "Path2 requires a wait-or-relocate endpoint strategy");
+            "automatic Path2 endpoint search requires a wait-or-relocate "
+            "endpoint strategy");
     }
 
     queue<SearchNode*> open;
@@ -4184,7 +4233,13 @@ int Simulation::search_path2_endpoint(Agent& agent, int target_endpoint_loc) {
                         occupied = true;
                         break;
                     }
-            if (!hbh_non_task_policy) {
+            if (hbh_open_goal_policy) {
+                // HBH must not relocate onto any goal of an open task.
+                for (Task* task : open_tasks_)
+                    for (int goal_location : task->goals)
+                        if (!occupied && goal_location == current->loc)
+                            occupied = true;
+            } else {
                 // WAIT_OR_NEAREST_SAFE condition 2: do not park at any
                 // post-pickup goal still needed by an open multi-goal task.
                 for (Task* task : open_tasks_)

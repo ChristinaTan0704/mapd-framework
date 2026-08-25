@@ -25,6 +25,9 @@ server_results/
 skill_tools/
 *.log
 *.tmp
+*.png
+*.jpg
+*.jpeg
 *.bak
 *.bak_*
 *.throughput

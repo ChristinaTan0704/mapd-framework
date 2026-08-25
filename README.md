@@ -164,6 +164,29 @@ For example, TP/TPTS terminally hold a safe delivery endpoint and invoke Path2
 only when waiting there would block another task; this preserves the original
 algorithm instead of adding a Hungarian/LNS-style dummy path.
 
+Every method can also be run with the common `NEAREST_AVAILABLE` policy:
+
+```bash
+./mapd -m <map> -t <tasks> -a <preset> \
+  --endpoint_strategy NEAREST_AVAILABLE --seed 0
+```
+
+For non-CENTRAL methods, `NEAREST_AVAILABLE` applies the method's existing task
+goal protections and excludes endpoints reserved earlier in the same planning
+batch or permanently held by another committed path. The requesting agent may
+retain its current delivery endpoint when it is otherwise available. CENTRAL
+continues to use the reservation set constructed by its Hungarian assignment
+because its free-agent paths are planned jointly.
+
+For the two offline TA methods, every unplanned agent's home is represented as
+a permanent reservation during prioritized planning. Consequently, the
+requesting agent's own home is its only guaranteed available parking endpoint;
+the override preserves that invariant instead of allowing unsafe home swaps.
+
+The matrix runner exposes the same override as
+`--endpoint-strategy NEAREST_AVAILABLE`. Preset behavior remains unchanged
+when this option is omitted.
+
 Example single run:
 
 ```bash
