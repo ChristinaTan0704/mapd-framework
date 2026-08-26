@@ -595,14 +595,11 @@ bool Simulation::assign_tpts(Agent& agent, int depth) {
     return false;
 }
 
-// --- HBH-MLA*: centralized h-value greedy assignment ----------------------
+// --- HBH: centralized h-value greedy assignment ----------------------------
 // Build all available-agent/open-task pairs, scan them by nondecreasing
-// distance to the first task goal, and commit a pair only when the existing
-// MLA* planner finds a collision-free path through every ordered task goal.
+// distance to the first task goal, and commit a pair only when the configured
+// low-level planner finds a collision-free path through every ordered goal.
 void Simulation::assign_hbh_mla() {
-    if (config.single_agent != SA_MLA_SEQUENCE)
-        throw invalid_argument("HBH currently requires MLA* low-level search");
-
     vector<int> available_agents;
     for (Agent& agent : agents) {
         if (agent.finish_time > cur_time_) continue;
@@ -668,10 +665,31 @@ void Simulation::assign_hbh_mla() {
                 constraints.emplace_back(
                     path_table_[other].begin(), path_table_[other].end());
 
-        MLAStarPlanner planner(*this);
-        vector<int> path = planner.solve(MLAStarRequest(
-            agent.id, agent.loc, (int)cur_time_, task_groups,
-            constraints, no_old_paths, false));
+        vector<int> path;
+        switch (config.single_agent) {
+        case SA_MLA_SEQUENCE: {
+            MLAStarPlanner planner(*this);
+            path = planner.solve(MLAStarRequest(
+                agent.id, agent.loc, (int)cur_time_, task_groups,
+                constraints, no_old_paths, false));
+            break;
+        }
+        case SA_MLSIPP_SEQUENCE: {
+            SIPPPlanner planner(*this);
+            path = planner.solve(SIPPRequest(
+                agent.id, agent.loc, (int)cur_time_, ordered_goals,
+                constraints, no_old_paths, false));
+            break;
+        }
+        case SA_SIPP_SEGMENTS:
+            path = plan_sipp_segments(
+                agent.id, agent.loc, (int)cur_time_, ordered_goals,
+                constraints, no_old_paths, false);
+            break;
+        default:
+            throw invalid_argument(
+                "HBH requires MLA, MLSIPP, or SIPP2 low-level search");
+        }
         if (path.empty()) continue;
 
         int first_goal_time = -1;
@@ -4242,6 +4260,45 @@ pair<int,int> Simulation::plan_task_sta_impl(Agent& agent, Task& task,
     }
 
     return {first_goal_time, final_goal_time};
+}
+
+vector<int> Simulation::plan_sipp_segments(
+    int agent_id, int start_loc, int start_time,
+    const vector<pair<int,int>>& goals,
+    const vector<vector<int>>& constraint_paths,
+    const vector<vector<int>>& old_paths, bool use_old_paths) {
+    if (goals.empty()) return {};
+
+    vector<int> combined(maxtime, start_loc);
+    int segment_start = start_time;
+    int segment_location = start_loc;
+    SIPPPlanner planner(*this);
+
+    for (int goal_index = 0; goal_index < (int)goals.size(); goal_index++) {
+        vector<pair<int,int>> segment_goal = {goals[goal_index]};
+        bool intermediate = goal_index + 1 < (int)goals.size();
+        vector<int> segment = planner.solve(SIPPRequest(
+            agent_id, segment_location, segment_start, segment_goal,
+            constraint_paths, old_paths, use_old_paths, intermediate));
+        if (segment.empty()) return {};
+
+        int arrival = -1;
+        for (int time = segment_start;
+             time < (int)segment.size() && time < (int)maxtime; time++)
+            if (segment[time] == goals[goal_index].first &&
+                time >= goals[goal_index].second) {
+                arrival = time;
+                break;
+            }
+        if (arrival < 0) return {};
+
+        int copy_through = intermediate ? arrival : (int)maxtime - 1;
+        for (int time = segment_start; time <= copy_through; time++)
+            combined[time] = segment[time];
+        segment_start = arrival;
+        segment_location = goals[goal_index].first;
+    }
+    return combined;
 }
 
 pair<int,int> Simulation::plan_task_sipp(Agent& agent, Task& task,

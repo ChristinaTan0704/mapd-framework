@@ -394,6 +394,11 @@ private:
     // TP/TPTS ordered-goal low-level planning and endpoint-vacating fallback.
     pair<int,int> plan_task_sta_impl(Agent& agent, Task& task, int hidden_agent = -1);
     pair<int,int> plan_task_sipp(Agent& agent, Task& task, int hidden_agent = -1);
+    vector<int> plan_sipp_segments(
+        int agent_id, int start_loc, int start_time,
+        const vector<pair<int,int>>& goals,
+        const vector<vector<int>>& constraint_paths,
+        const vector<vector<int>>& old_paths, bool use_old_paths);
     pair<int,int> plan_token_task(Agent& agent, Task& task, int hidden_agent = -1);
     int sta_search(Agent& agent, int start_loc, int begin_time,
                    const Endpoint& goal, int hidden_agent);

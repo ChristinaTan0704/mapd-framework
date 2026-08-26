@@ -35,6 +35,8 @@ void set_parameters(MAPDConfig& config, const po::variables_map& vm)
     string sa = vm["single_agent"].as<string>();
     if (sa == "MLA") config.single_agent = SA_MLA_SEQUENCE;
     else if (sa == "MLSIPP" || sa == "SIPP") config.single_agent = SA_MLSIPP_SEQUENCE;
+    else if (sa == "SIPP2" || sa == "2SEG_SIPP")
+        config.single_agent = SA_SIPP_SEGMENTS;
     else if (sa == "STA") config.single_agent = SA_STA_TASK_EP;
     string mf = vm["mapf"].as<string>();
     if (mf == "PBS") config.mapf = MAPF_PBS;
@@ -145,6 +147,7 @@ string sa_name(SingleAgentMethod s) {
     switch (s) {
     case SA_MLA_SEQUENCE: return "MLA";
     case SA_MLSIPP_SEQUENCE: return "MLSIPP";
+    case SA_SIPP_SEGMENTS: return "SIPP2";
     case SA_STA_TASK_EP: return "STA";
     default: return "";
     }
@@ -159,7 +162,7 @@ int main(int argc, char** argv)
         ("task,t",         po::value<string>()->required(),            "input task file")
         ("algo,a",         po::value<string>()->default_value("TP"),   "algorithm")
         ("mode",           po::value<string>(),                        "task-information mode: ONLINE, OFFLINE, or SEMI_ONLINE")
-        ("single_agent",   po::value<string>()->default_value("default"), "low-level: STA, MLA, or MLSIPP")
+        ("single_agent",   po::value<string>()->default_value("default"), "low-level: STA, MLA, MLSIPP, or SIPP2")
         ("mapf",           po::value<string>()->default_value("default"), "MAPF override: CBS, PBS, wPBS, PP (or PP_PER_TASK), PP_TASK_SEQUENCE")
         ("endpoint_strategy", po::value<string>(),                       "endpoint override: WAIT_OR_NEAREST_SAFE, RETURN_TO_HOME, NEAREST_WITH_STRICT_EXCLUSIONS, PAIRWISE_TASK_THEN_HOME, WAIT_OR_NEAREST_FREE_NONTASK, or NEAREST_AVAILABLE")
         ("seed",           po::value<int>()->default_value(0),         "general RNG seed (>=0 deterministic, <0 = time(NULL))")

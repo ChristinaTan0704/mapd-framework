@@ -35,6 +35,8 @@ METHODS = (
     Method("CENTRAL-CBS", "CENTRAL-CBS"),
     Method("CENTRAL-fixed-CBS", "CENTRAL-fixed"),
     Method("HBH+MLA*", "HBH_MLA"),
+    Method("HBH+MLSIPP", "HBH_MLA", ("--single_agent", "MLSIPP")),
+    Method("HBH+2-segment SIPP", "HBH_MLA", ("--single_agent", "SIPP2")),
     Method("TA-Hybrid-STA*", "TA_HYBRID", ("--tour", "{tour}"), True),
     Method("TA-Prioritized-STA*", "TA_PRIORITIZED", ("--tour", "{tour}"), True),
     Method("Hungarian+PBS-MLA*", "HUNGARIAN_PBS"),
@@ -49,8 +51,8 @@ METHODS = (
            ("--lns_time", "1", "--single_agent", "MLSIPP")),
     Method("LNS(1s)+wPBS-MLSIPP", "LNS_wPBS",
            ("--lns_time", "1", "--single_agent", "MLSIPP")),
-    Method("TP-SIPP", "TP", ("--single_agent", "MLSIPP")),
-    Method("TPTS-SIPP", "TPTS", ("--single_agent", "MLSIPP")),
+    Method("TP-MLSIPP", "TP", ("--single_agent", "MLSIPP")),
+    Method("TPTS-MLSIPP", "TPTS", ("--single_agent", "MLSIPP")),
     Method("Hungarian+PP-SIPP", "HUNGARIAN_PBS",
            ("--mapf", "PP", "--single_agent", "MLSIPP")),
     Method("LNS(1s)+PP-SIPP", "LNS_PBS",
@@ -74,7 +76,7 @@ METHODS = (
            ("--lns_time", "1", "--single_agent", "MLSIPP",
             "--task_sequence_limit", "1")),
 )
-BASE_METHOD_COUNT = 19
+BASE_METHOD_COUNT = 21
 
 # Seed-0 results from the 2026-08-24 macOS validation.  Runtime is deliberately
 # excluded because it depends on the server.  LNS rows are reported but are not
@@ -86,6 +88,8 @@ SMOKE_BASELINE = {
     "CENTRAL-CBS": (2514, 14056),
     "CENTRAL-fixed-CBS": (2514, 14156),
     "HBH+MLA*": (2532, 14611),
+    "HBH+MLSIPP": (2532, 14654),
+    "HBH+2-segment SIPP": (2514, 14734),
     "TA-Hybrid-STA*": (1055, 263846),
     "TA-Prioritized-STA*": (1049, 263420),
     "Hungarian+PBS-MLA*": (2514, 13814),
@@ -96,8 +100,8 @@ SMOKE_BASELINE = {
     "Hungarian+wPBS-MLSIPP": (2512, 13678),
     "LNS(1s)+PBS-MLSIPP": (2514, 13770),
     "LNS(1s)+wPBS-MLSIPP": (2513, 13585),
-    "TP-SIPP": (2541, 19032),
-    "TPTS-SIPP": (2513, 14115),
+    "TP-MLSIPP": (2541, 19032),
+    "TPTS-MLSIPP": (2513, 14115),
     "Hungarian+PP-SIPP": (2517, 13796),
     "LNS(1s)+PP-SIPP": (2514, 13840),
     "Hungarian+PBS-MLA* (ts 1)": (2517, 13775),
@@ -116,6 +120,8 @@ MULTIGOAL_BASELINE = {
     "CENTRAL-CBS": (161, 1042),
     "CENTRAL-fixed-CBS": (154, 1027),
     "HBH+MLA*": (161, 1016),
+    "HBH+MLSIPP": (161, 1014),
+    "HBH+2-segment SIPP": (161, 1017),
     "TA-Hybrid-STA*": (124, 817),
     "TA-Prioritized-STA*": (123, 839),
     "Hungarian+PBS-MLA*": (160, 1017),
@@ -126,8 +132,8 @@ MULTIGOAL_BASELINE = {
     "Hungarian+wPBS-MLSIPP": (212, 1428),
     "LNS(1s)+PBS-MLSIPP": (164, 1020),
     "LNS(1s)+wPBS-MLSIPP": (212, 1428),
-    "TP-SIPP": (161, 1043),
-    "TPTS-SIPP": (161, 1022),
+    "TP-MLSIPP": (161, 1043),
+    "TPTS-MLSIPP": (161, 1022),
     "Hungarian+PP-SIPP": (160, 1030),
     "LNS(1s)+PP-SIPP": (160, 1030),
     "Hungarian+PBS-MLA* (ts 1)": (160, 1017),
@@ -357,7 +363,7 @@ def main():
                         help="comma-separated displayed method labels, or all")
     parser.add_argument(
         "--base-methods", action="store_true",
-        help="with --methods=all, run the 19 base methods and omit ts-1 variants")
+        help="with --methods=all, run the 21 base methods and omit ts-1 variants")
     parser.add_argument("--agents", type=lambda value: parse_list(value, int),
                         default=DEFAULT_AGENTS)
     parser.add_argument("--frequencies", type=lambda value: parse_list(value, str),

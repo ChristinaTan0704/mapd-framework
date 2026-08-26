@@ -38,6 +38,7 @@ enum SingleAgentMethod {
     SA_STA_NONTASK_EP,
     SA_MLA_SEQUENCE,
     SA_MLSIPP_SEQUENCE,
+    SA_SIPP_SEGMENTS,
     SA_SEQ_STA
 };
 enum EndpointStrategy {

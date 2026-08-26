@@ -148,14 +148,26 @@ Representative seed-0 baselines are:
 | TA-Prioritized-STA* | 10 / offline | 1049 | 263420 |
 | TA-Hybrid-STA* | 10 / offline | 1055 | 263846 |
 
-The runner contains the complete 27-method smoke baseline, including the eight
+The runner contains the complete 29-method smoke baseline, including the eight
 `task_sequence_limit=1` variants.
+
+The structured-small 10-agent, frequency-0.2 validation for the added
+low-level combinations produced the following seed-0 results. Every row
+completed 500/500 tasks and passed the collision check.
+
+| Method | Makespan | SWT |
+|---|---:|---:|
+| HBH+MLA* (comparison) | 2546 | 14849 |
+| HBH+MLSIPP | 2546 | 14978 |
+| HBH+2-segment SIPP | 2535 | 15349 |
+| TP+MLSIPP | 2543 | 19207 |
+| TPTS+MLSIPP | 2535 | 14265 |
 
 The seed-0 randomized-tie validation was run twice. Every method reproduced
 the same makespan and SWT on the second run. Use a different non-negative
 `--seed` to obtain a different but repeatable equal-cost search ordering.
 
-GitHub Actions runs the same repository-manifest, Linux build, and 27-method
+GitHub Actions runs the same repository-manifest, Linux build, and 29-method
 smoke checks on every push and pull request. Its smoke logs are uploaded as the
 `mapd-validation-results` workflow artifact.
 
@@ -183,8 +195,9 @@ goal through `choose_dummy_endpoint()`.
 | Family | Multi-goal implementation |
 |---|---|
 | TP/TPTS STA* | Sequential STA* legs visit every ordered goal; task swapping compares arrival at the first goal and completion at the final goal. |
-| TP/TPTS SIPP | One ordered SIPP request contains every goal. |
-| HBH+MLA* | MLA* receives the complete goal sequence and completion is recorded at its final goal. |
+| TP/TPTS MLSIPP | One ordered MLSIPP request contains every goal. |
+| HBH+MLA* or HBH+MLSIPP | The selected low-level planner receives the complete goal sequence and completion is recorded at its final goal. |
+| HBH+2-segment SIPP | Each ordered goal leg is planned by a separate SIPP request; only the final leg reserves its endpoint through the planning horizon. |
 | CENTRAL-CBS | CBS plans one segment at a time; `current_goal_index` triggers the next segment until the final goal is reached. |
 | TA-Prioritized | The offline sequence planner iterates every goal of every assigned task before selecting parking. |
 | TA-Hybrid | Group 2 plans to the first goal; subsequent Group-1 CBS calls advance through every remaining goal. |
@@ -342,12 +355,14 @@ to 600 seconds. Use `--runtime_limit 0` or
 | Displayed method | Required command options | Mode |
 |---|---|---|
 | TP-STA* | `-a TP` | Online |
-| TP-SIPP | `-a TP --single_agent MLSIPP` | Online extension |
+| TP-MLSIPP | `-a TP --single_agent MLSIPP` | Online extension |
 | TPTS-STA* | `-a TPTS` | Online |
-| TPTS-SIPP | `-a TPTS --single_agent MLSIPP` | Online extension |
+| TPTS-MLSIPP | `-a TPTS --single_agent MLSIPP` | Online extension |
 | CENTRAL-CBS | `-a CENTRAL-CBS` | Online, every timestep |
 | CENTRAL-fixed-CBS | `-a CENTRAL-fixed` | Online, event-triggered |
 | HBH+MLA* | `-a HBH_MLA` | Online |
+| HBH+MLSIPP | `-a HBH_MLA --single_agent MLSIPP` | Online extension |
+| HBH+2-segment SIPP | `-a HBH_MLA --single_agent SIPP2` | Online extension |
 | TA-Prioritized-STA* | `-a TA_PRIORITIZED --tour tour/<agents>-500.tour` | Offline only |
 | TA-Hybrid-STA* | `-a TA_HYBRID --tour tour/<agents>-500.tour` | Offline only |
 | Hungarian+PBS-MLA* | `-a HUNGARIAN_PBS` | Online |
