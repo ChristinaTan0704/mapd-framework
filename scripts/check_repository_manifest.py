@@ -16,7 +16,6 @@ REQUIRED = {
     ".github/workflows/linux-smoke.yml",
     "Makefile",
     "README.md",
-    "all_paper_algorithms_comparison_2026-08-24.xlsx",
     "output/all_paper_algorithms_comparison_2026-08-24.xlsx",
     "driver.cpp",
     "history/2026-08-24_linux_server_handover.md",
@@ -27,7 +26,14 @@ REQUIRED = {
     "inc/simulation.h",
     "inc/types.h",
     "scripts/check_repository_manifest.py",
+    "scripts/experiment_matrix_lib.py",
+    "scripts/generate_missing_frequency_tasks.py",
     "scripts/run_server_matrix.py",
+    "scripts/run_sparse_small_to_medium_matrix.py",
+    "scripts/run_structured_large_matrix.py",
+    "scripts/run_structured_medium_matrix.py",
+    "scripts/run_structured_small_matrix.py",
+    "scripts/run_structured_small_mg_matrix.py",
     "src/cbs.cpp",
     "src/map_loader.cpp",
     "src/path_planners.cpp",
@@ -99,6 +105,11 @@ for task_count in (1000, 2000, 3000, 4000, 5000):
         "benchmark_instances/tasks/"
         f"benchmark_structured_large_a1000_t{task_count}_f100.task")
 
+for agents in BENCHMARKS["structured_small"]:
+    REQUIRED.add(
+        "benchmark_instances/maps/"
+        f"benchmark_structured_small_a{agents}_heuristics_table.txt")
+
 for agents in (10, 20, 30, 40, 50):
     REQUIRED.add(
         "benchmark_instances/lkh_tours/"
@@ -131,7 +142,6 @@ def main() -> int:
             print(f"  {path}", file=sys.stderr)
 
     workbooks = (
-        ROOT / "all_paper_algorithms_comparison_2026-08-24.xlsx",
         ROOT / "output" / "all_paper_algorithms_comparison_2026-08-24.xlsx",
     )
     invalid_workbooks = [

@@ -35,6 +35,15 @@
 !/scripts/run_server_matrix.py
 !/scripts/check_repository_manifest.py
 
+# Per-map experiment matrices and the task files they add.
+!/scripts/experiment_matrix_lib.py
+!/scripts/run_structured_small_matrix.py
+!/scripts/run_structured_small_mg_matrix.py
+!/scripts/run_structured_medium_matrix.py
+!/scripts/run_structured_large_matrix.py
+!/scripts/run_sparse_small_to_medium_matrix.py
+!/scripts/generate_missing_frequency_tasks.py
+
 # Reviewed handover only.
 !/history/
 /history/*
