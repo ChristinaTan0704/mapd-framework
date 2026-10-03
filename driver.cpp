@@ -116,6 +116,24 @@ void set_parameters(MAPDConfig& config, const po::variables_map& vm)
             throw invalid_argument(
                 "cbs_low_level_expansion_limit must be positive");
     }
+    if (vm.count("cbs_conflict_selection")) {
+        string selection = vm["cbs_conflict_selection"].as<string>();
+        if (selection == "earliest")
+            config.cbs_conflict_selection = CBS_CONFLICT_EARLIEST;
+        else if (selection == "cardinal")
+            config.cbs_conflict_selection = CBS_CONFLICT_CARDINAL;
+        else
+            throw invalid_argument(
+                "cbs_conflict_selection must be earliest or cardinal");
+    }
+    if (vm.count("cbs_bypass"))
+        config.cbs_bypass = vm["cbs_bypass"].as<int>() != 0;
+    if (vm.count("cbs_target_reasoning"))
+        config.cbs_target_reasoning =
+            vm["cbs_target_reasoning"].as<int>() != 0;
+    if (vm.count("cbs_rectangle_reasoning"))
+        config.cbs_rectangle_reasoning =
+            vm["cbs_rectangle_reasoning"].as<int>() != 0;
     if (vm.count("semi_online_lookahead_batches")) {
         config.semi_online_lookahead_batches =
             vm["semi_online_lookahead_batches"].as<int>();
@@ -166,7 +184,7 @@ int main(int argc, char** argv)
         ("mapf",           po::value<string>()->default_value("default"), "MAPF override: CBS, PBS, wPBS, PP (or PP_PER_TASK), PP_TASK_SEQUENCE")
         ("endpoint_strategy", po::value<string>(),                       "endpoint override: WAIT_OR_NEAREST_SAFE, RETURN_TO_HOME, NEAREST_WITH_STRICT_EXCLUSIONS, PAIRWISE_TASK_THEN_HOME, WAIT_OR_NEAREST_FREE_NONTASK, or NEAREST_AVAILABLE")
         ("seed",           po::value<int>()->default_value(0),         "general RNG seed (>=0 deterministic, <0 = time(NULL))")
-        ("runtime_limit",  po::value<int>()->default_value(1800),      "whole-run wall-clock limit in seconds; 0 disables")
+        ("runtime_limit",  po::value<int>()->default_value(1000),      "whole-run wall-clock limit in seconds; 0 disables")
         ("pathfinding_runtime_limit", po::value<int>()->default_value(600), "per planning-cycle wall-clock limit in seconds; 0 disables")
         ("tour",           po::value<string>()->default_value(""),     "LKH3 tour file")
         ("save_output",    po::bool_switch()->default_value(false),    "save output to ./output/")
@@ -181,6 +199,10 @@ int main(int argc, char** argv)
         ("ecbs_focal_weight", po::value<double>(),                     "CBS/ECBS only: focal bound; 1.0=optimal CBS, >1.0=ECBS (default 1.0)")
         ("cbs_high_level_expansion_limit", po::value<int>(),           "CBS/ECBS only: maximum high-level expansions per batch (default INT_MAX)")
         ("cbs_low_level_expansion_limit", po::value<int>(),            "CBS/ECBS only: maximum expansions per low-level search (default INT_MAX)")
+        ("cbs_conflict_selection", po::value<string>(),                "CBS/ECBS only: earliest or cardinal (ICBS MDD prioritization) (default cardinal)")
+        ("cbs_bypass",     po::value<int>(),                           "CBS/ECBS only: 1=ICBS bypass, 0=always branch (default 1)")
+        ("cbs_target_reasoning", po::value<int>(),                     "CBS/ECBS only: 1=target-conflict reasoning, 0=vertex constraints (default 1)")
+        ("cbs_rectangle_reasoning", po::value<int>(),                  "CBS/ECBS only: 1=rectangle (barrier) reasoning, 0=vertex constraints (default 1)")
         ("semi_online_lookahead_batches", po::value<int>(),            "SEMI_ONLINE only: future task-release batches known in advance (default 1)")
         ("lns_imp",        po::value<int>()->default_value(0),         "LNS only: optional post-run LNS improvement rounds (0=off)")
         ("lns_imp_group",  po::value<int>()->default_value(5),         "LNS only: post-run LNS destroy-group size")

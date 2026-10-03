@@ -41,6 +41,10 @@ enum SingleAgentMethod {
     SA_SIPP_SEGMENTS,
     SA_SEQ_STA
 };
+// CBS/ECBS high-level conflict choice. EARLIEST splits the earliest conflict;
+// CARDINAL is ICBS prioritization: classify conflicts with MDDs and split a
+// cardinal, then semi-cardinal, then non-cardinal conflict.
+enum CBSConflictSelection { CBS_CONFLICT_EARLIEST, CBS_CONFLICT_CARDINAL };
 enum EndpointStrategy {
     // Return the agent's own initial/home parking endpoint.
     RETURN_TO_HOME,
@@ -94,19 +98,34 @@ struct MAPDConfig {
     int cbs_high_level_expansion_limit;
     // CBS/ECBS only: maximum nodes expanded by each low-level ECBS search.
     int cbs_low_level_expansion_limit;
+    // CBS/ECBS only: high-level conflict selection.
+    CBSConflictSelection cbs_conflict_selection;
+    // CBS/ECBS only: ICBS bypass. A child with the same cost and fewer
+    // colliding pairs replaces the parent's path instead of branching.
+    bool cbs_bypass;
+    // CBS/ECBS only: target reasoning. A conflict with an agent parked at its
+    // goal branches on "arrive after t" versus "the other agent never enters
+    // that goal at or after t" instead of a single-timestep vertex constraint.
+    bool cbs_target_reasoning;
+    // CBS/ECBS only: rectangle reasoning. Two agents that leave their starts
+    // monotonically and collide inside the rectangle spanned by their paths
+    // branch on barrier constraints along the rectangle's far edges.
+    bool cbs_rectangle_reasoning;
     // Semi-online only: number of future release batches known in advance.
     int semi_online_lookahead_batches;
 
     MAPDConfig() : mode(MODE_ONLINE),
         assign_method(AM_DECOUPLED_GREEDY), assign_trigger(AT_ON_FREE_WAITS),
         mapf(MAPF_PP_PER_TASK), single_agent(SA_STA_TASK_EP),
-        dummy_path(true), seed(0), runtime_limit_seconds(1800),
+        dummy_path(true), seed(0), runtime_limit_seconds(1000),
         pathfinding_runtime_limit_seconds(600),
         endpoint_strategy(WAIT_OR_NEAREST_SAFE),
         task_sequence_limit(2), wpbs_replan_window(10), lns_time_limit(1),
         lns_no_improvement_limit(2000), ecbs_focal_weight(1.0),
         cbs_high_level_expansion_limit(INT_MAX),
         cbs_low_level_expansion_limit(INT_MAX),
+        cbs_conflict_selection(CBS_CONFLICT_CARDINAL), cbs_bypass(true),
+        cbs_target_reasoning(true), cbs_rectangle_reasoning(true),
         semi_online_lookahead_batches(1) {}
 };
 

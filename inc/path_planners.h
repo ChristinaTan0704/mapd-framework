@@ -1,6 +1,7 @@
 #pragma once
 
 #include "types.h"
+#include "config.h"
 #include <utility>
 #include <vector>
 
@@ -120,6 +121,10 @@ struct ECBSRequest {
     int low_level_expansion_limit;
     const std::vector<Endpoint>& endpoints;
     int max_time;
+    CBSConflictSelection conflict_selection;
+    bool bypass;
+    bool target_reasoning;
+    bool rectangle_reasoning;
 
     ECBSRequest(const std::vector<bool>& map_grid,
                 const std::vector<int>& starts,
@@ -128,13 +133,18 @@ struct ECBSRequest {
                 const std::vector<std::vector<int>>& constraints,
                 int time, int map_columns, double weight,
                 int high_expansion_limit, int low_expansion_limit,
-                const std::vector<Endpoint>& map_endpoints, int horizon)
+                const std::vector<Endpoint>& map_endpoints, int horizon,
+                CBSConflictSelection selection, bool use_bypass,
+                bool use_target_reasoning, bool use_rectangle_reasoning)
         : grid(map_grid), start_locations(starts), goal_locations(goals),
           goal_endpoint_indices(goal_endpoints), constraint_paths(constraints),
           current_time(time), columns(map_columns), focal_weight(weight),
           high_level_expansion_limit(high_expansion_limit),
           low_level_expansion_limit(low_expansion_limit),
-          endpoints(map_endpoints), max_time(horizon) {}
+          endpoints(map_endpoints), max_time(horizon),
+          conflict_selection(selection), bypass(use_bypass),
+          target_reasoning(use_target_reasoning),
+          rectangle_reasoning(use_rectangle_reasoning) {}
 };
 
 struct ECBSResult {

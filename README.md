@@ -115,7 +115,7 @@ python3 scripts/run_server_matrix.py \
     --smoke \
     --seed 0 \
     --max-parallel 5 \
-    --timeout 1800 \
+    --timeout 1000 \
     --output-dir server_results/smoke
 ```
 
@@ -176,7 +176,7 @@ each:
 
 ```bash
 python3 scripts/run_server_matrix.py \
-    --multigoal-smoke --seed 0 --max-parallel 5 --timeout 1800 \
+    --multigoal-smoke --seed 0 --max-parallel 5 --timeout 1000 \
     --output-dir server_results/multigoal
 ```
 
@@ -223,7 +223,7 @@ and frequencies 0.2, 0.5, 1, 2, 5, 10, and 500:
 python3 scripts/run_server_matrix.py \
     --seed 0 \
     --max-parallel 5 \
-    --timeout 1800 \
+    --timeout 1000 \
     --output-dir server_results/full
 ```
 
@@ -235,7 +235,7 @@ command resumes an interrupted matrix. Add `--rerun` to discard the cache.
 
 Every executable receives two internal wall-clock limits. By default, the
 runner sets the whole-run `--runtime_limit` to five seconds less than its
-external `--timeout` (1795 versus 1800 seconds) and sets
+external `--timeout` (995 versus 1000 seconds) and sets
 `--pathfinding_runtime_limit` to 600 seconds. The pathfinding deadline resets
 for every assignment/path-planning cycle. CBS, TA, PBS/wPBS, STA*, MLA*,
 MLSIPP, CENTRAL assignment search, endpoint Path2, and LNS immediately raise
@@ -256,7 +256,7 @@ To run only the eight task-sequence-limit-1 variants, use:
 ```bash
 python3 scripts/run_server_matrix.py \
     --methods 'Hungarian+PBS-MLA* (ts 1),Hungarian+wPBS-MLA* (ts 1),LNS(1s)+PBS-MLA* (ts 1),LNS(1s)+wPBS-MLA* (ts 1),Hungarian+PBS-MLSIPP (ts 1),Hungarian+wPBS-MLSIPP (ts 1),LNS(1s)+PBS-MLSIPP (ts 1),LNS(1s)+wPBS-MLSIPP (ts 1)' \
-    --seed 0 --max-parallel 5 --timeout 1800 \
+    --seed 0 --max-parallel 5 --timeout 1000 \
     --output-dir server_results/ts1
 ```
 
@@ -277,7 +277,7 @@ python3 scripts/run_server_matrix.py --base-methods \
     --map-template 'benchmark_instances/maps/benchmark_structured_small_a{agents}.map' \
     --task-template 'benchmark_instances/tasks/benchmark_structured_small_a{agents}_f{frequency}.task' \
     --tour-template 'benchmark_instances/lkh_tours/benchmark_structured_small_a{agents}_fall.tour' \
-    --seed 0 --max-parallel 5 --timeout 1800 \
+    --seed 0 --max-parallel 5 --timeout 1000 \
     --output-dir server_results/benchmark_structured_small
 ```
 
@@ -290,7 +290,7 @@ python3 scripts/run_server_matrix.py --base-methods \
     --map-template 'benchmark_instances/maps/benchmark_structured_medium_a{agents}.map' \
     --task-template 'benchmark_instances/tasks/benchmark_structured_medium_a{agents}_f{frequency}.task' \
     --tour-template 'benchmark_instances/lkh_tours/benchmark_structured_medium_a{agents}_fall.tour' \
-    --seed 0 --max-parallel 5 --timeout 1800 \
+    --seed 0 --max-parallel 5 --timeout 1000 \
     --output-dir server_results/benchmark_structured_medium
 ```
 
@@ -305,7 +305,7 @@ python3 scripts/run_server_matrix.py --base-methods \
     --task-template 'benchmark_instances/tasks/benchmark_structured_large_a{agents}_{frequency}.task' \
     --offline-task-template 'benchmark_instances/tasks/benchmark_structured_large_a{agents}_fall.task' \
     --tour-template 'benchmark_instances/lkh_tours/benchmark_structured_large_a{agents}_fall.tour' \
-    --seed 0 --max-parallel 5 --timeout 1800 \
+    --seed 0 --max-parallel 5 --timeout 1000 \
     --output-dir server_results/benchmark_structured_large
 ```
 
@@ -321,7 +321,7 @@ python3 scripts/run_server_matrix.py --base-methods \
     --map-template 'benchmark_instances/maps/benchmark_sparse_small_to_medium_a{agents}.map' \
     --task-template 'benchmark_instances/tasks/benchmark_sparse_small_to_medium_a{agents}_f{frequency}.task' \
     --tour-template 'benchmark_instances/lkh_tours/benchmark_sparse_small_to_medium_a{agents}_fall.tour' \
-    --seed 0 --max-parallel 5 --timeout 1800 \
+    --seed 0 --max-parallel 5 --timeout 1000 \
     --output-dir server_results/benchmark_sparse_small_to_medium
 ```
 
@@ -334,7 +334,7 @@ python3 scripts/run_server_matrix.py --base-methods \
     --map-template 'benchmark_instances/maps/benchmark_structured_small_a{agents}.map' \
     --task-template 'benchmark_instances/tasks/benchmark_structured_small_mg_a{agents}_f{frequency}.task' \
     --tour-template 'benchmark_instances/lkh_tours/benchmark_structured_small_mg_a{agents}_fall.tour' \
-    --seed 0 --max-parallel 5 --timeout 1800 \
+    --seed 0 --max-parallel 5 --timeout 1000 \
     --output-dir server_results/benchmark_structured_small_mg
 ```
 
@@ -347,8 +347,16 @@ file in the selected output directory before accepting an experiment matrix.
 All rows below also receive `--seed 0`. Preset defaults are
 `task_sequence_limit=2`, `wpbs_replan_window=10`, `lns_time=1`,
 `lns_no_improvement_limit=2000`, CBS focal weight 1.0, and both CBS high- and
-low-level expansion limits `INT_MAX`. The standalone executable's whole-run
-wall-clock limit defaults to 1800 seconds, while each planning cycle defaults
+low-level expansion limits `INT_MAX`. CBS uses ICBS conflict prioritization
+(MDD-based cardinal, then semi-cardinal, then non-cardinal conflicts), bypass,
+target reasoning (a conflict with an agent parked at its goal branches on
+"arrive later" versus "the other agent never enters that goal from then on"),
+and rectangle reasoning (two agents crossing the same rectangle branch on
+barrier constraints along its far edges); all four keep CBS optimal.
+`--cbs_conflict_selection earliest`, `--cbs_bypass 0`,
+`--cbs_target_reasoning 0`, and `--cbs_rectangle_reasoning 0` restore plain
+earliest-conflict CBS. The standalone executable's whole-run
+wall-clock limit defaults to 1000 seconds, while each planning cycle defaults
 to 600 seconds. Use `--runtime_limit 0` or
 `--pathfinding_runtime_limit 0` to disable the respective limit.
 

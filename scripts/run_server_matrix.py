@@ -396,7 +396,7 @@ def main():
                  "PAIRWISE_TASK_THEN_HOME",
                  "WAIT_OR_NEAREST_FREE_NONTASK", "NEAREST_AVAILABLE"),
         help="override the preset endpoint strategy for every selected method")
-    parser.add_argument("--timeout", type=int, default=1800,
+    parser.add_argument("--timeout", type=int, default=1000,
                         help="wall-clock timeout per simulator process (seconds)")
     parser.add_argument(
         "--runtime-limit", type=int,

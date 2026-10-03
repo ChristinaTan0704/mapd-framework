@@ -1,35 +1,55 @@
 // ============================================================================
-//  Unified MAPD Framework — TP/TPTS, CENTRAL, TA, Hungarian, or LNS assignment
+//  Unified MAPD Framework — TP/TPTS, HBH, CENTRAL, TA, Hungarian, or LNS
+//                           assignment
 //                          — TP/TPTS with sequential STA* or MLSIPP
-//                          — CENTRAL/CENTRAL-fixed with segment-by-segment CBS
-//                            through arbitrary ordered task goals
-//                          — TA-Prioritized with LKH3 assignment and STA*
-//                          — PBS with MLA* or MLSIPP
-//                          — wPBS with MLA* or MLSIPP
-//                          — PP with MLSIPP
+//                          — HBH with MLA*, MLSIPP, or two-segment SIPP
+//                          — CENTRAL/CENTRAL-fixed: Hungarian assignment and
+//                            segment-by-segment CBS through arbitrary ordered
+//                            task goals (CBS/ICBS search lives in cbs.cpp)
+//                          — TA-Prioritized: offline LKH3 tours and
+//                            prioritized sequential STA*
+//                          — TA-Hybrid: offline LKH3 tours with reassignment,
+//                            two-group CBS / min-cost-flow planning
+//                          — Repeated Hungarian or Hungarian+LNS with
+//                            PBS / wPBS (MLA* or MLSIPP) or PP (MLSIPP)
 //
-//  Preset (config.h : "LNS_PBS"):
+//  Presets (config.h : get_preset) set these axes; driver.cpp overrides them:
 //      mode              = ONLINE / OFFLINE / SEMI_ONLINE
 //      assign_method     = DECOUPLED_GREEDY / DECOUPLED_GREEDY_SWAPS /
 //                          CENTRALIZED_GREEDY / CENTRAL_HUNGARIAN /
-//                          REPEATED_HUNGARIAN /
-//                          LKH3_TSP / REPEATED_HUNGARIAN_LNS
-//      assign_trigger    = ON_FREE_WAITS / EVERY_TIMESTEP /
+//                          REPEATED_HUNGARIAN / REPEATED_HUNGARIAN_LNS /
+//                          LKH3_TSP / LKH3_TSP_REASSIGN
+//      assign_trigger    = ON_FREE_WAITS / EVERY_TIMESTEP / ONCE /
+//                          ON_NEW_TASK_OR_AGENT_BECOMES_FREE /
 //                          ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE
-//      mapf              = CBS / PBS / wPBS / PP_PER_TASK / PP_TASK_SEQUENCE
-//      single_agent      = STA_TASK_EP / SEQ_STA / MLA_SEQUENCE / MLSIPP_SEQUENCE
-//      dummy_path       = true / false
-//      endpoint_strategy = NEAREST_WITH_STRICT_EXCLUSIONS
+//      mapf              = CBS / PBS / wPBS / PP_PER_TASK / PP_TASK_SEQUENCE /
+//                          TA_HYBRID_TWO_GROUP
+//      single_agent      = STA_TASK_EP / SEQ_STA / MLA_SEQUENCE /
+//                          MLSIPP_SEQUENCE / SIPP_SEGMENTS
+//      dummy_path        = true / false
+//      endpoint_strategy = RETURN_TO_HOME / NEAREST_WITH_STRICT_EXCLUSIONS /
+//                          PAIRWISE_TASK_THEN_HOME / WAIT_OR_NEAREST_SAFE /
+//                          WAIT_OR_NEAREST_FREE_NONTASK / NEAREST_AVAILABLE
 //      task_sequence_limit = maximum tasks included in each PBS/wPBS plan
+//      wpbs_replan_window  = executed steps between wPBS replans
+//      lns_time_limit      = LNS improvement budget per assignment (seconds)
+//      CBS options         = ecbs_focal_weight, cbs_conflict_selection
+//                            (EARLIEST / CARDINAL), cbs_bypass,
+//                            cbs_target_reasoning, cbs_rectangle_reasoning,
+//                            expansion limits
+//      runtime limits      = whole run (default 1000 s) and per assignment/
+//                            path-planning cycle (default 600 s)
 //
 //  Layout follows the unified pseudocode:
 //      Section 0   Initialisation                       (Algorithm 1, lines 1-6)
 //      Section 1   Main loop                            (Algorithm 1, lines 7-13)
 //      Section 2   Computation dispatchers              (Algorithm 1, line 12)
-//      Section 3   Task assignment  TP / TPTS / HUNGARIAN / LKH3_TSP / LNS
-//      Section 4   Task sequences -> goal sequences
-//      Section 5   MAPF             PBS
-//      Section 6   Single agent     STA* / MLA* / MLSIPP
+//      Section 3   Task assignment  TP / TPTS / HBH / CENTRAL Hungarian /
+//                                   LKH3 TA / repeated Hungarian / LNS
+//      Section 4   Task sequences -> goal sequences, dummy-endpoint selection
+//      Section 5   MAPF             CENTRAL CBS batches / TA-Hybrid / PP / PBS
+//      Section 6   Single agent     STA* / MLA* / SIPP / MLSIPP,
+//                                   followed by the windowed-PBS (wPBS) solver
 //      Section 7   System update    (Algorithm 1, line 13)
 //      Section 8   Reporting
 //
@@ -2204,7 +2224,9 @@ void Simulation::path_planning_ecbs(bool assignment_triggered) {
             config.ecbs_focal_weight,
             config.cbs_high_level_expansion_limit,
             config.cbs_low_level_expansion_limit,
-            mapd_map.endpoints, (int)maxtime));
+            mapd_map.endpoints, (int)maxtime,
+            config.cbs_conflict_selection, config.cbs_bypass,
+            config.cbs_target_reasoning, config.cbs_rectangle_reasoning));
         if (!result.solution_found || result.paths.size() != agent_ids.size())
             throw runtime_error(
                 "CENTRAL-CBS failed to find the required batch path");

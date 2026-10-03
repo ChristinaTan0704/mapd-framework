@@ -36,7 +36,9 @@ ECBSResult ECBSPlanner::solve(const ECBSRequest& request) const {
         request.current_time, request.columns, request.focal_weight,
         request.high_level_expansion_limit,
         request.low_level_expansion_limit,
-        request.endpoints, request.max_time);
+        request.endpoints, request.max_time,
+        request.conflict_selection, request.bypass,
+        request.target_reasoning, request.rectangle_reasoning);
 
     ECBSResult result;
     result.solution_found = search.run();
