@@ -325,6 +325,19 @@ python3 scripts/run_server_matrix.py --base-methods \
     --output-dir server_results/benchmark_sparse_small_to_medium
 ```
 
+The sparse maps use a 10,000-step horizon: with 10 agents the paths are about
+three times longer than on the SMALL grid, and offline TA-Prioritized needs a
+makespan of about 6,400.
+
+Known failure: **TA-Hybrid-STA\* with 50 agents on the sparse `fall` workload
+exceeds the 1000-second system limit** (`System runtime timeout in TA-Hybrid
+min-cost-flow shortest path`) for every endpoint strategy. Its Group-2 step
+solves an exact time-expanded min-cost flow over all 8,549 cells; even with the
+provably exact window it needs about 50 shortest-path searches per assignment
+over hundreds of layers. Record these rows as timeouts. With 10 agents the same
+workload completes in about 650 seconds. Agent counts 20-40 and the other
+sparse frequencies have not yet been verified for this method.
+
 Run the structured-SMALL multi-goal paper matrix with:
 
 ```bash
@@ -346,8 +359,9 @@ file in the selected output directory before accepting an experiment matrix.
 
 All rows below also receive `--seed 0`. Preset defaults are
 `task_sequence_limit=2`, `wpbs_replan_window=10`, `lns_time=1`,
-`lns_no_improvement_limit=2000`, CBS focal weight 1.0, and both CBS high- and
-low-level expansion limits `INT_MAX`. CBS uses ICBS conflict prioritization
+`lns_no_improvement_limit=2000`, CBS focal weight 1.0, both CBS high- and
+low-level expansion limits `INT_MAX`, and the TP/TPTS STA* expansion limit
+`INT_MAX` (`--sta_expansion_limit`; the reference search is uncapped). CBS uses ICBS conflict prioritization
 (MDD-based cardinal, then semi-cardinal, then non-cardinal conflicts), bypass,
 target reasoning (a conflict with an agent parked at its goal branches on
 "arrive later" versus "the other agent never enters that goal from then on"),

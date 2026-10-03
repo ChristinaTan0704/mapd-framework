@@ -1450,10 +1450,13 @@ void Simulation::assign_repeated_hungarian() {
     // NEAREST_AVAILABLE relaxes selection of the new dummy endpoint, but an
     // endpoint held by the preceding committed plan remains occupied until its
     // agent actually moves. Defer overlapping tasks under either PBS policy.
+    // wPBS replans every window, so it reaches such a goal once the parked
+    // agent leaves; deferring there can wait forever on an idle agent.
     const bool defer_old_dummy_conflicts =
         config.dummy_path &&
         (config.endpoint_strategy == NEAREST_WITH_STRICT_EXCLUSIONS ||
-         config.endpoint_strategy == NEAREST_AVAILABLE);
+         (config.endpoint_strategy == NEAREST_AVAILABLE &&
+          config.mapf != MAPF_wPBS));
     if (defer_old_dummy_conflicts) {
         for (const auto& path : path_table_)
             if (!path.empty())
@@ -2005,8 +2008,14 @@ DummyEndpointRequest Simulation::make_ta_endpoint_request(
 DummyEndpointRequest Simulation::make_pairwise_endpoint_request(
     int agent_id, int reference_location,
     const vector<int>& reserved_endpoints) const {
-    return {agent_id, reference_location, (int)agents[agent_id].loc,
-        agents[agent_id].initial_loc, reserved_endpoints};
+    // wPBS's own pairwise policy reads only the reserved endpoints. Policies
+    // that read the forbidden set (NEAREST_AVAILABLE) need the same facts as
+    // PBS: repeated Hungarian defers a task whose goal is an occupied parking
+    // endpoint, so parking must avoid open-task goals, other agents' task
+    // goals, and other agents' current parking endpoints, or the deferred task
+    // waits forever.
+    return make_sequence_endpoint_request(
+        agent_id, reference_location, reserved_endpoints, false);
 }
 
 // Unified endpoint/parking selector. In the loaded map, task endpoints have
@@ -2766,81 +2775,152 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                 maximum_deadline = max(maximum_deadline, deadline);
             }
 
-            int relative_horizon = maximum_deadline - now + 1;
-            int layer_size = relative_horizon + 1;
-            auto in_node = [&](int location, int time) {
-                return 2 + (location * layer_size + time) * 2;
-            };
-            auto out_node = [&](int location, int time) {
-                return in_node(location, time) + 1;
-            };
-            int task_base = 2 + map_size * layer_size * 2;
-            int source = 0;
-            int sink = 1;
-            TAFlowNetwork flow(
-                task_base + (int)tasks.size(), source, sink);
+            // Every flow path costs its arrival time, so the min-cost flow
+            // only needs the layers its optimal paths can use. The flow is
+            // anonymous: the path leaving agent i may end at any pickup, so
+            // agent i's lower bound is its earliest arrival at any pickup.
+            // Start from the arrivals that the hardest pickup and agent force
+            // and double the window until either it reaches the deadline
+            // horizon or the solution is provably optimal for the full graph:
+            // a path longer than the window would cost more than the window
+            // optimum minus the other agents' lower bounds.
+            const int full_horizon = maximum_deadline - now + 1;
+            const int task_count = (int)tasks.size();
+            vector<vector<int>> arrival_bound(
+                task_count, vector<int>(task_count));
+            for (int task_index = 0; task_index < task_count; task_index++) {
+                int endpoint =
+                    mapd_map.ep_index(tasks[task_index]->goals.front());
+                int earliest = max(now + 1,
+                                   tasks[task_index]->release_time) - now;
+                for (int agent_index = 0; agent_index < task_count;
+                     agent_index++) {
+                    int distance = endpoint >= 0
+                        ? mapd_map.endpoints[endpoint].h_val[
+                              agents[subgroup[agent_index]].loc]
+                        : 0;
+                    if (distance == INT_MAX) distance = full_horizon;
+                    arrival_bound[agent_index][task_index] =
+                        max(distance, earliest);
+                }
+            }
+            vector<int> lower_bounds(task_count, INT_MAX);
+            int lower_bound_sum = 0, initial_window = 1;
+            for (int agent_index = 0; agent_index < task_count;
+                 agent_index++) {
+                for (int bound : arrival_bound[agent_index])
+                    lower_bounds[agent_index] =
+                        min(lower_bounds[agent_index], bound);
+                lower_bound_sum += lower_bounds[agent_index];
+                initial_window =
+                    max(initial_window, lower_bounds[agent_index]);
+            }
+            for (int task_index = 0; task_index < task_count; task_index++) {
+                int closest = INT_MAX;
+                for (int agent_index = 0; agent_index < task_count;
+                     agent_index++)
+                    closest = min(closest,
+                                  arrival_bound[agent_index][task_index]);
+                initial_window = max(initial_window, closest);
+            }
+            int relative_horizon = min(full_horizon, 2 * initial_window);
+            while (true) {
+                int layer_size = relative_horizon + 1;
+                auto in_node = [&](int location, int time) {
+                    return 2 + (location * layer_size + time) * 2;
+                };
+                auto out_node = [&](int location, int time) {
+                    return in_node(location, time) + 1;
+                };
+                int task_base = 2 + map_size * layer_size * 2;
+                int source = 0;
+                int sink = 1;
+                TAFlowNetwork flow(
+                    task_base + (int)tasks.size(), source, sink);
 
-            for (int index = 0; index < (int)subgroup.size(); index++)
-                flow.add_edges(
-                    source, out_node(agents[subgroup[index]].loc, 0),
-                    1, 0, index);
+                for (int index = 0; index < (int)subgroup.size(); index++)
+                    flow.add_edges(
+                        source, out_node(agents[subgroup[index]].loc, 0),
+                        1, 0, index);
 
-            for (int time = 0; time < relative_horizon; time++) {
-                RuntimeDeadline::check("TA-Hybrid flow graph construction");
-                for (int location = 0; location < map_size; location++) {
-                    if (!mapd_map.grid[location]) continue;
-                    flow.add_edges(in_node(location, time),
-                                   out_node(location, time), 1, 0, -1);
-                    for (int action : {0, 1, -1, mapd_map.col,
-                                       -mapd_map.col}) {
-                        int next = location + action;
-                        if (next < 0 || next >= map_size ||
-                            !mapd_map.grid[next] ||
-                            abs(next % mapd_map.col -
-                                location % mapd_map.col) > 1)
-                            continue;
-                        flow.add_edges(out_node(location, time),
-                                       in_node(next, time + 1),
-                                       1, 1, next);
+                for (int time = 0; time < relative_horizon; time++) {
+                    RuntimeDeadline::check("TA-Hybrid flow graph construction");
+                    for (int location = 0; location < map_size; location++) {
+                        if (!mapd_map.grid[location]) continue;
+                        flow.add_edges(in_node(location, time),
+                                       out_node(location, time), 1, 0, -1);
+                        for (int action : {0, 1, -1, mapd_map.col,
+                                           -mapd_map.col}) {
+                            int next = location + action;
+                            if (next < 0 || next >= map_size ||
+                                !mapd_map.grid[next] ||
+                                abs(next % mapd_map.col -
+                                    location % mapd_map.col) > 1)
+                                continue;
+                            flow.add_edges(out_node(location, time),
+                                           in_node(next, time + 1),
+                                           1, 1, next);
+                        }
                     }
                 }
-            }
 
-            for (int index = 0; index < (int)tasks.size(); index++) {
-                // The framework consumes path events after advancing time.
-                // Require one explicit path step even when the agent already
-                // occupies the pickup so the pickup transition is observed.
-                int first = max(now + 1, tasks[index]->release_time) - now;
-                int last = deadlines[index] - now;
-                for (int time = first; time <= last; time++)
-                    flow.add_edges(
-                        out_node(tasks[index]->goals.front(), time),
-                        task_base + index, 1, 0, -1);
-                flow.add_edges(task_base + index, sink, 1, 0, -1);
-            }
-
-            for (const vector<int>& path : fixed_paths) {
-                for (int time = 1; time <= relative_horizon; time++) {
-                    int absolute = now + time;
-                    int location = absolute < (int)path.size()
-                        ? path[absolute] : path.back();
-                    flow.remove_edge(in_node(location, time),
-                                     out_node(location, time));
+                for (int index = 0; index < (int)tasks.size(); index++) {
+                    // The framework consumes path events after advancing time.
+                    // Require one explicit path step even when the agent already
+                    // occupies the pickup so the pickup transition is observed.
+                    int first = max(now + 1, tasks[index]->release_time) - now;
+                    int last = min(deadlines[index] - now,
+                                   relative_horizon - 1);
+                    for (int time = first; time <= last; time++)
+                        flow.add_edges(
+                            out_node(tasks[index]->goals.front(), time),
+                            task_base + index, 1, 0, -1);
+                    flow.add_edges(task_base + index, sink, 1, 0, -1);
                 }
-                for (int time = 0; time < relative_horizon; time++) {
-                    int absolute = now + time;
-                    int current = absolute < (int)path.size()
-                        ? path[absolute] : path.back();
-                    int next = absolute + 1 < (int)path.size()
-                        ? path[absolute + 1] : path.back();
-                    flow.remove_edge(out_node(next, time),
-                                     in_node(current, time + 1));
-                }
-            }
 
-            if (flow.solve() == (int)subgroup.size())
-                flow_paths = flow.extract_paths();
-            else if (++global_bound >= horizon)
+                for (const vector<int>& path : fixed_paths) {
+                    for (int time = 1; time <= relative_horizon; time++) {
+                        int absolute = now + time;
+                        int location = absolute < (int)path.size()
+                            ? path[absolute] : path.back();
+                        flow.remove_edge(in_node(location, time),
+                                         out_node(location, time));
+                    }
+                    for (int time = 0; time < relative_horizon; time++) {
+                        int absolute = now + time;
+                        int current = absolute < (int)path.size()
+                            ? path[absolute] : path.back();
+                        int next = absolute + 1 < (int)path.size()
+                            ? path[absolute + 1] : path.back();
+                        flow.remove_edge(out_node(next, time),
+                                         in_node(current, time + 1));
+                    }
+                }
+
+                int routed = flow.solve();
+                if (routed == (int)subgroup.size()) {
+                    vector<vector<int>> paths = flow.extract_paths();
+                    int cost = 0;
+                    for (const vector<int>& path : paths)
+                        cost += (int)path.size() - 1;
+                    bool proven = relative_horizon >= full_horizon;
+                    if (!proven) {
+                        proven = true;
+                        for (int index = 0; index < task_count; index++)
+                            if (relative_horizon < cost -
+                                    (lower_bound_sum - lower_bounds[index]))
+                                proven = false;
+                    }
+                    if (proven) {
+                        flow_paths = paths;
+                        break;
+                    }
+                } else if (relative_horizon >= full_horizon) {
+                    break;
+                }
+                relative_horizon = min(full_horizon, 2 * relative_horizon);
+            }
+            if (flow_paths.empty() && ++global_bound >= horizon)
                 throw runtime_error(
                     "TA-Hybrid Group 2 min-cost flow exceeded the horizon");
         }
@@ -4140,21 +4220,17 @@ int Simulation::sta_search(Agent& agent, int start_loc, int begin_time,
         open.pop();
         current->in_openlist = false;
 
-        if (++expanded > 50000) {
+        if (expanded++ >= config.sta_expansion_limit) {
             release_search_nodes(nodes);
-            // Every non-wPBS configuration using this STA* routine is expected
-            // to find the guaranteed path on a well-formed instance. Do not
-            // let this artificial safeguard look like an ordinary candidate
-            // failure and allow an incomplete run to continue silently.
-            if (config.mapf != MAPF_wPBS) {
-                throw runtime_error(
-                    "STA* exceeded 50000 expansions without finding a path "
-                    "for agent " + to_string(agent.id) + " from location " +
-                    to_string(start_loc) + " to location " +
-                    to_string(goal.loc) + " at time " +
-                    to_string(begin_time));
-            }
-            return -1;
+            // TP/TPTS expect this search to find the guaranteed path on a
+            // well-formed instance, so an explicit limit is an error rather
+            // than an ordinary candidate failure.
+            throw runtime_error(
+                "STA* exceeded " + to_string(config.sta_expansion_limit) +
+                " expansions without finding a path for agent " +
+                to_string(agent.id) + " from location " +
+                to_string(start_loc) + " to location " +
+                to_string(goal.loc) + " at time " + to_string(begin_time));
         }
 
         if (current->loc == goal.loc) {

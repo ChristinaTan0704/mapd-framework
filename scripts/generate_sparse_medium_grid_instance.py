@@ -22,7 +22,10 @@ SHELF_X0 = 29
 SHELF_X_STEP = 32
 SHELF_Y0 = 8
 SHELF_Y_STEP = 16
-MAXTIME = 5000
+# Agents travel roughly three times farther than on the SMALL grid, so the
+# SMALL horizon of 5000 is too short: offline TA-Prioritized with 10 agents
+# needs a makespan of about 6400.
+MAXTIME = 10000
 TASK_ENDPOINTS = 302
 SIDE_ROWS_PER_COLUMN = 28
 
