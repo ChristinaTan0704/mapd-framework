@@ -45,6 +45,9 @@ enum SingleAgentMethod {
 // CARDINAL is ICBS prioritization: classify conflicts with MDDs and split a
 // cardinal, then semi-cardinal, then non-cardinal conflict.
 enum CBSConflictSelection { CBS_CONFLICT_EARLIEST, CBS_CONFLICT_CARDINAL };
+// Exact ties between equally good search nodes. REFERENCE reproduces the
+// original implementations; RANDOM explores a seed-dependent ordering.
+enum TieBreaking { TIE_BREAK_REFERENCE, TIE_BREAK_RANDOM };
 enum EndpointStrategy {
     // Return the agent's own initial/home parking endpoint.
     RETURN_TO_HOME,
@@ -76,9 +79,10 @@ struct MAPDConfig {
     // Whether to append a post-delivery path to the selected endpoint. The
     // endpoint may equal the delivery location, yielding a zero-length dummy.
     bool dummy_path;
-    // General RNG seed for randomized framework components: LNS and search-node
-    // f/g tie-breaking. >=0 is deterministic and <0 is time-based.
+    // General RNG seed for randomized framework components: LNS and, with
+    // TIE_BREAK_RANDOM, search-node tie keys. >=0 is deterministic, <0 time-based.
     int seed;
+    TieBreaking tie_breaking;
     // Whole-process wall-clock limit in seconds; 0 disables the internal limit.
     int runtime_limit_seconds;
     // Per assignment/path-planning cycle wall-clock limit; 0 disables it.
@@ -131,7 +135,7 @@ struct MAPDConfig {
         sta_expansion_limit(INT_MAX),
         cbs_conflict_selection(CBS_CONFLICT_CARDINAL), cbs_bypass(true),
         cbs_target_reasoning(true), cbs_rectangle_reasoning(true),
-        semi_online_lookahead_batches(1) {}
+        semi_online_lookahead_batches(1), tie_breaking(TIE_BREAK_REFERENCE) {}
 };
 
 // ============ Algorithm Presets ============

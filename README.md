@@ -98,17 +98,21 @@ rules.
 
 ## Reproducibility gate
 
-Always use seed `0` when comparing machines. The seed controls both LNS and
-randomized search-node ties after all normal queue criteria (including equal
-`f` and `g`) match. A negative seed selects the current time and is
-intentionally non-reproducible. First run the smoke matrix:
+Always use seed `0` when comparing machines. A negative seed selects the
+current time and is intentionally non-reproducible. First run the smoke matrix:
 
-Search nodes receive one immutable pseudo-random tie key when they are
-created. Comparators never draw randomness directly: they first compare the
-algorithm's normal criteria and use the key only for an exact tie. This keeps
-heap ordering valid while allowing different seeds to explore different
-equal-cost alternatives. The policy is used by STA*, assignment-cost A*,
-dummy-path A*, MLA*, MLSIPP, CBS/ECBS, and the wPBS search queues.
+Exact ties between equally good search nodes follow `--tie_breaking`:
+
+- `reference` (default) uses the comparisons of the original reference
+  implementations (non-strict `f`/`g` tests, remaining ties left to the heap)
+  and reproduces their results;
+- `random` gives each search node one immutable pseudo-random tie key from
+  `--seed`. Comparators first apply the algorithm's normal criteria and use the
+  key only for an exact tie, so different seeds explore different equal-cost
+  alternatives. This was the behavior from `e584564` until this option existed.
+
+The rule applies to STA*, assignment-cost A*, dummy-path A*, MLA*, MLSIPP,
+CBS/ECBS, and the wPBS search queues. The seed also controls LNS in both modes.
 
 ```bash
 python3 scripts/run_server_matrix.py \
@@ -163,9 +167,12 @@ completed 500/500 tasks and passed the collision check.
 | TP+MLSIPP | 2543 | 19207 |
 | TPTS+MLSIPP | 2535 | 14265 |
 
-The seed-0 randomized-tie validation was run twice. Every method reproduced
-the same makespan and SWT on the second run. Use a different non-negative
-`--seed` to obtain a different but repeatable equal-cost search ordering.
+The table above is the seed-0 randomized-tie validation (`--tie_breaking
+random`). It was run twice, and every method reproduced the same makespan and
+SWT on the second run. With `--tie_breaking random`, use a different
+non-negative `--seed` to obtain a different but repeatable equal-cost search
+ordering. The exact smoke baselines in `scripts/run_server_matrix.py` use the
+default reference tie-breaking.
 
 GitHub Actions runs the same repository-manifest, Linux build, and 29-method
 smoke checks on every push and pull request. Its smoke logs are uploaded as the

@@ -108,6 +108,22 @@ private:
     }
 };
 
+// Process-wide tie-breaking rule read by every search-node comparator.
+// reference(): the comparisons of the original reference implementations
+// (non-strict f/g tests, remaining ties left to the heap), which reproduces
+// their results. Otherwise exact ties fall to the RandomTieBreaker key.
+class TieBreakPolicy {
+public:
+    static void set_reference(bool value) { flag() = value; }
+    static bool reference() { return flag(); }
+
+private:
+    static bool& flag() {
+        static bool instance = true;
+        return instance;
+    }
+};
+
 // Forward declarations
 struct Task;
 struct Agent;

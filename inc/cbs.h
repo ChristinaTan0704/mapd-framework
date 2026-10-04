@@ -24,12 +24,21 @@ struct LLNode {
     struct CompareOpen {
         bool operator()(const LLNode* a, const LLNode* b) const {
             if (a->getFVal() != b->getFVal()) return a->getFVal() > b->getFVal();
+            if (TieBreakPolicy::reference()) return a->g_val <= b->g_val;
             if (a->g_val != b->g_val) return a->g_val < b->g_val;
             return a->tie_breaker > b->tie_breaker;
         }
     };
     struct CompareFocal {
         bool operator()(const LLNode* a, const LLNode* b) const {
+            if (TieBreakPolicy::reference()) {
+                if (a->num_internal_conf == b->num_internal_conf) {
+                    if (a->getFVal() == b->getFVal())
+                        return a->g_val <= b->g_val;
+                    return a->getFVal() >= b->getFVal();
+                }
+                return a->num_internal_conf >= b->num_internal_conf;
+            }
             if (a->num_internal_conf == b->num_internal_conf) {
                 if (a->getFVal() != b->getFVal())
                     return a->getFVal() > b->getFVal();
@@ -123,6 +132,8 @@ struct HLNode {
 
     struct CompareOpen {
         bool operator()(const HLNode* a, const HLNode* b) const {
+            if (TieBreakPolicy::reference())
+                return a->sum_min_f_vals >= b->sum_min_f_vals;
             if (a->sum_min_f_vals != b->sum_min_f_vals)
                 return a->sum_min_f_vals > b->sum_min_f_vals;
             if (a->g_val != b->g_val) return a->g_val > b->g_val;
@@ -131,6 +142,10 @@ struct HLNode {
     };
     struct CompareFocal {
         bool operator()(const HLNode* a, const HLNode* b) const {
+            if (TieBreakPolicy::reference()) {
+                if (a->h_val == b->h_val) return a->g_val >= b->g_val;
+                return a->h_val >= b->h_val;
+            }
             if (a->h_val != b->h_val) return a->h_val > b->h_val;
             if (a->g_val != b->g_val) return a->g_val > b->g_val;
             return a->tie_breaker > b->tie_breaker;

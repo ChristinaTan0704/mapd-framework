@@ -78,72 +78,73 @@ METHODS = (
 )
 BASE_METHOD_COUNT = 21
 
-# Seed-0 results from the 2026-08-24 macOS validation.  Runtime is deliberately
-# excluded because it depends on the server.  LNS rows are reported but are not
+# Seed-0 results with the default reference tie-breaking (validated on Linux,
+# 2026-10-03; --tie_breaking random reproduces the earlier 2026-08-24 values).
+# Runtime is deliberately excluded because it depends on the server.  LNS rows are reported but are not
 # exact-gated: their one-second CPU budget can perform a different number of
 # iterations on another processor/compiler.
 SMOKE_BASELINE = {
-    "TP-STA*": (2541, 19680),
-    "TPTS-STA*": (2530, 14454),
-    "CENTRAL-CBS": (2514, 14056),
-    "CENTRAL-fixed-CBS": (2514, 14156),
-    "HBH+MLA*": (2532, 14611),
-    "HBH+MLSIPP": (2532, 14654),
-    "HBH+2-segment SIPP": (2514, 14734),
-    "TA-Hybrid-STA*": (1055, 263846),
-    "TA-Prioritized-STA*": (1049, 263420),
-    "Hungarian+PBS-MLA*": (2514, 13814),
-    "Hungarian+wPBS-MLA*": (2512, 13743),
-    "LNS(1s)+PBS-MLA*": (2514, 13738),
-    "LNS(1s)+wPBS-MLA*": (2513, 13622),
-    "Hungarian+PBS-MLSIPP": (2517, 13854),
-    "Hungarian+wPBS-MLSIPP": (2512, 13678),
-    "LNS(1s)+PBS-MLSIPP": (2514, 13770),
-    "LNS(1s)+wPBS-MLSIPP": (2513, 13585),
-    "TP-MLSIPP": (2541, 19032),
-    "TPTS-MLSIPP": (2513, 14115),
-    "Hungarian+PP-SIPP": (2517, 13796),
-    "LNS(1s)+PP-SIPP": (2514, 13840),
-    "Hungarian+PBS-MLA* (ts 1)": (2517, 13775),
-    "Hungarian+wPBS-MLA* (ts 1)": (2512, 13568),
-    "LNS(1s)+PBS-MLA* (ts 1)": (2514, 13790),
-    "LNS(1s)+wPBS-MLA* (ts 1)": (2512, 13596),
-    "Hungarian+PBS-MLSIPP (ts 1)": (2514, 13868),
-    "Hungarian+wPBS-MLSIPP (ts 1)": (2512, 13626),
-    "LNS(1s)+PBS-MLSIPP (ts 1)": (2514, 13814),
-    "LNS(1s)+wPBS-MLSIPP (ts 1)": (2512, 13611),
+    "TP-STA*": (2532, 19417),
+    "TPTS-STA*": (2532, 14666),
+    "CENTRAL-CBS": (2513, 14019),
+    "CENTRAL-fixed-CBS": (2514, 14177),
+    "HBH+MLA*": (2532, 14728),
+    "HBH+MLSIPP": (2532, 14618),
+    "HBH+2-segment SIPP": (2514, 14659),
+    "TA-Hybrid-STA*": (1052, 265170),
+    "TA-Prioritized-STA*": (1052, 263485),
+    "Hungarian+PBS-MLA*": (2514, 13881),
+    "Hungarian+wPBS-MLA*": (2514, 13722),
+    "LNS(1s)+PBS-MLA*": (2514, 13940),
+    "LNS(1s)+wPBS-MLA*": (2513, 13620),
+    "Hungarian+PBS-MLSIPP": (2517, 13827),
+    "Hungarian+wPBS-MLSIPP": (2512, 13748),
+    "LNS(1s)+PBS-MLSIPP": (2514, 13790),
+    "LNS(1s)+wPBS-MLSIPP": (2513, 13708),
+    "TP-MLSIPP": (2541, 18830),
+    "TPTS-MLSIPP": (2514, 14241),
+    "Hungarian+PP-SIPP": (2517, 13807),
+    "LNS(1s)+PP-SIPP": (2514, 13768),
+    "Hungarian+PBS-MLA* (ts 1)": (2514, 13901),
+    "Hungarian+wPBS-MLA* (ts 1)": (2519, 13723),
+    "LNS(1s)+PBS-MLA* (ts 1)": (2514, 13951),
+    "LNS(1s)+wPBS-MLA* (ts 1)": (2512, 13657),
+    "Hungarian+PBS-MLSIPP (ts 1)": (2517, 13861),
+    "Hungarian+wPBS-MLSIPP (ts 1)": (2513, 13543),
+    "LNS(1s)+PBS-MLSIPP (ts 1)": (2514, 13773),
+    "LNS(1s)+wPBS-MLSIPP (ts 1)": (2512, 13636),
 }
 
 MULTIGOAL_BASELINE = {
-    "TP-STA*": (178, 1110),
-    "TPTS-STA*": (183, 1069),
-    "CENTRAL-CBS": (161, 1042),
-    "CENTRAL-fixed-CBS": (154, 1027),
-    "HBH+MLA*": (161, 1016),
+    "TP-STA*": (161, 1062),
+    "TPTS-STA*": (161, 1014),
+    "CENTRAL-CBS": (159, 1033),
+    "CENTRAL-fixed-CBS": (154, 1031),
+    "HBH+MLA*": (161, 1014),
     "HBH+MLSIPP": (161, 1014),
-    "HBH+2-segment SIPP": (161, 1017),
-    "TA-Hybrid-STA*": (124, 817),
+    "HBH+2-segment SIPP": (161, 1014),
+    "TA-Hybrid-STA*": (123, 812),
     "TA-Prioritized-STA*": (123, 839),
-    "Hungarian+PBS-MLA*": (160, 1017),
-    "Hungarian+wPBS-MLA*": (213, 1483),
-    "LNS(1s)+PBS-MLA*": (160, 1017),
-    "LNS(1s)+wPBS-MLA*": (213, 1483),
-    "Hungarian+PBS-MLSIPP": (164, 1020),
-    "Hungarian+wPBS-MLSIPP": (212, 1428),
-    "LNS(1s)+PBS-MLSIPP": (164, 1020),
-    "LNS(1s)+wPBS-MLSIPP": (212, 1428),
-    "TP-MLSIPP": (161, 1043),
-    "TPTS-MLSIPP": (161, 1022),
-    "Hungarian+PP-SIPP": (160, 1030),
-    "LNS(1s)+PP-SIPP": (160, 1030),
-    "Hungarian+PBS-MLA* (ts 1)": (160, 1017),
-    "Hungarian+wPBS-MLA* (ts 1)": (213, 1483),
-    "LNS(1s)+PBS-MLA* (ts 1)": (160, 1017),
-    "LNS(1s)+wPBS-MLA* (ts 1)": (213, 1483),
-    "Hungarian+PBS-MLSIPP (ts 1)": (164, 1020),
-    "Hungarian+wPBS-MLSIPP (ts 1)": (212, 1428),
-    "LNS(1s)+PBS-MLSIPP (ts 1)": (164, 1020),
-    "LNS(1s)+wPBS-MLSIPP (ts 1)": (212, 1428),
+    "Hungarian+PBS-MLA*": (162, 1026),
+    "Hungarian+wPBS-MLA*": (197, 1313),
+    "LNS(1s)+PBS-MLA*": (162, 1026),
+    "LNS(1s)+wPBS-MLA*": (197, 1313),
+    "Hungarian+PBS-MLSIPP": (164, 1028),
+    "Hungarian+wPBS-MLSIPP": (202, 1371),
+    "LNS(1s)+PBS-MLSIPP": (164, 1028),
+    "LNS(1s)+wPBS-MLSIPP": (202, 1371),
+    "TP-MLSIPP": (161, 1045),
+    "TPTS-MLSIPP": (161, 1014),
+    "Hungarian+PP-SIPP": (164, 1026),
+    "LNS(1s)+PP-SIPP": (164, 1026),
+    "Hungarian+PBS-MLA* (ts 1)": (162, 1026),
+    "Hungarian+wPBS-MLA* (ts 1)": (197, 1313),
+    "LNS(1s)+PBS-MLA* (ts 1)": (162, 1026),
+    "LNS(1s)+wPBS-MLA* (ts 1)": (197, 1313),
+    "Hungarian+PBS-MLSIPP (ts 1)": (164, 1028),
+    "Hungarian+wPBS-MLSIPP (ts 1)": (202, 1371),
+    "LNS(1s)+PBS-MLSIPP (ts 1)": (164, 1028),
+    "LNS(1s)+wPBS-MLSIPP (ts 1)": (202, 1371),
 }
 
 
@@ -411,8 +412,8 @@ def main():
 
     if args.smoke and args.multigoal_smoke:
         parser.error("--smoke and --multigoal-smoke are mutually exclusive")
-    if not 1 <= args.max_parallel <= 5:
-        parser.error("--max-parallel must be between 1 and 5")
+    if not 1 <= args.max_parallel <= 20:
+        parser.error("--max-parallel must be between 1 and 20")
     if args.timeout <= 0:
         parser.error("--timeout must be positive")
     if args.runtime_limit is None:

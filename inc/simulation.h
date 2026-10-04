@@ -72,6 +72,7 @@ struct CompareNode {
     bool operator()(const SearchNode* lhs, const SearchNode* rhs) const {
         if (lhs->getFVal() != rhs->getFVal())
             return lhs->getFVal() > rhs->getFVal();
+        if (TieBreakPolicy::reference()) return lhs->g_val <= rhs->g_val;
         if (lhs->g_val != rhs->g_val)
             return lhs->g_val < rhs->g_val;
         return lhs->tie_breaker > rhs->tie_breaker;

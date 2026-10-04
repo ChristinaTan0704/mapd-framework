@@ -80,6 +80,7 @@ void Simulation::init(const string& map_file, const string& task_file,
                       const MAPDConfig& cfg, const string& tour_file) {
     config = cfg;
     RandomTieBreaker::seed(config.seed);
+    TieBreakPolicy::set_reference(config.tie_breaking == TIE_BREAK_REFERENCE);
     tour_file_ = tour_file;
 
     // --- instance ---
@@ -887,6 +888,7 @@ int Simulation::central_path_cost(
 
     struct CostNode { int loc, g, f, time; uint64_t tie_breaker; };
     auto compare = [](const CostNode& lhs, const CostNode& rhs) {
+        if (TieBreakPolicy::reference()) return lhs.f > rhs.f;
         if (lhs.f != rhs.f) return lhs.f > rhs.f;
         if (lhs.g != rhs.g) return lhs.g < rhs.g;
         return lhs.tie_breaker > rhs.tie_breaker;
@@ -3404,6 +3406,7 @@ struct TADummyNode {
 struct CompareTADummyNode {
     bool operator()(const TADummyNode* lhs, const TADummyNode* rhs) const {
         if (lhs->f() != rhs->f()) return lhs->f() > rhs->f();
+        if (TieBreakPolicy::reference()) return lhs->g <= rhs->g;
         if (lhs->g != rhs->g) return lhs->g < rhs->g;
         return lhs->tie_breaker > rhs->tie_breaker;
     }
@@ -4600,6 +4603,7 @@ struct CompareMLANode {
     bool operator()(const MLANode* a, const MLANode* b) const {
         if (a->getFVal() != b->getFVal()) return a->getFVal() > b->getFVal();
         if (a->goal_id != b->goal_id) return a->goal_id < b->goal_id;   // prefer progress
+        if (TieBreakPolicy::reference()) return a->g_val <= b->g_val;
         if (a->g_val != b->g_val) return a->g_val < b->g_val;
         return a->tie_breaker > b->tie_breaker;
     }
@@ -5342,6 +5346,7 @@ vector<int> Simulation::sipp_search_impl(
     struct CompareSIPPNode {
         bool operator()(const SIPPNode* a, const SIPPNode* b) const {
             if (a->f() != b->f()) return a->f() > b->f();
+            if (TieBreakPolicy::reference()) return a->g <= b->g;
             if (a->g != b->g) return a->g < b->g;
             return a->tie_breaker > b->tie_breaker;
         }
@@ -5903,6 +5908,11 @@ public:
 
     struct compare_node {
         bool operator()(const WStateTimeAStarNode* n1, const WStateTimeAStarNode* n2) const {
+            if (TieBreakPolicy::reference()) {
+                if (n1->g_val + n1->h_val == n2->g_val + n2->h_val)
+                    return n1->g_val <= n2->g_val;
+                return n1->g_val + n1->h_val >= n2->g_val + n2->h_val;
+            }
             if (n1->getFVal() != n2->getFVal())
                 return n1->getFVal() > n2->getFVal();
             if (n1->g_val != n2->g_val) return n1->g_val < n2->g_val;
@@ -5911,6 +5921,14 @@ public:
     };
     struct secondary_compare_node {
         bool operator()(const WStateTimeAStarNode* n1, const WStateTimeAStarNode* n2) const {
+            if (TieBreakPolicy::reference()) {
+                if (n1->conflicts == n2->conflicts) {
+                    if (n1->goal_id == n2->goal_id)
+                        return n1->g_val <= n2->g_val;
+                    return n1->goal_id <= n2->goal_id;
+                }
+                return n1->conflicts >= n2->conflicts;
+            }
             if (n1->conflicts == n2->conflicts) {
                 if (n1->goal_id == n2->goal_id) {
                     if (n1->g_val != n2->g_val)
@@ -6129,6 +6147,9 @@ private:
             if (a->f() != b->f()) return a->f() > b->f();      // larger f  -> worse
             if (a->goal_id != b->goal_id) return a->goal_id < b->goal_id; // lower goal_id -> worse
             if (a->r != b->r) return a->r < b->r;              // lower g   -> worse
+            // Reference rule: prefer the smaller cell index, which tracks the
+            // MLA* low-level's committed windows most closely.
+            if (TieBreakPolicy::reference()) return a->loc > b->loc;
             return a->tie_breaker > b->tie_breaker;
         }
     };
@@ -6673,7 +6694,8 @@ bool WPBS::run(const vector<WState>& starts_,
                     n[0]->f_val < n[1]->f_val ||
                     (n[0]->f_val == n[1]->f_val &&
                      (n[0]->num_of_collisions < n[1]->num_of_collisions ||
-                      (n[0]->num_of_collisions == n[1]->num_of_collisions &&
+                      (!TieBreakPolicy::reference() &&
+                       n[0]->num_of_collisions == n[1]->num_of_collisions &&
                        n[0]->tie_breaker < n[1]->tie_breaker)));
                 if (first_is_better)
                 { push_node(n[1]); push_node(n[0]); }

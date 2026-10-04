@@ -131,6 +131,15 @@ void set_parameters(MAPDConfig& config, const po::variables_map& vm)
             throw invalid_argument(
                 "cbs_conflict_selection must be earliest or cardinal");
     }
+    if (vm.count("tie_breaking")) {
+        string rule = vm["tie_breaking"].as<string>();
+        if (rule == "reference")
+            config.tie_breaking = TIE_BREAK_REFERENCE;
+        else if (rule == "random")
+            config.tie_breaking = TIE_BREAK_RANDOM;
+        else
+            throw invalid_argument("tie_breaking must be reference or random");
+    }
     if (vm.count("cbs_bypass"))
         config.cbs_bypass = vm["cbs_bypass"].as<int>() != 0;
     if (vm.count("cbs_target_reasoning"))
@@ -189,6 +198,7 @@ int main(int argc, char** argv)
         ("mapf",           po::value<string>()->default_value("default"), "MAPF override: CBS, PBS, wPBS, PP (or PP_PER_TASK), PP_TASK_SEQUENCE")
         ("endpoint_strategy", po::value<string>(),                       "endpoint override: WAIT_OR_NEAREST_SAFE, RETURN_TO_HOME, NEAREST_WITH_STRICT_EXCLUSIONS, PAIRWISE_TASK_THEN_HOME, WAIT_OR_NEAREST_FREE_NONTASK, or NEAREST_AVAILABLE")
         ("seed",           po::value<int>()->default_value(0),         "general RNG seed (>=0 deterministic, <0 = time(NULL))")
+        ("tie_breaking",   po::value<string>(),                        "search-node ties: reference (original implementations) or random (--seed) (default reference)")
         ("runtime_limit",  po::value<int>()->default_value(1000),      "whole-run wall-clock limit in seconds; 0 disables")
         ("pathfinding_runtime_limit", po::value<int>()->default_value(600), "per planning-cycle wall-clock limit in seconds; 0 disables")
         ("tour",           po::value<string>()->default_value(""),     "LKH3 tour file")
