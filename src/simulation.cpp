@@ -2842,6 +2842,8 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
     };
 
     // ---------------- Group 1: task agents -> next ordered goal ---------
+    // CHANGED plans the carriers whose segment ended (they picked up or
+    // reached a goal); ALL replans every carrier.
     pick_up();
     vector<int> group1;
     for (int agent_id : ta_agents_in_sequence_order()) {
@@ -2850,7 +2852,7 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
             agent.current_task < (int)all_tasks.size() &&
             agent.current_goal_index <
                 (int)all_tasks[agent.current_task].goals.size() &&
-            agent.finish_time <= cur_time_)
+            (config.agent_selection == SELECT_ALL || agent.finish_time <= cur_time_))
             group1.push_back(agent_id);
     }
 

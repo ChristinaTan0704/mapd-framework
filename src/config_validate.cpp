@@ -94,7 +94,7 @@ std::vector<Support> supported_rows() {
         // planning with 50 agents.
         {AM_LKH3_TSP_REASSIGN, MAPF_TA_HYBRID_TWO_GROUP,
          {AT_EVERY_TIMESTEP, ON_EVENT}, {SEGMENTS},
-         CHANGED, {SA_STA_TASK_EP}, {RETURN_TO_HOME, NEAREST_AVAILABLE}, {MODE_OFFLINE},
+         EITHER_SELECTION, {SA_STA_TASK_EP}, {RETURN_TO_HOME, NEAREST_AVAILABLE}, {MODE_OFFLINE},
          EITHER},
     };
     // Methods that only assign tasks feed the same planners: repeated
