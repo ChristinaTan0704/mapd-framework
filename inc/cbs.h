@@ -68,12 +68,14 @@ public:
     int num_expanded;
     int num_generated;
 
+    // Moves are expanded as wait, N, E, S, W; wait_last = true expands the
+    // wait last, as the TA reference code does.
     SingleAgentECBS(const vector<vector<int>>& cons_paths,
                     const vector<int>& heuristic,
                     const vector<bool>& grid,
                     int ag_id, int start_loc, int goal_loc,
                     int col, int curr_time, int max_time,
-                    int expansion_limit);
+                    int expansion_limit, bool wait_last = false);
 
     bool findPath(double f_weight,
                   const vector<list<pair<int,int>>>* constraints,

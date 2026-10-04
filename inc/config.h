@@ -239,10 +239,10 @@ inline MAPDConfig get_preset(const string& name) {
     else if (name == "TA_HYBRID") {
         c.mode = MODE_OFFLINE;
         c.assign_method = AM_LKH3_TSP_REASSIGN;
-        // The initial offline release starts the LKH3 assignment. Later calls
-        // reassign the fixed task set when an agent becomes available.
-        c.assign_trigger =
-            AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE;
+        // The initial offline release starts the LKH3 assignment. As in the
+        // reference implementation, later calls reassign the fixed task set
+        // and replan the free agents at every timestep.
+        c.assign_trigger = AT_EVERY_TIMESTEP;
         c.replan_on = REPLAN_AFTER_ASSIGNMENT | REPLAN_GOAL_REACHED;
         c.agent_selection = SELECT_CHANGED;
         c.mapf = MAPF_TA_HYBRID_TWO_GROUP;

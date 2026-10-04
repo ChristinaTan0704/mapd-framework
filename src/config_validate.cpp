@@ -85,7 +85,8 @@ std::vector<Support> supported_rows() {
         // The LKH3 tour covers the complete task set, so it must be known upfront.
         {AM_LKH3_TSP, MAPF_PP_TASK_SEQUENCE, {AT_ONCE}, {AFTER}, ALL, {SA_SEQ_STA},
          {RETURN_TO_HOME, NEAREST_AVAILABLE}, {MODE_OFFLINE}, WITH_DUMMY},
-        {AM_LKH3_TSP_REASSIGN, MAPF_TA_HYBRID_TWO_GROUP, {ON_EVENT}, {SEGMENTS},
+        {AM_LKH3_TSP_REASSIGN, MAPF_TA_HYBRID_TWO_GROUP,
+         {AT_EVERY_TIMESTEP, ON_EVENT}, {SEGMENTS},
          CHANGED, {SA_STA_TASK_EP}, {RETURN_TO_HOME, NEAREST_AVAILABLE}, {MODE_OFFLINE},
          EITHER},
     };

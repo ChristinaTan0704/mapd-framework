@@ -90,3 +90,13 @@ class ECBSPlanner {
 public:
     ECBSResult solve(const ECBSRequest& request) const;
 };
+
+// Space-time A* from start_location at current_time to a goal the agent can
+// hold forever, avoiding constraint_paths; moves are expanded in the order of
+// the TA reference code. Used for TA-Hybrid dummy paths. Returns the path
+// from current_time to the goal, or an empty vector.
+std::vector<int> plan_ta_dummy_path(
+    const std::vector<bool>& grid, const std::vector<int>& heuristic,
+    const std::vector<std::vector<int>>& constraint_paths,
+    int start_location, int goal_location, int columns,
+    int current_time, int max_time);

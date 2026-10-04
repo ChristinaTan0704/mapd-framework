@@ -219,6 +219,11 @@ private:
 
     // LKH3 tour input used by the offline TA algorithms.
     string tour_file_;
+    // TA-Hybrid: tour position of the sequence each agent executes (it moves
+    // with the sequence when Group 2 swaps sequences), and the makespan bound
+    // that limits each pickup time in the Group-2 flow.
+    vector<int> ta_sequence_rank_;
+    int ta_makespan_bound_ = 0;
 
     // ======================================================================
     //  Section 3 — Task assignment: TP / HUNGARIAN / REPEATED_HUNGARIAN_LNS
@@ -231,6 +236,8 @@ private:
     void assign_hbh_mla();
     void assign_ta_tsp();
     void assign_ta_hybrid();
+    int ta_sequence_cost(int agent_id, int start) const;
+    vector<int> ta_agents_in_sequence_order() const;
     void central_phase1_instant_pickup();
     Task* central_current_task(int agent_id);
     void assign_central_hungarian();

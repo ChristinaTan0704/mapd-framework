@@ -28,7 +28,7 @@ SingleAgentECBS::SingleAgentECBS(const vector<vector<int>>& cons_paths,
                                  const vector<bool>& grid,
                                  int ag_id, int start_loc, int goal_loc,
                                  int col, int curr_time, int max_time,
-                                 int expansion_limit)
+                                 int expansion_limit, bool wait_last)
     : cons_paths_(cons_paths), heuristic_(heuristic), grid_(grid),
       ag_id_(ag_id), start_loc_(start_loc), goal_loc_(goal_loc),
       curr_time_(curr_time), max_time_(max_time),
@@ -36,7 +36,8 @@ SingleAgentECBS::SingleAgentECBS(const vector<vector<int>>& cons_paths,
       path_cost(0), min_f_val(0), num_expanded(0), num_generated(0)
 {
     map_size_ = grid_.size();
-    actions_[0] = 0; actions_[1] = -col; actions_[2] = 1; actions_[3] = col; actions_[4] = -1;
+    const int moves[5] = {0, -col, 1, col, -1};
+    for (int d = 0; d < 5; d++) actions_[d] = moves[wait_last ? (d + 1) % 5 : d];
 }
 
 bool SingleAgentECBS::isConstrained(int curr, int next, int next_t,

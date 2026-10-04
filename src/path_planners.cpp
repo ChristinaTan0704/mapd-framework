@@ -27,3 +27,15 @@ ECBSResult ECBSPlanner::solve(const ECBSRequest& request) const {
     result.paths = search.paths;
     return result;
 }
+
+std::vector<int> plan_ta_dummy_path(
+        const std::vector<bool>& grid, const std::vector<int>& heuristic,
+        const std::vector<std::vector<int>>& constraint_paths,
+        int start_location, int goal_location, int columns,
+        int current_time, int max_time) {
+    SingleAgentECBS search(constraint_paths, heuristic, grid, -1,
+                           start_location, goal_location, columns,
+                           current_time, max_time, INT_MAX, true);
+    if (!search.findPath(1.0, nullptr, nullptr, 0)) return {};
+    return search.path;
+}

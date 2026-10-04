@@ -1286,54 +1286,46 @@ void Simulation::assign_ta_tsp() {
 // TA-Hybrid keeps the LKH3 task sequences but permits an idle agent to take
 // the final not-yet-executing task from another sequence when that reduces the
 // estimated completion time. The complete task set and tour are known at time
-// zero; later calls only reassign unfinished tasks after an agent becomes
-// available. All temporary lookup data remains local to this assignment call.
+// zero; later calls only reassign unfinished tasks. Sequences are visited in
+// tour order, as the reference implementation stores them.
 void Simulation::assign_ta_hybrid() {
     const int agent_count = (int)agents.size();
-    TATourAssignment tour = read_ta_tour(
-        tour_file_, agent_count, (int)all_tasks.size());
-
-    vector<int> tour_agent(all_tasks.size(), -1);
-    vector<int> tour_rank(all_tasks.size(), INT_MAX);
-    for (int agent_id = 0; agent_id < agent_count; agent_id++)
-        for (int rank = 0;
-             rank < (int)tour.tasks_by_agent[agent_id].size(); rank++) {
-            int task_id = tour.tasks_by_agent[agent_id][rank];
-            tour_agent[task_id] = agent_id;
-            tour_rank[task_id] = rank;
-        }
-
-    // Materialize tasks that have not yet entered a sequence. Existing
-    // sequences may already have been permuted by Group 2 and therefore must
-    // not be rebuilt from scratch.
-    vector<vector<int>> newly_known(agent_count);
-    for (Task* task : open_tasks_) {
-        if (task->status == INT_MAX) continue;
-        int owner = tour_agent[task->id];
-        if (owner < 0)
-            throw runtime_error(
-                "TA-Hybrid tour does not assign known task " +
-                to_string(task->id));
-        newly_known[owner].push_back(task->id);
-    }
-    for (int owner = 0; owner < agent_count; owner++) {
-        sort(newly_known[owner].begin(), newly_known[owner].end(),
-             [&](int lhs, int rhs) {
-                 return tour_rank[lhs] < tour_rank[rhs];
-             });
-        for (int task_id : newly_known[owner]) {
-            agents[owner].task_sequence.push_back(task_id);
-            all_tasks[task_id].seq_id = owner;
-            all_tasks[task_id].status = owner;
-        }
-    }
-    open_tasks_.clear();
-
     auto distance = [&](int from, int to) {
         int endpoint = mapd_map.ep_index(to);
         return endpoint < 0 ? INT_MAX :
             mapd_map.endpoints[endpoint].h_val[from];
     };
+    auto update_makespan_bound = [&]() {
+        ta_makespan_bound_ = 0;
+        for (int agent_id = 0; agent_id < agent_count; agent_id++)
+            ta_makespan_bound_ = max(ta_makespan_bound_,
+                ta_sequence_cost(agent_id, (int)cur_time_));
+    };
+
+    // Materialize the tour once, when the offline task set is revealed.
+    if (!open_tasks_.empty()) {
+        TATourAssignment tour = read_ta_tour(
+            tour_file_, agent_count, (int)all_tasks.size());
+        ta_sequence_rank_.assign(agent_count, 0);
+        for (int rank = 0; rank < (int)tour.agent_order.size(); rank++)
+            ta_sequence_rank_[tour.agent_order[rank]] = rank;
+        vector<bool> in_tour(all_tasks.size(), false);
+        for (int owner = 0; owner < agent_count; owner++)
+            for (int task_id : tour.tasks_by_agent[owner]) {
+                agents[owner].task_sequence.push_back(task_id);
+                all_tasks[task_id].seq_id = owner;
+                all_tasks[task_id].status = owner;
+                in_tour[task_id] = true;
+            }
+        for (Task* task : open_tasks_)
+            if (!in_tour[task->id])
+                throw runtime_error(
+                    "TA-Hybrid tour does not assign known task " +
+                    to_string(task->id));
+        open_tasks_.clear();
+        update_makespan_bound();
+    }
+
     auto estimate_sequence = [&](int owner) {
         int time = (int)cur_time_;
         int location = agents[owner].loc;
@@ -1354,21 +1346,29 @@ void Simulation::assign_ta_hybrid() {
         return time;
     };
 
-    // Reference AssignNewTask(): an available empty-sequence agent can steal
-    // the last unstarted task of the currently longest sequence.
-    for (int receiver = 0; receiver < agent_count; receiver++) {
-        if (agents[receiver].status != AG_FREE ||
-            !agents[receiver].task_sequence.empty())
+    // Reference AssignNewTask(): an agent with an empty sequence can steal
+    // the last task, if not yet picked up, of the longest sequence. When it
+    // runs every timestep, it runs before that timestep's deliveries, so an
+    // agent whose last task was delivered just now steals only one step later.
+    const bool delivered_now_waits =
+        config.assign_trigger == AT_EVERY_TIMESTEP && cur_time_ > 0;
+    const vector<int> order = ta_agents_in_sequence_order();
+    bool reassigned = false;
+    for (int receiver : order) {
+        if (!agents[receiver].task_sequence.empty() ||
+            (delivered_now_waits &&
+             agents[receiver].finish_time == cur_time_))
             continue;
 
         int donor = -1;
         int chosen_task = -1;
         int longest_finish = -1;
-        for (int owner = 0; owner < agent_count; owner++) {
-            if (owner == receiver || agents[owner].task_sequence.empty())
+        for (int owner : order) {
+            const deque<int>& sequence = agents[owner].task_sequence;
+            if (owner == receiver || sequence.empty() ||
+                (sequence.size() == 1 && agents[owner].status == AG_CARRYING))
                 continue;
-            int task_id = agents[owner].task_sequence.back();
-            if (task_id == agents[owner].current_task) continue;
+            int task_id = sequence.back();
 
             int donor_finish = estimate_sequence(owner);
             const Task& task = all_tasks[task_id];
@@ -1400,11 +1400,50 @@ void Simulation::assign_ta_hybrid() {
 
         if (donor >= 0) {
             agents[donor].task_sequence.pop_back();
+            if (agents[donor].task_sequence.empty()) {
+                agents[donor].status = AG_FREE;
+                agents[donor].current_task = -1;
+                agents[donor].current_goal_index = 0;
+            }
             agents[receiver].task_sequence.push_back(chosen_task);
             all_tasks[chosen_task].seq_id = receiver;
             all_tasks[chosen_task].status = receiver;
+            reassigned = true;
         }
     }
+    if (reassigned) update_makespan_bound();
+}
+
+// Reference Cost(): the time at which an agent completes its task sequence
+// when it reaches its next goal at time `start`.
+int Simulation::ta_sequence_cost(int agent_id, int start) const {
+    const Agent& agent = agents[agent_id];
+    int time = start;
+    int location = -1;
+    for (int task_id : agent.task_sequence) {
+        const Task& task = all_tasks[task_id];
+        int goal = task_id == agent.current_task
+            ? max(agent.current_goal_index, 0) : 0;
+        for (; goal < (int)task.goals.size(); goal++) {
+            if (location >= 0) {
+                int endpoint = mapd_map.ep_index(task.goals[goal]);
+                int leg = endpoint < 0 ? INT_MAX :
+                    mapd_map.endpoints[endpoint].h_val[location];
+                if (leg == INT_MAX) return INT_MAX;
+                time += leg;
+            }
+            if (goal == 0) time = max(time, task.release_time);
+            location = task.goals[goal];
+        }
+    }
+    return time;
+}
+
+vector<int> Simulation::ta_agents_in_sequence_order() const {
+    vector<int> order(agents.size());
+    for (int agent_id = 0; agent_id < (int)agents.size(); agent_id++)
+        order[ta_sequence_rank_[agent_id]] = agent_id;
+    return order;
 }
 
 // --- Repeated Hungarian + LNS ----------------------------------------------
@@ -2600,7 +2639,12 @@ private:
 // Group 1 jointly plans newly carrying agents to their next ordered task goal
 // with CBS and a reserved path to each agent's parking endpoint. Group 2 uses
 // anonymous min-cost max-flow to match free agents to pairwise-distinct pickup
-// goals, then reserves their parking paths. All batch state is local.
+// goals, then reserves their parking paths. As in the reference
+// implementation, a group avoids only the task part of the other agents'
+// paths, up to their dummy_start_step. A dummy path that then collides is
+// re-routed; if that fails, the agent's complete path becomes a constraint
+// and the group is planned again. Apart from the sequence ranks and the
+// makespan bound kept by assign_ta_hybrid(), all batch state is local.
 void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
     RuntimeDeadline::check("TA-Hybrid planning");
     const int agent_count = (int)agents.size();
@@ -2608,42 +2652,124 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
     const int now = (int)cur_time_;
     const int horizon = (int)maxtime;
 
-    auto endpoint_distance = [&](int from, int to) {
-        int endpoint = mapd_map.ep_index(to);
-        return endpoint < 0 ? INT_MAX :
-            mapd_map.endpoints[endpoint].h_val[from];
+    auto parking_of = [&](int agent_id, int location) {
+        vector<int> reserved(agent_count, -1);
+        return choose_dummy_endpoint(config.endpoint_strategy,
+            make_ta_endpoint_request(agent_id, location, reserved, true));
     };
-    auto estimate_sequence = [&](int agent_id, int start,
-                                 bool starts_at_front_pickup) {
-        int time = start;
-        int location = agents[agent_id].loc;
-        bool first_task = true;
-        for (int task_id : agents[agent_id].task_sequence) {
-            const Task& task = all_tasks[task_id];
-            int first_goal = task_id == agents[agent_id].current_task
-                ? agents[agent_id].current_goal_index : 0;
-            if (first_goal < 0) first_goal = 0;
-            if (starts_at_front_pickup && first_task) {
-                location = task.goals.front();
-                first_goal = max(first_goal, 1);
-                time = max(time, task.release_time);
-            }
-            for (int goal = first_goal;
-                 goal < (int)task.goals.size(); goal++) {
-                int leg = endpoint_distance(location, task.goals[goal]);
-                if (leg == INT_MAX) return INT_MAX;
-                time += leg;
-                if (goal == 0) time = max(time, task.release_time);
-                location = task.goals[goal];
-            }
-            first_task = false;
+
+    // The paths that `group` must avoid: the complete path of an idle or held
+    // agent, otherwise its task path up to dummy_start_step. The later steps
+    // are -1, which constrains nothing.
+    auto task_paths = [&](const vector<int>& group, const vector<bool>& held) {
+        vector<bool> in_group(agent_count, false);
+        for (int agent_id : group) in_group[agent_id] = true;
+        vector<vector<int>> paths;
+        for (int other = 0; other < agent_count; other++) {
+            if (in_group[other]) continue;
+            const Agent& agent = agents[other];
+            paths.emplace_back(agent.path.begin(), agent.path.end());
+            if (!held[other] && !agent.task_sequence.empty())
+                fill(paths.back().begin() +
+                         max(agent.dummy_start_step, now) + 1,
+                     paths.back().end(), -1);
         }
-        return time;
+        return paths;
+    };
+
+    // Reference GoHome() search: a dummy path from the agent's location at
+    // time `start` to its parking endpoint that avoids `constraints`.
+    auto plan_dummy_path = [&](int agent_id, int start,
+                               const vector<vector<int>>& constraints) {
+        vector<unsigned int>& path = agents[agent_id].path;
+        int location = path[start];
+        int parking = parking_of(agent_id, location);
+        vector<int> dummy = plan_ta_dummy_path(
+            mapd_map.grid,
+            mapd_map.endpoints[mapd_map.ep_index(parking)].h_val,
+            constraints, location, parking, mapd_map.col, start, horizon);
+        for (int time = start; time < horizon && !dummy.empty(); time++)
+            path[time] = dummy[min(time - start, (int)dummy.size() - 1)];
+        return !dummy.empty();
+    };
+
+    // Reference ReplanDummyPath(): once `group` is planned, re-route the dummy
+    // path of every other agent that now collides, against all other
+    // complete paths. Returns the agents whose dummy path cannot be re-routed.
+    auto repair_dummy_paths = [&](const vector<int>& group) {
+        vector<bool> in_group(agent_count, false);
+        for (int agent_id : group) in_group[agent_id] = true;
+        auto last_move = [&](int agent_id) {
+            const vector<unsigned int>& path = agents[agent_id].path;
+            int t = horizon - 1;
+            while (t > now && path[t] == path[t - 1]) t--;
+            return t;
+        };
+        int settle = now;   // after this every agent stands still
+        for (int agent_id = 0; agent_id < agent_count; agent_id++)
+            settle = max(settle, last_move(agent_id));
+        auto collides = [&](int agent_id) {
+            const vector<unsigned int>& path = agents[agent_id].path;
+            for (int other = 0; other < agent_count; other++) {
+                if (other == agent_id) continue;
+                const vector<unsigned int>& other_path = agents[other].path;
+                for (int t = now + 1; t <= settle; t++)
+                    if (path[t] == other_path[t] ||
+                        (path[t] == other_path[t - 1] &&
+                         path[t - 1] == other_path[t]))
+                        return true;
+            }
+            return false;
+        };
+        vector<int> failed;
+        for (int agent_id = 0; agent_id < agent_count; agent_id++) {
+            Agent& agent = agents[agent_id];
+            if (in_group[agent_id] || agent.task_sequence.empty() ||
+                !collides(agent_id))
+                continue;
+            vector<vector<int>> others;
+            for (int other = 0; other < agent_count; other++)
+                if (other != agent_id)
+                    others.emplace_back(agents[other].path.begin(),
+                                        agents[other].path.end());
+            if (!plan_dummy_path(agent_id, max(agent.dummy_start_step, now),
+                                 others))
+                failed.push_back(agent_id);
+            else
+                settle = max(settle, last_move(agent_id));
+        }
+        return failed;
+    };
+    auto commit_paths = [&]() {
+        for (int agent_id = 0; agent_id < agent_count; agent_id++)
+            for (int time = now; time < horizon; time++)
+                path_table_[agent_id][time] = agents[agent_id].path[time];
+    };
+
+    // Reference pickup check: a free agent at the pickup of its next task,
+    // at or after the release time, becomes a task agent now.
+    auto pick_up = [&]() {
+        bool picked_up = false;
+        for (Agent& agent : agents) {
+            if (agent.status == AG_CARRYING || agent.task_sequence.empty())
+                continue;
+            Task& task = all_tasks[agent.task_sequence.front()];
+            if (agent.loc != task.goals.front() || now < task.release_time)
+                continue;
+            task.ag_arrive_start = now;
+            agent.status = AG_CARRYING;
+            agent.current_task = task.id;
+            agent.current_goal_index = 1;
+            agent.finish_time = now;
+            picked_up = true;
+        }
+        return picked_up;
     };
 
     // ---------------- Group 1: task agents -> next ordered goal ---------
+    pick_up();
     vector<int> group1;
-    for (int agent_id = 0; agent_id < agent_count; agent_id++) {
+    for (int agent_id : ta_agents_in_sequence_order()) {
         const Agent& agent = agents[agent_id];
         if (agent.status == AG_CARRYING && agent.current_task >= 0 &&
             agent.current_task < (int)all_tasks.size() &&
@@ -2653,13 +2779,9 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
             group1.push_back(agent_id);
     }
 
-    if (!group1.empty()) {
-        set<int> in_group(group1.begin(), group1.end());
-        vector<vector<int>> fixed_paths;
-        for (int other = 0; other < agent_count; other++)
-            if (!in_group.count(other))
-                fixed_paths.emplace_back(
-                    agents[other].path.begin(), agents[other].path.end());
+    vector<bool> held(agent_count, false);
+    while (!group1.empty()) {
+        vector<vector<int>> fixed_paths = task_paths(group1, held);
 
         struct HybridCBSNode {
             vector<vector<int>> paths;
@@ -2779,7 +2901,7 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                     "TA-Hybrid Group 1 low-level search failed");
             }
             root->cost = max(root->cost,
-                estimate_sequence(group1[index], root->arrivals[index], false));
+                ta_sequence_cost(group1[index], root->arrivals[index]));
         }
         detect_conflict(*root);
         open.push(root);
@@ -2831,8 +2953,7 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                 child->cost = 0;
                 for (int index = 0; index < (int)group1.size(); index++)
                     child->cost = max(child->cost,
-                        estimate_sequence(
-                            group1[index], child->arrivals[index], false));
+                        ta_sequence_cost(group1[index], child->arrivals[index]));
                 detect_conflict(*child);
                 open.push(child);
                 allocated.push_back(child);
@@ -2854,63 +2975,66 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
             agents[agent_id].dummy_start_step = solution->arrivals[index];
         }
         for (HybridCBSNode* node : allocated) delete node;
+
+        vector<int> failed = repair_dummy_paths(group1);
+        if (failed.empty()) break;
+        for (int agent_id : failed) held[agent_id] = true;
     }
 
-    // Group 2 is recomputed only after initial assignment, a new visible task,
-    // or a sequence becoming free. Group 1 above remains independently event
+    // Group 2 is recomputed only when assignment ran, which the TA_HYBRID
+    // preset does every timestep. Group 1 above remains independently event
     // driven for intermediate multi-goal transitions.
-    if (!assignment_triggered) return;
+    if (!assignment_triggered) {
+        commit_paths();
+        return;
+    }
 
     vector<int> remaining;
-    for (int agent_id = 0; agent_id < agent_count; agent_id++)
+    for (int agent_id : ta_agents_in_sequence_order())
         if (agents[agent_id].status != AG_CARRYING &&
             !agents[agent_id].task_sequence.empty())
             remaining.push_back(agent_id);
 
-    int global_bound = now;
-    for (int agent_id = 0; agent_id < agent_count; agent_id++)
-        global_bound = max(
-            global_bound, estimate_sequence(agent_id, now, false));
-
+    held.assign(agent_count, false);
     while (!remaining.empty()) {
         RuntimeDeadline::check("TA-Hybrid Group 2 batching");
+        // Take the free agents in sequence order while their next pickups
+        // are pairwise distinct; the flow routes the agents in id order.
+        const vector<int> candidates = remaining;
         vector<int> subgroup;
+        vector<Task*> tasks;
         set<int> used_pickups;
         vector<int> deferred;
         for (int owner : remaining) {
-            int task_id = agents[owner].task_sequence.front();
-            int pickup = all_tasks[task_id].goals.front();
-            if (used_pickups.insert(pickup).second)
+            Task* task = &all_tasks[agents[owner].task_sequence.front()];
+            if (used_pickups.insert(task->goals.front()).second) {
                 subgroup.push_back(owner);
-            else
+                tasks.push_back(task);
+            } else {
                 deferred.push_back(owner);
+            }
         }
         remaining.swap(deferred);
+        sort(subgroup.begin(), subgroup.end());
 
-        set<int> subgroup_set(subgroup.begin(), subgroup.end());
-        vector<vector<int>> fixed_paths;
-        for (int other = 0; other < agent_count; other++)
-            if (!subgroup_set.count(other))
-                fixed_paths.emplace_back(
-                    agents[other].path.begin(), agents[other].path.end());
-
-        vector<Task*> tasks;
-        for (int owner : subgroup)
-            tasks.push_back(&all_tasks[agents[owner].task_sequence.front()]);
-
+        vector<int> arrival(agent_count, now);
+        vector<int> target(agent_count, -1);   // task each agent is routed to
+        vector<vector<int>> fixed_paths = task_paths(subgroup, held);
         vector<vector<int>> flow_paths;
         while (flow_paths.empty()) {
             RuntimeDeadline::check("TA-Hybrid Group 2 flow construction");
+            // Each pickup must be reached early enough for its sequence to
+            // finish within the makespan bound, which grows until the flow
+            // routes every agent.
             vector<int> deadlines(tasks.size(), now);
             int maximum_deadline = now;
             for (int index = 0; index < (int)tasks.size(); index++) {
                 int owner = tasks[index]->seq_id;
-                int deadline = now;
-                while (deadline + 1 < horizon &&
-                       estimate_sequence(owner, deadline + 1, true) <=
-                           global_bound)
+                int& deadline = deadlines[index];
+                while (deadline + 1 < horizon - 1 &&
+                       ta_sequence_cost(owner, deadline + 1) <=
+                           ta_makespan_bound_)
                     deadline++;
-                deadlines[index] = deadline;
                 maximum_deadline = max(maximum_deadline, deadline);
             }
 
@@ -2930,8 +3054,7 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
             for (int task_index = 0; task_index < task_count; task_index++) {
                 int endpoint =
                     mapd_map.ep_index(tasks[task_index]->goals.front());
-                int earliest = max(now + 1,
-                                   tasks[task_index]->release_time) - now;
+                int earliest = max(now, tasks[task_index]->release_time) - now;
                 for (int agent_index = 0; agent_index < task_count;
                      agent_index++) {
                     int distance = endpoint >= 0
@@ -2982,14 +3105,15 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                         source, out_node(agents[subgroup[index]].loc, 0),
                         1, 0, index);
 
+                // Wait first, then the reference move order.
                 for (int time = 0; time < relative_horizon; time++) {
                     RuntimeDeadline::check("TA-Hybrid flow graph construction");
                     for (int location = 0; location < map_size; location++) {
                         if (!mapd_map.grid[location]) continue;
                         flow.add_edges(in_node(location, time),
                                        out_node(location, time), 1, 0, -1);
-                        for (int action : {0, 1, -1, mapd_map.col,
-                                           -mapd_map.col}) {
+                        for (int action : {0, -1, 1, -mapd_map.col,
+                                           mapd_map.col}) {
                             int next = location + action;
                             if (next < 0 || next >= map_size ||
                                 !mapd_map.grid[next] ||
@@ -3004,10 +3128,8 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                 }
 
                 for (int index = 0; index < (int)tasks.size(); index++) {
-                    // The framework consumes path events after advancing time.
-                    // Require one explicit path step even when the agent already
-                    // occupies the pickup so the pickup transition is observed.
-                    int first = max(now + 1, tasks[index]->release_time) - now;
+                    // An agent may already stand at a released pickup.
+                    int first = max(now, tasks[index]->release_time) - now;
                     int last = min(deadlines[index] - now,
                                    relative_horizon - 1);
                     for (int time = first; time <= last; time++)
@@ -3018,21 +3140,18 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                 }
 
                 for (const vector<int>& path : fixed_paths) {
-                    for (int time = 1; time <= relative_horizon; time++) {
-                        int absolute = now + time;
-                        int location = absolute < (int)path.size()
-                            ? path[absolute] : path.back();
-                        flow.remove_edge(in_node(location, time),
-                                         out_node(location, time));
+                    for (int time = 1; time < relative_horizon; time++) {
+                        int location = path[now + time];
+                        if (location >= 0)
+                            flow.remove_edge(in_node(location, time),
+                                             out_node(location, time));
                     }
                     for (int time = 0; time < relative_horizon; time++) {
-                        int absolute = now + time;
-                        int current = absolute < (int)path.size()
-                            ? path[absolute] : path.back();
-                        int next = absolute + 1 < (int)path.size()
-                            ? path[absolute + 1] : path.back();
-                        flow.remove_edge(out_node(next, time),
-                                         in_node(current, time + 1));
+                        int current = path[now + time];
+                        int next = path[now + time + 1];
+                        if (current >= 0 && next >= 0)
+                            flow.remove_edge(out_node(next, time),
+                                             in_node(current, time + 1));
                     }
                 }
 
@@ -3059,18 +3178,11 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                 }
                 relative_horizon = min(full_horizon, 2 * relative_horizon);
             }
-            if (flow_paths.empty() && ++global_bound >= horizon)
+            if (flow_paths.empty() && ++ta_makespan_bound_ >= horizon)
                 throw runtime_error(
                     "TA-Hybrid Group 2 min-cost flow exceeded the horizon");
         }
 
-        vector<deque<int>> old_sequences(agent_count);
-        for (int owner : subgroup)
-            old_sequences[owner] = agents[owner].task_sequence;
-        for (int owner : subgroup)
-            agents[owner].task_sequence.clear();
-
-        vector<int> arrival(agent_count, now);
         for (const vector<int>& encoded_path : flow_paths) {
             if (encoded_path.empty()) continue;
             int local_agent = encoded_path.front();
@@ -3084,7 +3196,7 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                     agents[agent_id].path[time] = encoded_path[offset];
             }
             arrival[agent_id] = now + (int)encoded_path.size() - 1;
-            int pickup = encoded_path.back();
+            int pickup = agents[agent_id].path[arrival[agent_id]];
             for (int time = arrival[agent_id]; time < horizon; time++)
                 agents[agent_id].path[time] = pickup;
         }
@@ -3118,25 +3230,14 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                 }
         }
 
-        // A flow may send an agent to another sequence's pickup. Move that
-        // complete sequence to the assigned agent, matching the anonymous
-        // reassignment step in the paper and released implementation.
         for (int agent_id : subgroup) {
             int pickup = agents[agent_id].path[arrival[agent_id]];
-            int source_owner = -1;
-            for (Task* task : tasks)
-                if (task->goals.front() == pickup) {
-                    source_owner = task->seq_id;
-                    break;
-                }
-            if (source_owner < 0)
+            for (int index = 0; index < (int)tasks.size(); index++)
+                if (tasks[index]->goals.front() == pickup)
+                    target[agent_id] = index;
+            if (target[agent_id] < 0)
                 throw runtime_error(
                     "TA-Hybrid flow returned an unknown pickup endpoint");
-            agents[agent_id].task_sequence = old_sequences[source_owner];
-            for (int task_id : agents[agent_id].task_sequence) {
-                all_tasks[task_id].seq_id = agent_id;
-                all_tasks[task_id].status = agent_id;
-            }
         }
 
         vector<vector<unsigned int>> flow_only_paths(agent_count);
@@ -3155,11 +3256,7 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
             failed_agent = -1;
 
             for (int agent_id : dummy_order) {
-                if (agents[agent_id].task_sequence.empty())
-                    throw runtime_error(
-                        "TA-Hybrid flow left an agent without a sequence");
-                Task& task =
-                    all_tasks[agents[agent_id].task_sequence.front()];
+                Task& task = *tasks[target[agent_id]];
                 int pickup = task.goals.front();
                 int pickup_endpoint = mapd_map.ep_index(pickup);
                 vector<int> reserved(agent_count, -1);
@@ -3177,12 +3274,9 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                         constraints.emplace_back(
                             agents[other].path.begin(),
                             agents[other].path.end());
-                int result = astar_with_dummy(
-                    agents[agent_id], pickup, arrival[agent_id],
-                    pickup, parking,
-                    mapd_map.endpoints[pickup_endpoint].h_val,
-                    mapd_map.endpoints[parking_endpoint].h_val,
-                    constraints, task.release_time, false);
+                int result = plan_dummy_path(
+                    agent_id, arrival[agent_id], constraints)
+                    ? arrival[agent_id] : -1;
                 if (result < 0) {
                     // Reference GoHome retries the flow with a later pickup
                     // hold time. The equivalent local fallback is to replan
@@ -3237,8 +3331,7 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
             vector<bool> planned(agent_count, false);
             dummy_success = true;
             for (int agent_id : fallback_order) {
-                Task& task =
-                    all_tasks[agents[agent_id].task_sequence.front()];
+                Task& task = *tasks[target[agent_id]];
                 int pickup = task.goals.front();
                 int pickup_endpoint = mapd_map.ep_index(pickup);
                 vector<int> reserved(agent_count, -1);
@@ -3290,18 +3383,47 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                 "TA-Hybrid failed to reserve Group 2 fallback paths; agent " +
                 to_string(failed_agent));
 
+        for (int agent_id : subgroup)
+            agents[agent_id].dummy_start_step = arrival[agent_id];
+        vector<int> failed = repair_dummy_paths(subgroup);
+        if (!failed.empty()) {
+            // Plan this batch again, now avoiding these complete paths.
+            for (int agent_id : failed) held[agent_id] = true;
+            remaining = candidates;
+            continue;
+        }
+        held.assign(agent_count, false);
+
+        // A flow may send an agent to another sequence's pickup. Move that
+        // complete sequence, with its tour position, to the assigned agent,
+        // matching the anonymous reassignment step in the paper and released
+        // implementation.
+        vector<deque<int>> old_sequences(agent_count);
+        vector<int> old_ranks = ta_sequence_rank_;
+        vector<int> source_owner(agent_count, -1);
         for (int agent_id : subgroup) {
+            old_sequences[agent_id] = agents[agent_id].task_sequence;
+            source_owner[agent_id] = tasks[target[agent_id]]->seq_id;
+        }
+        for (int agent_id : subgroup) {
+            agents[agent_id].task_sequence =
+                old_sequences[source_owner[agent_id]];
+            ta_sequence_rank_[agent_id] = old_ranks[source_owner[agent_id]];
+            for (int task_id : agents[agent_id].task_sequence) {
+                all_tasks[task_id].seq_id = agent_id;
+                all_tasks[task_id].status = agent_id;
+            }
             Task& task = all_tasks[agents[agent_id].task_sequence.front()];
             task.ag = &agents[agent_id];
             agents[agent_id].status = AG_MOVING_TO_PICKUP;
             agents[agent_id].current_task = task.id;
             agents[agent_id].current_goal_index = 0;
             agents[agent_id].finish_time = arrival[agent_id];
-            agents[agent_id].dummy_start_step = arrival[agent_id];
-            for (int time = now; time < horizon; time++)
-                path_table_[agent_id][time] = agents[agent_id].path[time];
         }
     }
+    commit_paths();
+    // Agents routed to the pickup they already stand on start their task now.
+    if (pick_up()) path_planning_ta_hybrid(false);
 }
 
 // --- TA-Prioritized --------------------------------------------------------
