@@ -391,6 +391,33 @@ out:
 `--algo` names a preset instead; its components are the defaults that the
 options override. The experiment scripts run the configuration files.
 
+### Quick reference
+
+| # | Component | (1) How to set | (2) Values | (3) Pay attention to |
+|---|---|---|---|---|
+| 1 | When to call task assignment | `--assign_trigger` | `ON_FREE_WAITS`<br>`EVERY_TIMESTEP`<br>`ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE` (alias `ON_NEW_TASK_OR_AGENT_BECOMES_FREE`)<br>`ONCE` | `ON_FREE_WAITS` only with `--replan_on NONE` (TP/TPTS/HBH as published).<br>`ONCE` only for LKH3, and needs `OFFLINE`.<br>`EVERY_TIMESTEP` assigns and advances every step, which is slow on large maps. |
+| 2 | Task assignment | `--assign_method` | `DECOUPLED_GREEDY` (TP)<br>`DECOUPLED_GREEDY_SWAPS` (TPTS)<br>`CENTRALIZED_GREEDY` (HBH)<br>`CENTRAL_HUNGARIAN`<br>`REPEATED_HUNGARIAN`<br>`REPEATED_HUNGARIAN_LNS`<br>`LKH3_TSP`<br>`LKH3_TSP_REASSIGN` | `LKH3_*` need `--tour <file>` and `OFFLINE`.<br>`CENTRAL_HUNGARIAN` only with `CBS` and `--dummy_path 0`.<br>`REPEATED_HUNGARIAN(_LNS)` not with `CBS` (agents oscillate).<br>LNS budget is `--lns_time` (wall-clock seconds), so its results vary slightly between runs. |
+| 3 | When to plan paths | `--replan_on` | `NONE`, or a comma-separated set of `AFTER_ASSIGNMENT`, `EVERY_TIMESTEP`, `GOAL_REACHED`, `PERIODIC` (e.g. `AFTER_ASSIGNMENT,PERIODIC`) | `NONE` = plan while assigning; only TP/TPTS/HBH with `ON_FREE_WAITS`.<br>`wPBS` needs `PERIODIC` or `EVERY_TIMESTEP`.<br>`CBS` needs `GOAL_REACHED` or `EVERY_TIMESTEP`. |
+| 4 | Which agents to plan | `--agent_selection` | `ALL`<br>`CHANGED` | `wPBS` and `PP_TASK_SEQUENCE`: `ALL` only.<br>`CBS`, TA-Hybrid and TP/TPTS/HBH as published: `CHANGED` only.<br>`PBS` and `PP`: either. |
+| 5 | High-level planner | `--mapf` | `PP` (alias `PP_PER_TASK`)<br>`PP_TASK_SEQUENCE`<br>`CBS`<br>`PBS`<br>`wPBS`<br>`TA_HYBRID_TWO_GROUP` | `PBS`/`PP` not with `OFFLINE`; with a very large semi-online lookahead they collide (exit status 2).<br>`PBS`/`wPBS` plan the first `--task_sequence_limit` tasks (default 2; the Excel originals used 1).<br>`PP_TASK_SEQUENCE` only with `LKH3_TSP` + `ONCE` + `OFFLINE`.<br>`TA_HYBRID_TWO_GROUP` only with `LKH3_TSP_REASSIGN`. |
+| 5.1 | wPBS window | `--wpbs_replan_window` | integer, default 10 | At least 2 for `wPBS`.<br>Also the `PERIODIC` replan interval for any planner. |
+| 6 | Low-level planner | `--single_agent` | `STA`<br>`MLA`<br>`MLSIPP` (alias `SIPP`)<br>`SIPP2` (alias `2SEG_SIPP`)<br>`SEQ_STA` | `CBS` and TA-Hybrid accept only `STA`, but use their own searches (the value is a label).<br>`PP_TASK_SEQUENCE` only `SEQ_STA`.<br>`wPBS` cannot use `SIPP2`. |
+| 7 | Task endpoint | `--endpoint_strategy`<br>`--dummy_path 0/1` | `WAIT_OR_NEAREST_SAFE`<br>`WAIT_OR_NEAREST_FREE_NONTASK`<br>`NEAREST_AVAILABLE`<br>`NEAREST_WITH_STRICT_EXCLUSIONS`<br>`PAIRWISE_TASK_THEN_HOME`<br>`RETURN_TO_HOME` | `WAIT_*` only for TP/TPTS/HBH as published, which cannot use `STRICT` or `PAIRWISE` (deadlock).<br>`PBS`/`PP`/`CBS`: `STRICT`, `NEAREST_AVAILABLE` or `HOME`.<br>`PAIRWISE` only with `wPBS`.<br>`CENTRAL`: `NEAREST_AVAILABLE` or `HOME`.<br>`--dummy_path 0` only for `CENTRAL` and TA-Hybrid; everything else needs 1. |
+| 8 | Task setup | `--mode` | `ONLINE`<br>`SEMI_ONLINE` (with `--semi_online_lookahead_batches k`, default 1)<br>`OFFLINE` | `LKH3_*` only `OFFLINE`.<br>`PBS`/`PP` not `OFFLINE`.<br>TP/TPTS/HBH as published can run `OFFLINE`, but do not use the advance knowledge and perform poorly. |
+| 9 | Task type | `--task_type` | `MAPD`<br>`MG_MAPD` (default) | `MAPD` checks that every task in the task file has exactly 2 goals, otherwise errors.<br>Multi-goal task files need `MG_MAPD`. |
+
+General:
+- `--config configs/table1/TP.cfg` sets all nine at once; options given on the
+  command line override the file, so you can change just one or two. `-a` is
+  optional.
+- Unsupported combinations stop before the run with an error that lists the
+  values that work; the full rules are in `src/config_validate.cpp`.
+- `mapd` exits with status 2 when the collision or task-order check fails;
+  check the exit status in scripts.
+- `./mapd --help` lists every option and its values.
+
+### Values in detail
+
 `./mapd --help` lists every option with its values. The values of the nine
 components, and the Table 1 configurations (`configs/table1/`) that use them:
 
