@@ -22,6 +22,7 @@ void set_parameters(MAPDConfig& config, const po::variables_map& vm)
     override_enum("assign_trigger", config.assign_trigger);
     if (vm.count("replan_on"))
         config.replan_on = parse_flags<ReplanEvent>("replan_on", vm["replan_on"].as<string>());
+    override_enum("agent_selection", config.agent_selection);
     override_enum("mapf", config.mapf);
     override_enum("single_agent", config.single_agent);
     override_enum("endpoint_strategy", config.endpoint_strategy);
@@ -118,6 +119,7 @@ int main(int argc, char** argv)
         ("assign_method",  po::value<string>(), ("task assignment: " + enum_choices<AssignMethod>()).c_str())
         ("assign_trigger", po::value<string>(), ("when to assign: " + enum_choices<AssignTrigger>()).c_str())
         ("replan_on",      po::value<string>(), ("when to replan, comma-separated: " + enum_choices<ReplanEvent>() + "; NONE = plan inside assignment").c_str())
+        ("agent_selection", po::value<string>(), ("agents a replan plans: " + enum_choices<AgentSelection>()).c_str())
         ("mapf",           po::value<string>(), ("MAPF method: " + enum_choices<MAPFMethod>()).c_str())
         ("single_agent",   po::value<string>(), ("single-agent search: " + enum_choices<SingleAgentMethod>()).c_str())
         ("endpoint_strategy", po::value<string>(), ("endpoint strategy: " + enum_choices<EndpointStrategy>()).c_str())

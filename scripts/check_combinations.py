@@ -3,8 +3,8 @@
 or be rejected by validate_config() before the simulation starts.
 
 Each algorithm preset is crossed with every --mapf and --single_agent override,
-and separately with every --endpoint_strategy, --mode, --dummy_path and
---replan_on, on a small instance.
+and separately with every --endpoint_strategy, --mode, --dummy_path,
+--replan_on and --agent_selection, on a small instance.
 A run passes when it
 
   * is rejected immediately (exit 1, "is not supported" / "requires"), or
@@ -53,6 +53,7 @@ def combinations() -> list[tuple[str, list[str]]]:
         jobs += [(preset, ["--mode", m]) for m in MODES]
         jobs += [(preset, ["--dummy_path", d]) for d in ("0", "1")]
         jobs += [(preset, ["--replan_on", r]) for r in REPLANS]
+        jobs += [(preset, ["--agent_selection", a]) for a in ("ALL", "CHANGED")]
     return jobs
 
 

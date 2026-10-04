@@ -97,6 +97,12 @@ inline const NameTable<ReplanEvent>& names(ReplanEvent) {
     return table;
 }
 
+inline const NameTable<AgentSelection>& names(AgentSelection) {
+    static const NameTable<AgentSelection> table = {
+        {SELECT_ALL, "ALL"}, {SELECT_CHANGED, "CHANGED"}};
+    return table;
+}
+
 inline const NameTable<bool>& names(bool) {
     static const NameTable<bool> table = {{false, "0"}, {true, "1"}};
     return table;

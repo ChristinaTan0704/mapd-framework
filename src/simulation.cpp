@@ -116,6 +116,8 @@ void Simulation::init(const string& map_file, const string& task_file,
     new_or_deferred_task_event_ = false;
     new_available_agent_ = false;
     last_path_planning_time_ = 0;
+    planned_goals_.assign(agents.size(), {});
+    has_plan_.assign(agents.size(), false);
 }
 
 // ============================================================================
@@ -341,7 +343,41 @@ bool Simulation::carrier_needs_next_segment() const {
 }
 
 // --- Path_Planning() : switch on mapf ---
+// A planner that replans only the changed agents (select_agents) records them
+// in last_planned_. If their new paths still clash with a path that was kept,
+// every agent is replanned.
 void Simulation::path_planning(bool assignment_triggered) {
+    last_planned_.clear();
+    plan_paths(assignment_triggered);
+    if (!last_planned_.empty() && kept_paths_conflict()) {
+        select_all_ = true;
+        plan_paths(assignment_triggered);
+        select_all_ = false;
+    }
+}
+
+// Whether a replanned agent now collides with an agent whose path was kept.
+bool Simulation::kept_paths_conflict() const {
+    const int num_ag = (int)agents.size();
+    int settle = (int)cur_time_;   // after this every agent stands still
+    for (int i = 0; i < num_ag; i++)
+        for (int t = (int)maxtime - 1; t > settle; t--)
+            if (path_table_[i][t] != path_table_[i][t - 1]) { settle = t; break; }
+    for (int i = 0; i < num_ag; i++) {
+        if (!last_planned_[i]) continue;
+        for (int j = 0; j < num_ag; j++) {
+            if (last_planned_[j]) continue;
+            for (int t = (int)cur_time_ + 1; t <= settle && t < (int)maxtime; t++) {
+                if (path_table_[i][t] == path_table_[j][t]) return true;
+                if (path_table_[i][t] == path_table_[j][t - 1] &&
+                    path_table_[j][t] == path_table_[i][t - 1]) return true;
+            }
+        }
+    }
+    return false;
+}
+
+void Simulation::plan_paths(bool assignment_triggered) {
     switch (config.mapf) {
     case MAPF_PP_PER_TASK:
         path_planning_pp_per_task();
@@ -1799,20 +1835,16 @@ void Simulation::lns_repair(vector<int>& removed_tasks) {
 //  path has zero length; otherwise it is the post-delivery route to the endpoint.
 // ============================================================================
 
-vector<vector<pair<int,int>>> Simulation::build_goal_sequences() {
-    int num_ag = (int)agents.size();
-    vector<int> assigned_dummies(num_ag, -1);
-    vector<vector<pair<int,int>>> goal_seqs(num_ag);
-
-    // Match the paper's task-truncation parameter: plan only the first K tasks
-    // in each assigned sequence; later tasks remain queued for a future replan.
-    const int task_truncated_size = config.task_sequence_limit;
-
-    for (int i = 0; i < num_ag; i++) {
+// The remaining ordered goals of each agent's first max_tasks tasks. Matches
+// the paper's task-truncation parameter: later tasks stay queued for a later
+// replan.
+vector<vector<pair<int,int>>> Simulation::task_goal_sequences(int max_tasks) const {
+    vector<vector<pair<int,int>>> goal_seqs(agents.size());
+    for (int i = 0; i < (int)agents.size(); i++) {
         int current_task_count = 0;
         for (int tid : agents[i].task_sequence) {
-            if (current_task_count >= task_truncated_size) break;
-            Task& task = all_tasks[tid];
+            if (current_task_count >= max_tasks) break;
+            const Task& task = all_tasks[tid];
             int start_goal = (tid == agents[i].current_task)
                 ? agents[i].current_goal_index : 0;
             for (int g = start_goal; g < (int)task.goals.size(); g++)
@@ -1820,6 +1852,22 @@ vector<vector<pair<int,int>>> Simulation::build_goal_sequences() {
             current_task_count++;
         }
     }
+    return goal_seqs;
+}
+
+vector<vector<pair<int,int>>> Simulation::build_goal_sequences() {
+    return build_goal_sequences(vector<bool>(agents.size(), true));
+}
+
+// Goal sequences of the planned agents. An agent that is not planned keeps its
+// committed path, so its final endpoint stays reserved.
+vector<vector<pair<int,int>>> Simulation::build_goal_sequences(const vector<bool>& planned) {
+    int num_ag = (int)agents.size();
+    vector<int> assigned_dummies(num_ag, -1);
+    vector<vector<pair<int,int>>> goal_seqs =
+        task_goal_sequences(config.task_sequence_limit);
+    for (int i = 0; i < num_ag; i++)
+        if (!planned[i]) assigned_dummies[i] = (int)path_table_[i][maxtime - 1];
 
     if (!config.dummy_path) {
         // An idle agent still needs a stationary planning target, but active
@@ -1835,6 +1883,7 @@ vector<vector<pair<int,int>>> Simulation::build_goal_sequences() {
     // to the last task goal represents a zero-length dummy path.
     vector<int> busy_agents, free_agents;
     for (int i = 0; i < num_ag; i++) {
+        if (!planned[i]) continue;
         if (!goal_seqs[i].empty()) busy_agents.push_back(i);
         else                       free_agents.push_back(i);
     }
@@ -1854,6 +1903,49 @@ vector<vector<pair<int,int>>> Simulation::build_goal_sequences() {
     }
 
     return goal_seqs;
+}
+
+// --- SelectAgents() : switch on agent_selection ----------------------------
+vector<bool> Simulation::select_agents(
+    const vector<vector<pair<int,int>>>& task_goals) const {
+    const int num_ag = (int)agents.size();
+    vector<bool> planned(num_ag, true);
+    switch (select_all_ ? SELECT_ALL : config.agent_selection) {
+    case SELECT_ALL:
+        return planned;
+    case SELECT_CHANGED: {
+        // Cells another task still needs: an agent parked on one must move.
+        unordered_map<int, int> goal_holder;   // location -> agent, -1 = open task
+        for (const Task* task : open_tasks_)
+            for (int goal : task->goals) goal_holder[goal] = -1;
+        for (int i = 0; i < num_ag; i++)
+            for (const auto& goal : task_goals[i])
+                if (!goal_holder.count(goal.first)) goal_holder[goal.first] = i;
+        for (int i = 0; i < num_ag; i++) {
+            // Reaching goals only shortens the sequence a path was planned for.
+            const auto& before = planned_goals_[i];
+            const auto& now = task_goals[i];
+            bool unchanged = has_plan_[i] && now.size() <= before.size() &&
+                equal(now.begin(), now.end(), before.end() - now.size());
+            auto holder = goal_holder.find((int)path_table_[i][maxtime - 1]);
+            bool blocking = holder != goal_holder.end() && holder->second != i;
+            planned[i] = !unchanged || blocking;
+        }
+        return planned;
+    }
+    default:
+        throw logic_error("select_agents: unsupported agent_selection");
+    }
+}
+
+void Simulation::remember_plans(const vector<bool>& planned,
+                                const vector<vector<pair<int,int>>>& task_goals) {
+    for (int i = 0; i < (int)agents.size(); i++)
+        if (planned[i]) {
+            planned_goals_[i] = task_goals[i];
+            has_plan_[i] = true;
+        }
+    last_planned_ = planned;
 }
 
 DummyEndpointRequest Simulation::make_token_endpoint_request(
@@ -3504,14 +3596,22 @@ void Simulation::path_planning_pp_per_task() {
         for (int t = 0; t < max_time; t++)
             old_paths[i][t] = (int)path_table_[i][t];
 
+    // PP plans the next task of each selected agent; the others keep their
+    // committed paths and endpoints.
+    const vector<vector<pair<int,int>>> task_goals = task_goal_sequences(1);
+    const vector<bool> selected = select_agents(task_goals);
+
     vector<pair<int,int>> plan_order;
     for (int i = 0; i < num_agents; i++)
-        plan_order.push_back({agents[i].task_sequence.empty() ? 1 : 0, i});
+        if (selected[i])
+            plan_order.push_back({agents[i].task_sequence.empty() ? 1 : 0, i});
     sort(plan_order.begin(), plan_order.end());
 
     vector<vector<int>> new_paths(num_agents);
     vector<bool> planned(num_agents, false);
     vector<int> assigned_dummies(num_agents, -1);
+    for (int i = 0; i < num_agents; i++)
+        if (!selected[i]) assigned_dummies[i] = old_paths[i][max_time - 1];
 
     for (const auto& entry : plan_order) {
         int agent_id = entry.second;
@@ -3526,17 +3626,7 @@ void Simulation::path_planning_pp_per_task() {
 
         // Match the reference PP configuration: plan at most the next task,
         // followed by a collision-safe dummy endpoint.
-        vector<pair<int,int>> goals;
-        int tasks_added = 0;
-        for (int task_id : agent.task_sequence) {
-            if (tasks_added >= 1) break;
-            const Task& task = all_tasks[task_id];
-            int start_goal = (task_id == agent.current_task)
-                ? agent.current_goal_index : 0;
-            for (int g = start_goal; g < (int)task.goals.size(); g++)
-                goals.push_back({task.goals[g], g == 0 ? task.release_time : 0});
-            tasks_added++;
-        }
+        vector<pair<int,int>> goals = task_goals[agent_id];
 
         int last_goal = goals.empty() ? (int)agent.loc : goals.back().first;
         if (config.dummy_path) {
@@ -3568,11 +3658,12 @@ void Simulation::path_planning_pp_per_task() {
         }
 
         planned[agent_id] = true;
-        for (int t = 0; t < max_time; t++) {
+        for (int t = (int)cur_time_; t < max_time; t++) {   // keep the executed history
             path_table_[agent_id][t] = new_paths[agent_id][t];
             agents[agent_id].path[t] = new_paths[agent_id][t];
         }
     }
+    remember_plans(selected, task_goals);
 
     for (int i = 0; i < num_agents; i++) {
         if (!agents[i].task_sequence.empty() && agents[i].status == AG_FREE) {
@@ -3600,7 +3691,13 @@ void Simulation::path_planning_pbs() {
 void Simulation::pbs_build_context() {
     pbs_.num_ag = (int)agents.size();
     pbs_.max_t = (int)maxtime;
-    pbs_.goal_seqs = build_goal_sequences();
+    pbs_.task_goals = task_goal_sequences(config.task_sequence_limit);
+    pbs_.planned = select_agents(pbs_.task_goals);
+    pbs_.goal_seqs = build_goal_sequences(pbs_.planned);
+    pbs_.fixed_paths.clear();
+    for (int i = 0; i < pbs_.num_ag; i++)
+        if (!pbs_.planned[i])
+            pbs_.fixed_paths.emplace_back(path_table_[i].begin(), path_table_[i].end());
 
     pbs_.task_groups.assign(pbs_.num_ag, {});
     for (int i = 0; i < pbs_.num_ag; i++)
@@ -3703,7 +3800,9 @@ PBSNode* Simulation::pbs_generate_root() {
     }
 
     for (int i = 0; i < pbs_.num_ag; i++) {
-        vector<vector<int>> cons_buf;   // no priority constraints at the root
+        if (!pbs_.planned[i]) continue;   // keeps its committed path
+        // No priorities yet; only agents that are not planned constrain the root.
+        vector<vector<int>> cons_buf = pbs_.fixed_paths;
         vector<vector<int>> old_buf;    // MLA* reads the shared table directly
         if (config.single_agent == SA_MLSIPP_SEQUENCE) {
             // SIPP also receives the old paths for its final-goal holding-time
@@ -3775,7 +3874,9 @@ void Simulation::pbs_detect_conflicts(const vector<vector<int>>& paths,
                                       list<Conflict>& out) const {
     int horizon = pbs_conflict_horizon(paths);
     for (int a1 = 0; a1 < pbs_.num_ag; a1++) {
+        if (!pbs_.planned[a1]) continue;   // fixed paths are not branched on
         for (int a2 = a1 + 1; a2 < pbs_.num_ag; a2++) {
+            if (!pbs_.planned[a2]) continue;
             for (int t = (int)cur_time_; t < horizon && t < pbs_.max_t; t++) {
                 int loc1 = (t < (int)paths[a1].size()) ? paths[a1][t] : paths[a1].back();
                 int loc2 = (t < (int)paths[a2].size()) ? paths[a2][t] : paths[a2].back();
@@ -3797,7 +3898,7 @@ void Simulation::pbs_detect_conflicts(const vector<vector<int>>& paths,
 void Simulation::pbs_detect_conflicts_for(int agent_id, const vector<vector<int>>& paths,
                                           int horizon, list<Conflict>& out) const {
     for (int j = 0; j < pbs_.num_ag; j++) {
-        if (j == agent_id) continue;
+        if (j == agent_id || !pbs_.planned[j]) continue;
         for (int t = (int)cur_time_; t < horizon && t < pbs_.max_t; t++) {
             int la = (t < (int)paths[agent_id].size()) ? paths[agent_id][t] : paths[agent_id].back();
             int lj = (t < (int)paths[j].size()) ? paths[j][t] : paths[j].back();
@@ -3845,7 +3946,7 @@ PBSNode* Simulation::pbs_generate_child(PBSNode* parent, int lower, int higher) 
     child->priority = {lower, higher};
 
     set<int> higher_set = child->priorities.get_higher_priority(lower);
-    vector<vector<int>> cons;
+    vector<vector<int>> cons = pbs_.fixed_paths;
     for (int hp : higher_set) cons.push_back(child->paths[hp]);
 
     // Old paths of ALL other agents stay in the table (reference find_path).
@@ -3901,7 +4002,7 @@ bool Simulation::pbs_resolve_cascade(PBSNode* node, int replanned_agent, const P
         cascade_count++;
 
         set<int> hp = node->priorities.get_higher_priority(a);
-        vector<vector<int>> a_cons;
+        vector<vector<int>> a_cons = pbs_.fixed_paths;
         for (int h : hp) a_cons.push_back(node->paths[h]);
 
         vector<vector<int>> a_old;
@@ -3990,6 +4091,7 @@ bool Simulation::pbs_solve_impl() {
 
     if (root->conflicts.empty()) {
         pbs_commit(root);
+        remember_plans(pbs_.planned, pbs_.task_goals);
         for (PBSNode* n : all_nodes) delete n;
         pbs_clear_shared_old_table();
         return true;
@@ -4075,6 +4177,7 @@ bool Simulation::pbs_solve_impl() {
         pbs_final_deconflict(best_node);
 
     pbs_commit(best_node);
+    remember_plans(pbs_.planned, pbs_.task_goals);
 
     for (PBSNode* n : all_nodes) delete n;
     pbs_clear_shared_old_table();
@@ -4163,8 +4266,8 @@ pair<int,int> Simulation::plan_token_task(Agent& agent, Task& task,
                 return {-1, -1};
         }
 
-    for (int t = 0; t < (int)path.size() && t < (int)maxtime; t++)
-        agent.path[t] = path[t];
+    for (int t = (int)cur_time_; t < (int)path.size() && t < (int)maxtime; t++)
+        agent.path[t] = path[t];   // keep the executed history
     return {first_goal_time, final_goal_time};
 }
 

@@ -283,7 +283,22 @@ private:
     // ======================================================================
     //  Section 4 — Task sequences -> goal sequences (planner input)
     // ======================================================================
+    vector<vector<pair<int,int>>> task_goal_sequences(int max_tasks) const;
     vector<vector<pair<int,int>>> build_goal_sequences();
+    vector<vector<pair<int,int>>> build_goal_sequences(const vector<bool>& planned);
+
+    // Component 4: which agents a replan plans (switch on agent_selection),
+    // and the task goals each committed path was planned for.
+    vector<bool> select_agents(const vector<vector<pair<int,int>>>& task_goals) const;
+    void remember_plans(const vector<bool>& planned,
+                        const vector<vector<pair<int,int>>>& task_goals);
+    vector<vector<pair<int,int>>> planned_goals_;
+    vector<bool> has_plan_;
+    vector<bool> last_planned_;    // agents planned by the current replan
+    bool select_all_ = false;      // fall back to replanning every agent
+    bool kept_paths_conflict() const;
+    void plan_paths(bool assignment_triggered);
+
     DummyEndpointRequest make_token_endpoint_request(
         int agent_id, int reference_location, bool check_committed_crossings) const;
     DummyEndpointRequest make_hbh_endpoint_request(
@@ -326,6 +341,9 @@ private:
         vector<vector<pair<int,int>>> goal_seqs;
         vector<vector<vector<pair<int,int>>>> task_groups;
         vector<vector<int>> old_paths;   // committed paths from the previous solve
+        vector<vector<pair<int,int>>> task_goals;
+        vector<bool> planned;            // false: keeps its committed path
+        vector<vector<int>> fixed_paths; // paths of the agents that are not planned
     };
     PBSContext pbs_;
 

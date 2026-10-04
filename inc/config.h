@@ -33,6 +33,12 @@ enum ReplanEvent {
     REPLAN_GOAL_REACHED = 4,       // a carrier reached a goal of a multi-goal task
     REPLAN_PERIODIC = 8            // wpbs_replan_window steps after the last plan
 };
+// Which agents a replan plans; the others keep their committed paths, which
+// the planned agents must avoid.
+enum AgentSelection {
+    SELECT_ALL,
+    SELECT_CHANGED   // agents whose task goals changed since their last plan
+};
 enum MAPFMethod {
     MAPF_PP_PER_TASK,
     MAPF_PP_TASK_SEQUENCE,
@@ -82,6 +88,7 @@ struct MAPDConfig {
     AssignMethod assign_method;
     AssignTrigger assign_trigger;
     int replan_on;               // set of ReplanEvent flags
+    AgentSelection agent_selection;
     MAPFMethod mapf;
     SingleAgentMethod single_agent;
     // Whether to append a post-delivery path to the selected endpoint. The
@@ -128,6 +135,7 @@ struct MAPDConfig {
 
     MAPDConfig() : mode(MODE_ONLINE),
         assign_method(AM_DECOUPLED_GREEDY), assign_trigger(AT_ON_FREE_WAITS), replan_on(0),
+        agent_selection(SELECT_ALL),
         mapf(MAPF_PP_PER_TASK), single_agent(SA_STA_TASK_EP),
         dummy_path(true), seed(0), runtime_limit_seconds(1000),
         pathfinding_runtime_limit_seconds(600),
@@ -151,6 +159,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.assign_method = AM_DECOUPLED_GREEDY;
         c.assign_trigger = AT_ON_FREE_WAITS;
         c.replan_on = 0;
+        c.agent_selection = SELECT_CHANGED;
         c.mapf = MAPF_PP_PER_TASK;
         c.single_agent = SA_STA_TASK_EP;
         c.dummy_path = true;
@@ -161,6 +170,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.assign_method = AM_DECOUPLED_GREEDY_SWAPS;
         c.assign_trigger = AT_ON_FREE_WAITS;
         c.replan_on = 0;
+        c.agent_selection = SELECT_CHANGED;
         c.mapf = MAPF_PP_PER_TASK;
         c.single_agent = SA_STA_TASK_EP;
         c.dummy_path = true;
@@ -172,6 +182,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.assign_method = AM_CENTRAL_HUNGARIAN;
         c.assign_trigger = AT_EVERY_TIMESTEP;
         c.replan_on = REPLAN_EVERY_TIMESTEP;
+        c.agent_selection = SELECT_CHANGED;
         c.mapf = MAPF_CBS;
         c.single_agent = SA_STA_TASK_EP;
         // CENTRAL plans only to the next assigned endpoint; it does not append
@@ -188,6 +199,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.assign_method = AM_CENTRAL_HUNGARIAN;
         c.assign_trigger = AT_ON_NEW_TASK_OR_AGENT_BECOMES_FREE;
         c.replan_on = REPLAN_AFTER_ASSIGNMENT | REPLAN_GOAL_REACHED;
+        c.agent_selection = SELECT_CHANGED;
         c.mapf = MAPF_CBS;
         c.single_agent = SA_STA_TASK_EP;
         // CENTRAL-fixed retains the endpoint-holding policy but avoids
@@ -201,6 +213,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.assign_method = AM_CENTRALIZED_GREEDY;
         c.assign_trigger = AT_ON_FREE_WAITS;
         c.replan_on = 0;
+        c.agent_selection = SELECT_CHANGED;
         c.mapf = MAPF_PP_PER_TASK;
         c.single_agent = SA_MLA_SEQUENCE;
         c.dummy_path = true;
@@ -211,6 +224,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.assign_method = AM_LKH3_TSP;
         c.assign_trigger = AT_ONCE;
         c.replan_on = REPLAN_AFTER_ASSIGNMENT;
+        c.agent_selection = SELECT_ALL;
         c.mapf = MAPF_PP_TASK_SEQUENCE;
         c.single_agent = SA_SEQ_STA;
         c.dummy_path = true;
@@ -224,6 +238,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.assign_trigger =
             AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE;
         c.replan_on = REPLAN_AFTER_ASSIGNMENT | REPLAN_GOAL_REACHED;
+        c.agent_selection = SELECT_CHANGED;
         c.mapf = MAPF_TA_HYBRID_TWO_GROUP;
         c.single_agent = SA_STA_TASK_EP;
         c.dummy_path = true;
@@ -234,6 +249,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.assign_method = AM_REPEATED_HUNGARIAN;
         c.assign_trigger = AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE;
         c.replan_on = REPLAN_AFTER_ASSIGNMENT;
+        c.agent_selection = SELECT_ALL;
         c.mapf = MAPF_PBS;
         c.single_agent = SA_MLA_SEQUENCE;
         c.dummy_path = true;
@@ -244,6 +260,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.assign_method = AM_REPEATED_HUNGARIAN;
         c.assign_trigger = AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE;
         c.replan_on = REPLAN_AFTER_ASSIGNMENT | REPLAN_PERIODIC;
+        c.agent_selection = SELECT_ALL;
         c.mapf = MAPF_wPBS;
         c.single_agent = SA_MLA_SEQUENCE;
         c.dummy_path = true;
@@ -255,6 +272,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.assign_method = AM_REPEATED_HUNGARIAN_LNS;
         c.assign_trigger = AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE;
         c.replan_on = REPLAN_AFTER_ASSIGNMENT;
+        c.agent_selection = SELECT_ALL;
         c.mapf = MAPF_PBS;
         c.single_agent = SA_MLA_SEQUENCE;
         c.dummy_path = true;
@@ -266,6 +284,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.assign_method = AM_REPEATED_HUNGARIAN_LNS;
         c.assign_trigger = AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE;
         c.replan_on = REPLAN_AFTER_ASSIGNMENT | REPLAN_PERIODIC;
+        c.agent_selection = SELECT_ALL;
         c.mapf = MAPF_wPBS;
         c.single_agent = SA_MLA_SEQUENCE;
         c.dummy_path = true;

@@ -2,9 +2,9 @@
 //  Configuration validation
 //
 //  SUPPORT lists every (assignment method, MAPF method) pair the framework
-//  implements, with the assignment triggers, replanning events, single-agent
-//  searches, endpoint strategies, task modes and dummy-path settings that the
-//  pair runs correctly with. Any other configuration is rejected before the simulation starts, so
+//  implements, with the assignment triggers, replanning events, agent
+//  selections, single-agent searches, endpoint strategies, task modes and
+//  dummy-path settings that the pair runs correctly with. Any other configuration is rejected before the simulation starts, so
 //  no combination can run silently with a component ignored.
 //
 //  Supporting a new combination means implementing it and widening its row.
@@ -22,6 +22,7 @@ struct Support {
     MAPFMethod mapf;
     std::vector<AssignTrigger> triggers;
     std::vector<int> replans;        // allowed sets of ReplanEvent flags
+    std::vector<AgentSelection> selections;
     std::vector<SingleAgentMethod> single_agents;
     std::vector<EndpointStrategy> endpoints;
     std::vector<Mode> modes;
@@ -38,6 +39,9 @@ const std::vector<SingleAgentMethod> ANY_SEARCH = {
     SA_STA_TASK_EP, SA_MLA_SEQUENCE, SA_MLSIPP_SEQUENCE, SA_SIPP_SEGMENTS};
 // wPBS runs its own windowed solver (native_wpbs_solve) with MLA* or MLSIPP.
 const std::vector<SingleAgentMethod> MLA_OR_MLSIPP = {SA_MLA_SEQUENCE, SA_MLSIPP_SEQUENCE};
+const std::vector<AgentSelection> CHANGED = {SELECT_CHANGED};
+const std::vector<AgentSelection> ALL = {SELECT_ALL};
+const std::vector<AgentSelection> EITHER_SELECTION = {SELECT_ALL, SELECT_CHANGED};
 const std::vector<bool> WITH_DUMMY = {true};
 const std::vector<bool> EITHER = {true, false};
 const AssignTrigger ON_EVENT = AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE;
@@ -59,35 +63,37 @@ std::vector<Support> supported_pairs() {
         // against the others' committed paths (per-task prioritized planning);
         // the WAIT_* strategies exist only for their relocation step.
         {AM_DECOUPLED_GREEDY, MAPF_PP_PER_TASK, {AT_ON_FREE_WAITS}, {IN_ASSIGNMENT},
-         ANY_SEARCH, ALL_ENDPOINTS, ALL_MODES, WITH_DUMMY},
+         CHANGED, ANY_SEARCH, ALL_ENDPOINTS, ALL_MODES, WITH_DUMMY},
         {AM_DECOUPLED_GREEDY_SWAPS, MAPF_PP_PER_TASK, {AT_ON_FREE_WAITS}, {IN_ASSIGNMENT},
-         ANY_SEARCH,
+         CHANGED, ANY_SEARCH,
          {WAIT_OR_NEAREST_SAFE, WAIT_OR_NEAREST_FREE_NONTASK, NEAREST_AVAILABLE,
           NEAREST_WITH_STRICT_EXCLUSIONS, RETURN_TO_HOME}, ALL_MODES, WITH_DUMMY},
         {AM_CENTRALIZED_GREEDY, MAPF_PP_PER_TASK, {AT_ON_FREE_WAITS}, {IN_ASSIGNMENT},
-         ANY_SEARCH, ALL_ENDPOINTS, ALL_MODES, WITH_DUMMY},
+         CHANGED, ANY_SEARCH, ALL_ENDPOINTS, ALL_MODES, WITH_DUMMY},
         // CENTRAL runs CBS with its own low-level search (src/cbs.cpp) and
         // routes free agents to parking endpoints during assignment.
         {AM_CENTRAL_HUNGARIAN, MAPF_CBS,
          {AT_EVERY_TIMESTEP, AT_ON_NEW_TASK_OR_AGENT_BECOMES_FREE},
-         WITH_SEGMENTS, {SA_STA_TASK_EP},
+         WITH_SEGMENTS, CHANGED, {SA_STA_TASK_EP},
          {NEAREST_AVAILABLE, NEAREST_WITH_STRICT_EXCLUSIONS, RETURN_TO_HOME}, ALL_MODES,
          {false}},
         // The LKH3 tour covers the complete task set, so it must be known upfront.
-        {AM_LKH3_TSP, MAPF_PP_TASK_SEQUENCE, {AT_ONCE}, {AFTER}, {SA_SEQ_STA},
+        {AM_LKH3_TSP, MAPF_PP_TASK_SEQUENCE, {AT_ONCE}, {AFTER}, ALL, {SA_SEQ_STA},
          {RETURN_TO_HOME, NEAREST_AVAILABLE}, {MODE_OFFLINE}, WITH_DUMMY},
         {AM_LKH3_TSP_REASSIGN, MAPF_TA_HYBRID_TWO_GROUP, {ON_EVENT}, {SEGMENTS},
-         {SA_STA_TASK_EP},
+         CHANGED, {SA_STA_TASK_EP},
          {RETURN_TO_HOME, NEAREST_AVAILABLE}, {MODE_OFFLINE}, EITHER},
     };
     // Repeated Hungarian, with or without LNS, feeds the same planners.
     for (AssignMethod hungarian : {AM_REPEATED_HUNGARIAN, AM_REPEATED_HUNGARIAN_LNS}) {
-        rows.push_back({hungarian, MAPF_PBS, {ON_EVENT}, ANY_REPLAN, ANY_SEARCH,
+        rows.push_back({hungarian, MAPF_PBS, {ON_EVENT}, ANY_REPLAN, EITHER_SELECTION,
+                        ANY_SEARCH,
                         FLEXIBLE_ENDPOINTS, ALL_MODES, WITH_DUMMY});
-        rows.push_back({hungarian, MAPF_wPBS, {ON_EVENT}, WITH_REFRESH, MLA_OR_MLSIPP,
+        rows.push_back({hungarian, MAPF_wPBS, {ON_EVENT}, WITH_REFRESH, ALL, MLA_OR_MLSIPP,
                         {PAIRWISE_TASK_THEN_HOME, NEAREST_WITH_STRICT_EXCLUSIONS,
                          NEAREST_AVAILABLE, RETURN_TO_HOME}, ALL_MODES, WITH_DUMMY});
-        rows.push_back({hungarian, MAPF_PP_PER_TASK, {ON_EVENT}, ANY_REPLAN, ANY_SEARCH,
+        rows.push_back({hungarian, MAPF_PP_PER_TASK, {ON_EVENT}, ANY_REPLAN, EITHER_SELECTION,
+                        ANY_SEARCH,
                         FLEXIBLE_ENDPOINTS, ALL_MODES, WITH_DUMMY});
     }
     return rows;
@@ -136,6 +142,7 @@ void validate_config(const MAPDConfig& config, bool has_tour) {
         for (int flags : row->replans) message << " " << flags_name<ReplanEvent>(flags);
         throw std::invalid_argument(message.str());
     }
+    require("agent_selection", config.agent_selection, row->selections, *row);
     require("single_agent", config.single_agent, row->single_agents, *row);
     require("endpoint_strategy", config.endpoint_strategy, row->endpoints, *row);
     require("mode", config.mode, row->modes, *row);
