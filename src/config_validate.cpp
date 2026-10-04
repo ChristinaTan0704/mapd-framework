@@ -77,11 +77,12 @@ std::vector<Support> supported_rows() {
         {AM_CENTRALIZED_GREEDY, MAPF_PP_PER_TASK, {AT_ON_FREE_WAITS}, {IN_ASSIGNMENT},
          CHANGED, ANY_SEARCH, RELOCATION_ENDPOINTS, ALL_MODES, WITH_DUMMY},
         // CBS (src/cbs.cpp, with its own low-level search) plans one goal at a
-        // time; CENTRAL routes free agents to parking endpoints itself.
+        // time; CENTRAL routes free agents to parking endpoints itself. The
+        // strict policy parks only on task endpoints, where CENTRAL's idle
+        // agents crowd the tasks and CBS stalls with 50 agents.
         {AM_CENTRAL_HUNGARIAN, MAPF_CBS, {AT_EVERY_TIMESTEP, ON_EVENT},
-         WITH_SEGMENTS, CHANGED, {SA_STA_TASK_EP},
-         {NEAREST_AVAILABLE, NEAREST_WITH_STRICT_EXCLUSIONS, RETURN_TO_HOME}, ALL_MODES,
-         {false}},
+         WITH_SEGMENTS, CHANGED, {SA_STA_TASK_EP}, {NEAREST_AVAILABLE, RETURN_TO_HOME},
+         ALL_MODES, {false}},
         // The LKH3 tour covers the complete task set, so it must be known upfront.
         {AM_LKH3_TSP, MAPF_PP_TASK_SEQUENCE, {AT_ONCE}, {AFTER}, ALL, {SA_SEQ_STA},
          {RETURN_TO_HOME, NEAREST_AVAILABLE}, {MODE_OFFLINE}, WITH_DUMMY},
