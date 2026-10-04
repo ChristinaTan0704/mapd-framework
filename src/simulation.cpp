@@ -1,22 +1,51 @@
 // ============================================================================
 //  Unified MAPD framework
 //
-//  An algorithm is a choice of nine components (inc/config.h, configs/*.cfg).
-//  Each has one dispatcher that switches on its value:
-//      1  when to call task assignment   assign_trigger     should_assign()
-//      2  task assignment                assign_method      task_assignment()
-//      3  when to plan paths             replan_on          should_replan()
-//      4  which agents to plan           agent_selection    select_agents()
-//      5  high-level planner             mapf               plan_paths()
-//         5.1 window                     wpbs_replan_window should_replan(), wPBS
-//      6  low-level planner              single_agent       plan_single_agent()
-//      7  task endpoint                  endpoint_strategy  choose_dummy_endpoint()
-//                                        dummy_path         build_goal_sequences()
-//      8  task setup                     mode               release_tasks()
-//      9  task type                      task_type          init(); every module
-//                                                           reads Task::goals
+//  An algorithm is a choice of nine components, set by command-line options
+//  or a --config file (configs/table1/*.cfg: TP, TPTS, HBH, CENTRAL,
+//  CENTRAL-fixed, TA-Prioritized, TA-Hybrid, LNS-PBS, LNS-wPBS;
+//  configs/variants/*.cfg: further combinations). Each component has one
+//  dispatcher that switches on its value:
+//
+//   1  when to call task assignment    --assign_trigger      should_assign()
+//        ON_FREE_WAITS / EVERY_TIMESTEP / ONCE /
+//        ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE
+//   2  task assignment                 --assign_method       task_assignment()
+//        DECOUPLED_GREEDY (TP) / DECOUPLED_GREEDY_SWAPS (TPTS) /
+//        CENTRALIZED_GREEDY (HBH) / CENTRAL_HUNGARIAN / REPEATED_HUNGARIAN /
+//        REPEATED_HUNGARIAN_LNS / LKH3_TSP / LKH3_TSP_REASSIGN
+//   3  when to plan paths              --replan_on           should_replan()
+//        set of AFTER_ASSIGNMENT / EVERY_TIMESTEP / GOAL_REACHED / PERIODIC;
+//        NONE = TP, TPTS and HBH plan inside the assignment
+//   4  which agents to plan            --agent_selection     select_agents()
+//        ALL / CHANGED (the others keep their committed paths)
+//   5  high-level planner              --mapf                plan_paths()
+//        PP / PP_TASK_SEQUENCE / CBS / PBS / wPBS / TA_HYBRID_TWO_GROUP
+//   5.1 window                         --wpbs_replan_window  wPBS = PBS that
+//        plans w steps ahead; also the PERIODIC replan interval
+//   6  low-level planner               --single_agent        plan_single_agent()
+//        STA / MLA / MLSIPP / SIPP2; CBS (cbs.cpp), TA-Hybrid and
+//        PP_TASK_SEQUENCE (SEQ_STA) use their own searches
+//   7  task endpoint                   --endpoint_strategy   choose_dummy_endpoint()
+//        WAIT_OR_NEAREST_SAFE / WAIT_OR_NEAREST_FREE_NONTASK /
+//        NEAREST_AVAILABLE / NEAREST_WITH_STRICT_EXCLUSIONS /
+//        PAIRWISE_TASK_THEN_HOME / RETURN_TO_HOME;
+//        --dummy_path 0/1                                    build_goal_sequences()
+//   8  task setup                      --mode                release_tasks()
+//        ONLINE / SEMI_ONLINE / OFFLINE
+//   9  task type                       --task_type           checked in init();
+//        MAPD / MG_MAPD                                      every module reads
+//                                                            Task::goals
+//
 //  validate_config() (src/config_validate.cpp) rejects the combinations that
-//  are not implemented before the run starts.
+//  are not implemented before the run starts. advance_time() jumps the clock
+//  as far as the planners allow; process_events() advances the task states.
+//
+//  Tuning options: task_sequence_limit (tasks per PBS/wPBS plan), lns_time,
+//  semi_online_lookahead_batches, tie_breaking, the CBS options
+//  (ecbs_focal_weight, cbs_conflict_selection, cbs_bypass,
+//  cbs_target_reasoning, cbs_rectangle_reasoning, expansion limits) and the
+//  runtime limits (whole run, default 1000 s; each planning cycle, 600 s).
 //
 //  Layout follows the unified pseudocode:
 //      Section 0   Initialisation                       (Algorithm 1, lines 1-6)
