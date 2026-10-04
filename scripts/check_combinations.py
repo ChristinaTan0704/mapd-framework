@@ -99,12 +99,13 @@ def combinations() -> list[tuple[str, int, str, list[str]]]:
                      "--endpoint_strategy", endpoint,
                      "--agent_selection", "ALL" if mapf == "wPBS" else "CHANGED"]
             for agents in (10, 50):
-                jobs += [(config, agents, setup + ["--single_agent", sa])
+                jobs += [(config, agents, "1", setup + ["--single_agent", sa])
                          for sa in SINGLE_AGENT[1:]]
                 if config in CENTRAL:
-                    jobs += [(config, agents, setup + ["--dummy_path", d]) for d in ("0", "1")]
+                    jobs += [(config, agents, "1", setup + ["--dummy_path", d])
+                             for d in ("0", "1")]
             if config in CENTRAL:
-                jobs += [(config, 10, setup + ["--dummy_path", "1", "--mode", m])
+                jobs += [(config, 10, "0.2", setup + ["--dummy_path", "1", "--mode", m])
                          for m in MODES]
     return jobs
 
