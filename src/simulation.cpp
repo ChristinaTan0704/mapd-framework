@@ -1,44 +1,22 @@
 // ============================================================================
-//  Unified MAPD Framework — TP/TPTS, HBH, CENTRAL, TA, Hungarian, or LNS
-//                           assignment
-//                          — TP/TPTS with sequential STA* or MLSIPP
-//                          — HBH with MLA*, MLSIPP, or two-segment SIPP
-//                          — CENTRAL/CENTRAL-fixed: Hungarian assignment and
-//                            segment-by-segment CBS through arbitrary ordered
-//                            task goals (CBS/ICBS search lives in cbs.cpp)
-//                          — TA-Prioritized: offline LKH3 tours and
-//                            prioritized sequential STA*
-//                          — TA-Hybrid: offline LKH3 tours with reassignment,
-//                            two-group CBS / min-cost-flow planning
-//                          — Repeated Hungarian or Hungarian+LNS with
-//                            PBS / wPBS (MLA* or MLSIPP) or PP (MLSIPP)
+//  Unified MAPD framework
 //
-//  Presets (config.h : get_preset) set these axes; driver.cpp overrides them:
-//      mode              = ONLINE / OFFLINE / SEMI_ONLINE
-//      assign_method     = DECOUPLED_GREEDY / DECOUPLED_GREEDY_SWAPS /
-//                          CENTRALIZED_GREEDY / CENTRAL_HUNGARIAN /
-//                          REPEATED_HUNGARIAN / REPEATED_HUNGARIAN_LNS /
-//                          LKH3_TSP / LKH3_TSP_REASSIGN
-//      assign_trigger    = ON_FREE_WAITS / EVERY_TIMESTEP / ONCE /
-//                          ON_NEW_TASK_OR_AGENT_BECOMES_FREE /
-//                          ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE
-//      mapf              = CBS / PBS / wPBS / PP_PER_TASK / PP_TASK_SEQUENCE /
-//                          TA_HYBRID_TWO_GROUP
-//      single_agent      = STA_TASK_EP / SEQ_STA / MLA_SEQUENCE /
-//                          MLSIPP_SEQUENCE / SIPP_SEGMENTS
-//      dummy_path        = true / false
-//      endpoint_strategy = RETURN_TO_HOME / NEAREST_WITH_STRICT_EXCLUSIONS /
-//                          PAIRWISE_TASK_THEN_HOME / WAIT_OR_NEAREST_SAFE /
-//                          WAIT_OR_NEAREST_FREE_NONTASK / NEAREST_AVAILABLE
-//      task_sequence_limit = maximum tasks included in each PBS/wPBS plan
-//      wpbs_replan_window  = executed steps between wPBS replans
-//      lns_time_limit      = LNS improvement budget per assignment (seconds)
-//      CBS options         = ecbs_focal_weight, cbs_conflict_selection
-//                            (EARLIEST / CARDINAL), cbs_bypass,
-//                            cbs_target_reasoning, cbs_rectangle_reasoning,
-//                            expansion limits
-//      runtime limits      = whole run (default 1000 s) and per assignment/
-//                            path-planning cycle (default 600 s)
+//  An algorithm is a choice of nine components (inc/config.h, configs/*.cfg).
+//  Each has one dispatcher that switches on its value:
+//      1  when to call task assignment   assign_trigger     should_assign()
+//      2  task assignment                assign_method      task_assignment()
+//      3  when to plan paths             replan_on          should_replan()
+//      4  which agents to plan           agent_selection    select_agents()
+//      5  high-level planner             mapf               plan_paths()
+//         5.1 window                     wpbs_replan_window should_replan(), wPBS
+//      6  low-level planner              single_agent       plan_single_agent()
+//      7  task endpoint                  endpoint_strategy  choose_dummy_endpoint()
+//                                        dummy_path         build_goal_sequences()
+//      8  task setup                     mode               release_tasks()
+//      9  task type                      task_type          init(); every module
+//                                                           reads Task::goals
+//  validate_config() (src/config_validate.cpp) rejects the combinations that
+//  are not implemented before the run starts.
 //
 //  Layout follows the unified pseudocode:
 //      Section 0   Initialisation                       (Algorithm 1, lines 1-6)
@@ -46,15 +24,13 @@
 //      Section 2   Computation dispatchers              (Algorithm 1, line 12)
 //      Section 3   Task assignment  TP / TPTS / HBH / CENTRAL Hungarian /
 //                                   LKH3 TA / repeated Hungarian / LNS
-//      Section 4   Task sequences -> goal sequences, dummy-endpoint selection
-//      Section 5   MAPF             CENTRAL CBS batches / TA-Hybrid / PP / PBS
+//      Section 4   Task sequences -> goal sequences, agent selection,
+//                  dummy-endpoint selection
+//      Section 5   MAPF             CBS / TA-Hybrid / PP / PBS
 //      Section 6   Single agent     STA* / MLA* / SIPP / MLSIPP,
 //                                   followed by the windowed-PBS (wPBS) solver
 //      Section 7   System update    (Algorithm 1, line 13)
 //      Section 8   Reporting
-//
-//  Every dispatcher switches on a config axis and rejects the values that are
-//  not implemented yet, so another algorithm is added by filling in one case.
 // ============================================================================
 #include "simulation.h"
 
@@ -124,6 +100,7 @@ void Simulation::init(const string& map_file, const string& task_file,
     last_path_planning_time_ = 0;
     planned_goals_.assign(agents.size(), {});
     has_plan_.assign(agents.size(), false);
+    segment_goal_.assign(agents.size(), -1);
 }
 
 // ============================================================================
@@ -213,11 +190,7 @@ void Simulation::release_tasks() {
     }
 
     last_released_time_ = max(last_released_time_, reveal_through);
-    if (revealed_new_task &&
-        (config.assign_trigger == AT_ON_NEW_TASK_OR_AGENT_BECOMES_FREE ||
-         config.assign_trigger ==
-            AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE))
-        new_or_deferred_task_event_ = true;
+    if (revealed_new_task) new_or_deferred_task_event_ = true;
 }
 
 // ============================================================================
@@ -257,20 +230,7 @@ bool Simulation::should_assign() {
             if (agent.finish_time <= cur_time_) return true;
         return false;
     case AT_EVERY_TIMESTEP:
-        // CENTRAL assigns endpoints to every non-carrying agent at every
-        // timestep, exactly as described by the centralized algorithm.
         return true;
-    case AT_ON_NEW_TASK_OR_AGENT_BECOMES_FREE: {
-        // CENTRAL-fixed changes the free-agent assignment only when new work
-        // arrives or an occupied agent completes its delivery.
-        const bool assignment_event =
-            new_or_deferred_task_event_ || new_available_agent_;
-        if (assignment_event) {
-            new_or_deferred_task_event_ = false;
-            new_available_agent_ = false;
-        }
-        return assignment_event;
-    }
     case AT_ONCE:
         return cur_time_ == 0 && !open_tasks_.empty();
     case AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE: {
@@ -331,15 +291,21 @@ bool Simulation::should_replan(bool assignment_triggered) const {
     const int on = config.replan_on;
     if (on & REPLAN_EVERY_TIMESTEP) return true;
     if ((on & REPLAN_AFTER_ASSIGNMENT) && assignment_triggered) return true;
-    if ((on & REPLAN_GOAL_REACHED) && carrier_needs_next_segment()) return true;
+    if ((on & REPLAN_GOAL_REACHED) && agent_needs_next_segment()) return true;
     if ((on & REPLAN_PERIODIC) && !all_task_sequences_empty())
         return (int)cur_time_ - (int)last_path_planning_time_ >= config.wpbs_replan_window;
     return false;
 }
 
-// A carrying agent has just picked up, or reached a later goal of, a task with
-// further ordered goals; segment planners (CBS, TA-Hybrid) plan the next leg.
-bool Simulation::carrier_needs_next_segment() const {
+// An agent reached a goal and has goals left: a carrying agent has just picked
+// up, or reached a later goal of, a task with further ordered goals, or an
+// agent reached the end of its CBS segment with tasks left. Segment planners
+// (CBS, TA-Hybrid) plan the next leg.
+bool Simulation::agent_needs_next_segment() const {
+    for (int i = 0; i < (int)agents.size(); i++)
+        if (segment_goal_[i] >= 0 && (int)agents[i].loc == segment_goal_[i] &&
+            !agents[i].task_sequence.empty())
+            return true;
     for (const Agent& agent : agents)
         if (agent.status == AG_CARRYING &&
             agent.current_task >= 0 &&
@@ -397,7 +363,12 @@ void Simulation::plan_paths(bool assignment_triggered) {
         path_planning_pp_task_sequence();
         break;
     case MAPF_CBS:
-        path_planning_ecbs(assignment_triggered);
+        // CENTRAL assigns each agent one endpoint (a pickup or parking); the
+        // other methods assign task sequences, planned one goal at a time.
+        if (config.assign_method == AM_CENTRAL_HUNGARIAN)
+            path_planning_ecbs(assignment_triggered);
+        else
+            path_planning_cbs_segments();
         break;
     case MAPF_PBS:
         path_planning_pbs();
@@ -2031,8 +2002,11 @@ vector<bool> Simulation::select_agents(
             const auto& now = task_goals[i];
             bool unchanged = has_plan_[i] && now.size() <= before.size() &&
                 equal(now.begin(), now.end(), before.end() - now.size());
+            // An agent with tasks leaves its final cell once it moves on, so
+            // only an idle agent blocks an unassigned task there.
             auto holder = goal_holder.find((int)path_table_[i][maxtime - 1]);
-            bool blocking = holder != goal_holder.end() && holder->second != i;
+            bool blocking = holder != goal_holder.end() && holder->second != i &&
+                (holder->second >= 0 || task_goals[i].empty());
             planned[i] = !unchanged || blocking;
         }
         return planned;
@@ -2324,94 +2298,86 @@ vector<vector<pair<int,int>>> Simulation::split_into_task_groups(
 }
 
 // ============================================================================
-//  Section 5 — MAPF: Prioritized Planning / Priority-Based Search
-//
-//  High level: depth-first search over partial priority orders.  Each node
-//  fixes "agent a yields to agent b"; the low level then re-plans the yielding
-//  agent against the paths of everyone who outranks it.
+//  Section 5 — MAPF (component 5): CBS, TA-Hybrid, PP, PBS
 // ============================================================================
 
-// --- CENTRAL: CBS ----------------------------------------------------------
+// --- CBS ------------------------------------------------------------------
+// CBS plans single goals. A focal weight of 1.0 gives optimal CBS and values
+// greater than 1.0 bounded-suboptimal ECBS.
+
+// Paths for agent_ids, each from its current location to its goal, that avoid
+// every other agent's committed path; index 0 is the current timestep. Empty
+// when CBS finds none.
+vector<vector<int>> Simulation::cbs_solve(const vector<int>& agent_ids,
+                                          const vector<int>& goals) {
+    set<int> batch(agent_ids.begin(), agent_ids.end());
+    vector<vector<int>> constraints;
+    for (int i = 0; i < (int)agents.size(); i++)
+        if (!batch.count(i))
+            constraints.emplace_back(path_table_[i].begin(), path_table_[i].end());
+    vector<int> starts, endpoint_ids;
+    for (int k = 0; k < (int)agent_ids.size(); k++) {
+        starts.push_back(agents[agent_ids[k]].loc);
+        endpoint_ids.push_back(mapd_map.ep_index(goals[k]));
+        if (endpoint_ids.back() < 0)
+            throw runtime_error("CBS goal is not an endpoint");
+    }
+    ECBSResult result = ECBSPlanner().solve(ECBSRequest(
+        mapd_map.grid, starts, goals, endpoint_ids, constraints, (int)cur_time_,
+        mapd_map.col, config.ecbs_focal_weight,
+        config.cbs_high_level_expansion_limit, config.cbs_low_level_expansion_limit,
+        mapd_map.endpoints, (int)maxtime, config.cbs_conflict_selection,
+        config.cbs_bypass, config.cbs_target_reasoning, config.cbs_rectangle_reasoning));
+    if (!result.solution_found || result.paths.size() != agent_ids.size())
+        return {};
+    for (const vector<int>& path : result.paths)
+        if (path.empty()) throw runtime_error("CBS returned an empty path");
+    return result.paths;
+}
+
+// Commit a path that starts now; the agent then holds its last cell, and
+// finish_time is its arrival there.
+void Simulation::commit_segment(int agent_id, const vector<int>& path) {
+    for (unsigned int t = cur_time_; t < maxtime; t++) {
+        unsigned int step = t - cur_time_;
+        int location = step < path.size() ? path[step] : path.back();
+        path_table_[agent_id][t] = location;
+        agents[agent_id].path[t] = location;
+    }
+    agents[agent_id].finish_time = cur_time_ + path.size() - 1;
+}
+
+// --- CENTRAL: CBS to the assigned endpoints ---------------------------------
 void Simulation::path_planning_ecbs(bool assignment_triggered) {
     // CENTRAL solves two smaller CBS instances each timestep, as described in
     // the paper: first agents that became occupied now, then all remaining
-    // free/non-carrying agents. A focal weight of 1.0 gives optimal CBS;
-    // values greater than 1.0 enable bounded-suboptimal ECBS.
-    auto solve_batch = [&](const vector<int>& agent_ids,
-                           const vector<int>& goal_locations,
-                           const vector<int>& goal_endpoint_ids,
+    // free/non-carrying agents.
+    auto solve_batch = [&](const vector<int>& agent_ids, const vector<int>& goals,
                            bool task_goal_batch) {
         if (agent_ids.empty()) return;
-
-        set<int> batch_agents(agent_ids.begin(), agent_ids.end());
-        vector<vector<int>> constraints;
-        for (int agent_id = 0; agent_id < (int)agents.size(); agent_id++)
-            if (!batch_agents.count(agent_id))
-                constraints.emplace_back(
-                    path_table_[agent_id].begin(),
-                    path_table_[agent_id].end());
-
-        vector<int> starts;
-        starts.reserve(agent_ids.size());
-        for (int agent_id : agent_ids)
-            starts.push_back(agents[agent_id].loc);
-
-        ECBSPlanner planner;
-        ECBSResult result = planner.solve(ECBSRequest(
-            mapd_map.grid, starts, goal_locations, goal_endpoint_ids,
-            constraints, (int)cur_time_, mapd_map.col,
-            config.ecbs_focal_weight,
-            config.cbs_high_level_expansion_limit,
-            config.cbs_low_level_expansion_limit,
-            mapd_map.endpoints, (int)maxtime,
-            config.cbs_conflict_selection, config.cbs_bypass,
-            config.cbs_target_reasoning, config.cbs_rectangle_reasoning));
-        if (!result.solution_found || result.paths.size() != agent_ids.size())
-            throw runtime_error(
-                "CENTRAL-CBS failed to find the required batch path");
-
+        vector<vector<int>> paths = cbs_solve(agent_ids, goals);
+        if (paths.empty())
+            throw runtime_error("CENTRAL-CBS failed to find the required batch path");
         for (int index = 0; index < (int)agent_ids.size(); index++) {
             int agent_id = agent_ids[index];
-            const vector<int>& path = result.paths[index];
-            if (path.empty())
-                throw runtime_error(
-                    "CENTRAL-CBS returned an empty agent path");
-
-            for (int t = 0;
-                 t < (int)path.size() && cur_time_ + t < maxtime; t++) {
-                path_table_[agent_id][cur_time_ + t] = path[t];
-                agents[agent_id].path[cur_time_ + t] = path[t];
-            }
-            int hold_location = path.back();
-            for (unsigned int t = cur_time_ + path.size(); t < maxtime; t++) {
-                path_table_[agent_id][t] = hold_location;
-                agents[agent_id].path[t] = hold_location;
-            }
-
-            int arrival_time = cur_time_ + path.size() - 1;
-            agents[agent_id].finish_time = arrival_time;
-            if (task_goal_batch) {
-                Task* task = central_current_task(agent_id);
-                if (!task)
-                    throw runtime_error(
-                        "CENTRAL-CBS task agent has no current task");
-                // Completion and final-goal waiting apply only to the last
-                // ordered goal. Intermediate goals trigger another Group-1
-                // CBS segment when the agent reaches them.
-                if (agents[agent_id].current_goal_index ==
-                        (int)task->goals.size() - 1) {
-                    task->completion_time = arrival_time;
-                    agents[agent_id].finish_time += task->goal_wait_time;
-                }
+            commit_segment(agent_id, paths[index]);
+            if (!task_goal_batch) continue;
+            Task* task = central_current_task(agent_id);
+            if (!task)
+                throw runtime_error("CENTRAL-CBS task agent has no current task");
+            // Completion and final-goal waiting apply only to the last ordered
+            // goal. Intermediate goals trigger another Group-1 CBS segment when
+            // the agent reaches them.
+            if (agents[agent_id].current_goal_index == (int)task->goals.size() - 1) {
+                task->completion_time = (int)agents[agent_id].finish_time;
+                agents[agent_id].finish_time += task->goal_wait_time;
             }
         }
     };
 
     // Group 1: agents that became occupied or reached an intermediate goal at
     // this timestep. Plan one CBS segment to each task's next ordered goal.
-    vector<int> task_agents;
-    vector<int> task_goals;
-    vector<int> task_endpoint_ids;
+    vector<int> task_agents, task_goals;
     for (int agent_id = 0; agent_id < (int)agents.size(); agent_id++) {
         Task* task = central_current_task(agent_id);
         if (agents[agent_id].status != AG_CARRYING || !task)
@@ -2422,14 +2388,10 @@ void Simulation::path_planning_ecbs(bool assignment_triggered) {
         if (task->ag_arrive_start != (int)cur_time_ &&
             agents[agent_id].finish_time > cur_time_)
             continue;
-        int endpoint_id = mapd_map.ep_index(task->goals[goal_index]);
-        if (endpoint_id < 0)
-            throw runtime_error("CENTRAL task goal is not an endpoint");
         task_agents.push_back(agent_id);
         task_goals.push_back(task->goals[goal_index]);
-        task_endpoint_ids.push_back(endpoint_id);
     }
-    solve_batch(task_agents, task_goals, task_endpoint_ids, true);
+    solve_batch(task_agents, task_goals, true);
 
     // Group 2 is planned after task assignment. CENTRAL does this every
     // timestep; CENTRAL-fixed does it only after a new-task/free-agent event.
@@ -2437,20 +2399,67 @@ void Simulation::path_planning_ecbs(bool assignment_triggered) {
 
     // All free/non-carrying agents are jointly planned to the pickup or
     // parking endpoint stored by assign_central_hungarian().
-    vector<int> free_agents;
-    vector<int> free_goals;
-    vector<int> free_endpoint_ids;
+    vector<int> free_agents, free_goals;
     for (int agent_id = 0; agent_id < (int)agents.size(); agent_id++) {
         if (agents[agent_id].status == AG_CARRYING) continue;
-        int endpoint_id = mapd_map.ep_index(agents[agent_id].last_endpoint);
-        if (endpoint_id < 0)
-            throw runtime_error(
-                "CENTRAL-CBS agent has an invalid assigned endpoint");
         free_agents.push_back(agent_id);
         free_goals.push_back(agents[agent_id].last_endpoint);
-        free_endpoint_ids.push_back(endpoint_id);
     }
-    solve_batch(free_agents, free_goals, free_endpoint_ids, false);
+    solve_batch(free_agents, free_goals, false);
+}
+
+// --- CBS for task sequences: one goal at a time ----------------------------
+// Each planned agent's path leads to the next goal of its goal sequence (a
+// task goal, or its endpoint when idle); REPLAN_GOAL_REACHED plans the next
+// one when it arrives. CBS paths end at their goal and hold it, so a goal that
+// another agent already ends at cannot be shared: that agent waits at the
+// nearest free endpoint and is replanned at the next event. If the kept paths
+// leave no solution, every agent is replanned.
+void Simulation::path_planning_cbs_segments() {
+    const int num_ag = (int)agents.size();
+    vector<vector<pair<int,int>>> next_goal(num_ag);
+    vector<vector<pair<int,int>>> task_goals = task_goal_sequences(1);
+    for (int i = 0; i < num_ag; i++)
+        if (!task_goals[i].empty()) next_goal[i] = {task_goals[i].front()};
+    vector<bool> planned = select_agents(next_goal);
+    vector<vector<pair<int,int>>> goal_seqs = build_goal_sequences(planned);
+
+    unordered_set<int> taken;   // cells another agent's path ends at
+    for (int i = 0; i < num_ag; i++)
+        if (!planned[i]) taken.insert((int)path_table_[i][maxtime - 1]);
+    auto nearest_free_endpoint = [&](int location) {
+        int best = location, best_distance = INT_MAX;
+        for (const Endpoint& endpoint : mapd_map.endpoints)
+            if (!taken.count(endpoint.loc) && endpoint.h_val[location] < best_distance) {
+                best = endpoint.loc;
+                best_distance = endpoint.h_val[location];
+            }
+        return best;
+    };
+    vector<int> agent_ids, goals;
+    for (int i = 0; i < num_ag; i++) {
+        if (!planned[i]) continue;
+        pair<int,int> goal = goal_seqs[i].front();
+        if (taken.count(goal.first)) goal = {nearest_free_endpoint(agents[i].loc), 0};
+        taken.insert(goal.first);
+        agent_ids.push_back(i);
+        goals.push_back(goal.first);
+        next_goal[i] = {goal};
+    }
+    if (agent_ids.empty()) return;
+    vector<vector<int>> paths = cbs_solve(agent_ids, goals);
+    if (paths.empty()) {
+        if (select_all_) throw runtime_error("CBS found no paths for the agents' next goals");
+        select_all_ = true;
+        path_planning_cbs_segments();
+        select_all_ = false;
+        return;
+    }
+    for (int k = 0; k < (int)agent_ids.size(); k++) {
+        commit_segment(agent_ids[k], paths[k]);
+        segment_goal_[agent_ids[k]] = goals[k];
+    }
+    remember_plans(planned, next_goal);
 }
 
 namespace {
@@ -3778,6 +3787,9 @@ void Simulation::path_planning_pp_per_task() {
     }
 }
 
+// --- PBS: depth-first search over partial priority orders. Each node fixes
+// "agent a yields to agent b"; the low level then replans the yielding agent
+// against the paths of everyone who outranks it.
 void Simulation::path_planning_pbs() {
     PBSPlanner(*this).solve();
 
@@ -6855,8 +6867,17 @@ void Simulation::wpbs_windowed_solve_impl() {
 //  without the empty iterations.
 // ============================================================================
 
+//  How far the clock may jump depends on how paths are planned:
+//    * PP_TASK_SEQUENCE plans every complete path at once, so the schedule is
+//      final and is finished in one step;
+//    * planning inside assignment (replan_on NONE) returns to the assignment
+//      whenever an agent is free (advance_time_tp);
+//    * CENTRAL's per-goal agent state, and assignment at every timestep,
+//      advance one step at a time;
+//    * otherwise the clock jumps to the next goal arrival, task release or
+//      periodic replan.
 void Simulation::advance_time() {
-    if (config.assign_trigger == AT_ONCE) {
+    if (config.mapf == MAPF_PP_TASK_SEQUENCE) {
         // Offline TA has already computed every complete agent path and every
         // task completion time. Finalize that schedule atomically instead of
         // replaying it through the online event loop.
@@ -6887,19 +6908,14 @@ void Simulation::advance_time() {
         cur_time_ = max(final_time, (unsigned int)max(t_task, 0)) + 1;
         return;
     }
-    if (config.assign_trigger == AT_ON_FREE_WAITS) {
+    if (config.replan_on == 0) {
         advance_time_tp();
         return;
     }
-    if (config.assign_trigger == AT_EVERY_TIMESTEP ||
-        config.assign_trigger == AT_ON_NEW_TASK_OR_AGENT_BECOMES_FREE) {
-        // CENTRAL must observe every ordered task-goal transition. CENTRAL
-        // assigns every step; CENTRAL-fixed merely advances through quiet steps.
-        if (cur_time_ + 1 >= maxtime) {
-            cerr << "advance_time: CENTRAL exceeded maxtime="
-                 << maxtime << endl;
-            return;
-        }
+    if (config.assign_method == AM_CENTRAL_HUNGARIAN ||
+        config.assign_trigger == AT_EVERY_TIMESTEP) {
+        if (cur_time_ + 1 >= maxtime)
+            throw runtime_error("advance_time exceeded the planning horizon");
         cur_time_++;
         for (Agent& agent : agents)
             agent.loc = agent.path[cur_time_];
@@ -6997,10 +7013,8 @@ void Simulation::advance_time_tp() {
             return;
     }
     if (next_ts <= cur_time_) next_ts = cur_time_ + 1;
-    if (next_ts >= maxtime) {
-        cerr << "advance_time_tp: exceeded maxtime=" << maxtime << endl;
-        return;
-    }
+    if (next_ts >= maxtime)
+        throw runtime_error("advance_time exceeded the planning horizon");
 
     cur_time_ = next_ts;
     for (Agent& agent : agents)
@@ -7072,9 +7086,7 @@ void Simulation::process_events() {
             agent.current_task = -1;
             agent.current_goal_index = 0;
             agent.last_endpoint = agent.loc;
-            if (config.assign_trigger ==
-                    AT_ON_NEW_TASK_OR_AGENT_BECOMES_FREE)
-                new_available_agent_ = true;
+            new_available_agent_ = true;
         }
         return;
     }
@@ -7247,12 +7259,3 @@ void Simulation::saveOutput(const string& filepath, double runtime_ms,
     out.close();
 }
 
-// ============================================================================
-//  Anytime improvement (config.anytime_improvement)
-//  Not implemented in this build: the LNS-PBS preset sets it to false.
-// ============================================================================
-int Simulation::realpath_lns_imp(int num_rounds, int /*group_size*/) {
-    if (num_rounds > 0)
-        throw logic_error("realpath_lns_imp: anytime improvement is not implemented");
-    return 0;
-}

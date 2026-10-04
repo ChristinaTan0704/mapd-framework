@@ -142,8 +142,8 @@ int main(int argc, char** argv)
         // Algorithm-specific tuning options. They do not affect algorithms
         // that do not use the named component.
         ("task_sequence_limit", po::value<int>(),                       "PBS/wPBS only: maximum tasks planned per agent (default 2)")
-        ("wpbs_replan_window", po::value<int>(),                       "wPBS only: executed steps between replans (default 10)")
-        ("lns_time",       po::value<int>()->default_value(1),         "LNS only: assignment-improvement budget (s)")
+        ("wpbs_replan_window", po::value<int>(),                       "steps between PERIODIC replans; also the wPBS planning window (default 10)")
+        ("lns_time",       po::value<int>(),                           "LNS only: assignment-improvement budget in seconds (default 1)")
         ("lns_no_improvement_limit", po::value<int>(),                 "LNS only: rejected moves before early stop; 0 disables (default 2000)")
         ("ecbs_focal_weight", po::value<double>(),                     "CBS/ECBS only: focal bound; 1.0=optimal CBS, >1.0=ECBS (default 1.0)")
         ("cbs_high_level_expansion_limit", po::value<int>(),           "CBS/ECBS only: maximum high-level expansions per batch (default INT_MAX)")
@@ -153,8 +153,6 @@ int main(int argc, char** argv)
         ("cbs_target_reasoning", po::value<int>(),                     "CBS/ECBS only: 1=target-conflict reasoning, 0=vertex constraints (default 1)")
         ("cbs_rectangle_reasoning", po::value<int>(),                  "CBS/ECBS only: 1=rectangle (barrier) reasoning, 0=vertex constraints (default 1)")
         ("semi_online_lookahead_batches", po::value<int>(),            "SEMI_ONLINE only: future task-release batches known in advance (default 1)")
-        ("lns_imp",        po::value<int>()->default_value(0),         "LNS only: optional post-run LNS improvement rounds (0=off)")
-        ("lns_imp_group",  po::value<int>()->default_value(5),         "LNS only: post-run LNS destroy-group size")
     ;
 
     po::variables_map vm;
@@ -194,8 +192,6 @@ int main(int argc, char** argv)
                           : vm.count("config") ? basename_no_ext(vm["config"].as<string>())
                           : "custom";
     int screen       = vm["screen"].as<int>();
-    int lns_imp_rounds = vm["lns_imp"].as<int>();
-    int lns_imp_group  = vm["lns_imp_group"].as<int>();
     bool save_output = vm["save_output"].as<bool>();
     string output_dir = vm["output_dir"].as<string>();
 
@@ -217,8 +213,6 @@ int main(int argc, char** argv)
         if (vm.count("endpoint_strategy"))
             cout << "Endpoint strategy: "
                  << vm["endpoint_strategy"].as<string>() << endl;
-        if (lns_imp_rounds > 0)
-            cout << "REALPATH_LNS_IMP: " << lns_imp_rounds << " rounds, group_size=" << lns_imp_group << endl;
         cout << endl;
     }
 
@@ -232,24 +226,6 @@ int main(int argc, char** argv)
     } catch (const exception& e) {
         cerr << "Error: " << e.what() << endl;
         return 1;
-    }
-
-    double elapsed_base = (double)(clock() - t_start) / CLOCKS_PER_SEC * 1000.0;
-
-    if (lns_imp_rounds > 0) {
-        if (screen >= 1) {
-            cout << "--- Before REALPATH_LNS_IMP ---" << endl;
-            sim.showTask();
-            cout << endl;
-        }
-
-        clock_t t_lns = clock();
-        int imp = sim.realpath_lns_imp(lns_imp_rounds, lns_imp_group);
-        double elapsed_lns = (double)(clock() - t_lns) / CLOCKS_PER_SEC * 1000.0;
-
-        if (screen >= 1) {
-            cout << "--- After REALPATH_LNS_IMP (" << imp << "/" << lns_imp_rounds << " improving) ---" << endl;
-        }
     }
 
     double elapsed = (double)(clock() - t_start) / CLOCKS_PER_SEC * 1000.0;
@@ -273,8 +249,6 @@ int main(int argc, char** argv)
         string filename = algo;
         if (vm.count("single_agent")) filename += "_sa-" + vm["single_agent"].as<string>();
         if (vm.count("mapf")) filename += "_mapf-" + vm["mapf"].as<string>();
-        if (lns_imp_rounds > 0)
-            filename += "_lnsimp-" + to_string(lns_imp_rounds) + "g" + to_string(lns_imp_group);
         filename += "_" + map_name + "_" + task_name + ".txt";
 
         string filepath = output_dir + "/" + filename;

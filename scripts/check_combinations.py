@@ -2,11 +2,13 @@
 """Combination check: every component combination must either run correctly
 or be rejected by validate_config() before the simulation starts.
 
-Each algorithm preset is crossed with every --mapf and --single_agent override,
-and separately with every --endpoint_strategy, --mode, --dummy_path,
---replan_on and --agent_selection, and with each planner set up the way it is
-used on its own (assignment trigger, replanning events, endpoints), on a small
-instance.
+Each algorithm configuration (configs/) is crossed with every --mapf and
+--single_agent value, and separately with every --assign_trigger,
+--endpoint_strategy, --mode, --dummy_path, --replan_on and --agent_selection,
+and with each planner set up the way it is used on its own (assignment
+trigger, replan events, endpoints), on the kiva map with 10 agents; the
+endpoint and planner axes also run with 50 agents, where crowding exposes
+deadlocks.
 A run passes when it
 
   * is rejected immediately (exit 1, "is not supported" / "requires"), or
@@ -29,15 +31,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data" / "Instances" / "small"
 
-PRESETS = ("TP", "TPTS", "HBH_MLA", "CENTRAL-CBS", "CENTRAL-fixed",
-           "HUNGARIAN_PBS", "HUNGARIAN_wPBS", "LNS_PBS", "LNS_wPBS",
-           "TA_PRIORITIZED", "TA_HYBRID")
-OFFLINE_ONLY = {"TA_PRIORITIZED", "TA_HYBRID"}
+CONFIGS = ("table1/TP", "table1/TPTS", "table1/HBH", "table1/CENTRAL",
+           "table1/CENTRAL-fixed", "variants/Hungarian-PBS", "variants/Hungarian-wPBS",
+           "table1/LNS-PBS", "table1/LNS-wPBS", "table1/TA-Prioritized",
+           "table1/TA-Hybrid")
+OFFLINE_ONLY = {"table1/TA-Prioritized", "table1/TA-Hybrid"}
 MAPF = (None, "PP", "PP_TASK_SEQUENCE", "CBS", "PBS", "wPBS")
 SINGLE_AGENT = (None, "STA", "MLA", "MLSIPP", "SIPP2")
 ENDPOINTS = ("WAIT_OR_NEAREST_SAFE", "WAIT_OR_NEAREST_FREE_NONTASK",
              "NEAREST_AVAILABLE", "NEAREST_WITH_STRICT_EXCLUSIONS",
              "PAIRWISE_TASK_THEN_HOME", "RETURN_TO_HOME")
+TRIGGERS = ("ON_FREE_WAITS", "EVERY_TIMESTEP",
+            "ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE", "ONCE")
 MODES = ("ONLINE", "SEMI_ONLINE", "OFFLINE")
 REPLANS = ("NONE", "AFTER_ASSIGNMENT", "EVERY_TIMESTEP", "AFTER_ASSIGNMENT,GOAL_REACHED",
            "AFTER_ASSIGNMENT,PERIODIC", "AFTER_ASSIGNMENT,GOAL_REACHED,PERIODIC")
@@ -47,38 +52,44 @@ PLANNER_SETUPS = (
     ("PBS", "AFTER_ASSIGNMENT", "NEAREST_WITH_STRICT_EXCLUSIONS"),
     ("PP", "AFTER_ASSIGNMENT", "NEAREST_WITH_STRICT_EXCLUSIONS"),
     ("wPBS", "AFTER_ASSIGNMENT,PERIODIC", "PAIRWISE_TASK_THEN_HOME"),
+    ("CBS", "AFTER_ASSIGNMENT,GOAL_REACHED", "NEAREST_WITH_STRICT_EXCLUSIONS"),
 )
 LOG_CAP = 2_000_000
 
 
-def combinations() -> list[tuple[str, list[str]]]:
+def combinations() -> list[tuple[str, int, list[str]]]:
+    """(configuration, agents, overriding options) of every job."""
     jobs = []
-    for preset in PRESETS:
+    for config in CONFIGS:
         for mapf in MAPF:
             for sa in SINGLE_AGENT:
-                jobs.append((preset, (["--mapf", mapf] if mapf else []) +
-                                     (["--single_agent", sa] if sa else [])))
-        jobs += [(preset, ["--endpoint_strategy", e]) for e in ENDPOINTS]
-        jobs += [(preset, ["--mode", m]) for m in MODES]
-        jobs += [(preset, ["--dummy_path", d]) for d in ("0", "1")]
-        jobs += [(preset, ["--replan_on", r]) for r in REPLANS]
-        jobs += [(preset, ["--agent_selection", a]) for a in ("ALL", "CHANGED")]
-        for mapf, replan, endpoint in PLANNER_SETUPS:
-            for selection in ("ALL", "CHANGED"):
-                jobs.append((preset, ["--mapf", mapf, "--assign_trigger",
-                                      "ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE",
-                                      "--replan_on", replan, "--endpoint_strategy", endpoint,
-                                      "--agent_selection", selection]))
+                jobs.append((config, 10, (["--mapf", mapf] if mapf else []) +
+                                         (["--single_agent", sa] if sa else [])))
+        jobs += [(config, 10, ["--assign_trigger", t]) for t in TRIGGERS]
+        jobs += [(config, 10, ["--mode", m]) for m in MODES]
+        jobs += [(config, 10, ["--dummy_path", d]) for d in ("0", "1")]
+        jobs += [(config, 10, ["--replan_on", r]) for r in REPLANS]
+        jobs += [(config, 10, ["--agent_selection", a]) for a in ("ALL", "CHANGED")]
+        for agents in (10, 50):
+            jobs += [(config, agents, ["--endpoint_strategy", e]) for e in ENDPOINTS]
+            for mapf, replan, endpoint in PLANNER_SETUPS:
+                for selection in ("ALL", "CHANGED"):
+                    jobs.append((config, agents, [
+                        "--mapf", mapf, "--assign_trigger",
+                        "ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE",
+                        "--replan_on", replan, "--endpoint_strategy", endpoint,
+                        "--agent_selection", selection]))
     return jobs
 
 
-def run(executable: Path, preset: str, extra: list[str], timeout: int) -> str:
-    if preset in OFFLINE_ONLY:
-        instance = ["-t", str(DATA / "kiva-500.task"), "--tour", str(ROOT / "tour" / "10-500.tour")]
+def run(executable: Path, config: str, agents: int, extra: list[str], timeout: int) -> str:
+    if config in OFFLINE_ONLY:
+        instance = ["-t", str(DATA / "kiva-500.task"),
+                    "--tour", str(ROOT / "tour" / f"{agents}-500.tour")]
     else:
         instance = ["-t", str(DATA / "kiva-1.task")]
-    command = [str(executable), "-m", str(DATA / "kiva-10-500-5.map"), *instance,
-               "-a", preset, "--seed", "0", "-s", "1",
+    command = [str(executable), "-m", str(DATA / f"kiva-{agents}-500-5.map"), *instance,
+               "--config", str(ROOT / "configs" / f"{config}.cfg"), "--seed", "0", "-s", "1",
                "--runtime_limit", str(timeout), "--pathfinding_runtime_limit", str(timeout),
                *extra]
     # The wall-clock limit and the bounded, de-duplicated log keep a broken
@@ -110,15 +121,16 @@ def main() -> int:
     jobs = combinations()
     with concurrent.futures.ThreadPoolExecutor(args.max_parallel) as pool:
         results = list(pool.map(
-            lambda job: run(args.executable.resolve(), job[0], job[1], args.timeout), jobs))
+            lambda job: run(args.executable.resolve(), *job, args.timeout), jobs))
 
-    failures = [(p, " ".join(e), r) for (p, e), r in zip(jobs, results) if r.startswith("FAIL")]
-    for preset in PRESETS:
-        rows = [r for (p, _), r in zip(jobs, results) if p == preset]
-        print(f"{preset:16s} ok {rows.count('ok'):3d}  rejected {rows.count('rejected'):3d}  "
+    failures = [(c, a, " ".join(e), r)
+                for (c, a, e), r in zip(jobs, results) if r.startswith("FAIL")]
+    for config in CONFIGS:
+        rows = [r for (c, _, _), r in zip(jobs, results) if c == config]
+        print(f"{config:24s} ok {rows.count('ok'):3d}  rejected {rows.count('rejected'):3d}  "
               f"failed {sum(r.startswith('FAIL') for r in rows):3d}")
-    for preset, extra, result in failures:
-        print(f"  {preset} {extra}: {result}")
+    for config, agents, extra, result in failures:
+        print(f"  {config} a{agents} {extra}: {result}")
     print(f"{len(jobs)} combinations, {len(failures)} failures")
     return 1 if failures else 0
 

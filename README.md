@@ -391,20 +391,35 @@ options override. The experiment scripts run the configuration files.
 
 | # | Component | Option | Values |
 |---|---|---|---|
-| 1 | when to call task assignment | `--assign_trigger` | `ON_FREE_WAITS`, `EVERY_TIMESTEP`, `ON_NEW_TASK_OR_AGENT_BECOMES_FREE`, `ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE`, `ONCE` |
+| 1 | when to call task assignment | `--assign_trigger` | `ON_FREE_WAITS`, `EVERY_TIMESTEP`, `ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE`, `ONCE` |
 | 2 | task assignment | `--assign_method` | `DECOUPLED_GREEDY` (TP), `DECOUPLED_GREEDY_SWAPS` (TPTS), `CENTRALIZED_GREEDY` (HBH), `CENTRAL_HUNGARIAN`, `REPEATED_HUNGARIAN`, `REPEATED_HUNGARIAN_LNS`, `LKH3_TSP`, `LKH3_TSP_REASSIGN` |
 | 3 | when to plan paths | `--replan_on` | comma-separated `AFTER_ASSIGNMENT`, `EVERY_TIMESTEP`, `GOAL_REACHED`, `PERIODIC`; `NONE` = the assignment plans while assigning |
 | 4 | which agents to plan | `--agent_selection` | `ALL`, `CHANGED` (agents whose task goals changed; the others keep their paths) |
 | 5 | high-level planner | `--mapf` | `PP`, `PP_TASK_SEQUENCE`, `CBS`, `PBS`, `wPBS`, `TA_HYBRID_TWO_GROUP` |
 | 5.1 | planning window | `--wpbs_replan_window` | steps between `PERIODIC` replans; also the wPBS planning window |
-| 6 | low-level planner | `--single_agent` | `STA`, `MLA`, `MLSIPP`, `SIPP2` |
+| 6 | low-level planner | `--single_agent` | `STA`, `MLA`, `MLSIPP`, `SIPP2`; `SEQ_STA` for `PP_TASK_SEQUENCE` |
 | 7 | task endpoint | `--endpoint_strategy`, `--dummy_path` | see [Parking endpoint support](#parking-endpoint-support) |
 | 8 | task setup | `--mode` | `ONLINE`, `SEMI_ONLINE`, `OFFLINE` |
 | 9 | task type | `--task_type` | `MAPD` (pickup and delivery), `MG_MAPD` (ordered multi-goal tasks; default); checked against the task file |
 | | ties | `--tie_breaking` | `reference` (default), `random` |
 
 Unsupported combinations are rejected before the run starts, with the
-supported values (`src/config_validate.cpp`).
+supported values (`src/config_validate.cpp`). Which planners each assignment
+method feeds:
+
+| Task assignment | High-level planners |
+|---|---|
+| `DECOUPLED_GREEDY`, `DECOUPLED_GREEDY_SWAPS`, `CENTRALIZED_GREEDY` | `PP` inside the assignment (`--replan_on NONE`, `ON_FREE_WAITS`); as a separate step `PBS`, `PP`, `wPBS`, `CBS` |
+| `REPEATED_HUNGARIAN`, `REPEATED_HUNGARIAN_LNS` | `PBS`, `PP`, `wPBS` |
+| `CENTRAL_HUNGARIAN` | `CBS` |
+| `LKH3_TSP` (offline) | `PP_TASK_SEQUENCE`, `PBS`, `PP`, `wPBS`, `CBS` |
+| `LKH3_TSP_REASSIGN` (offline) | `TA_HYBRID_TWO_GROUP` |
+
+Planner requirements: `wPBS` needs a `PERIODIC` (or `EVERY_TIMESTEP`) refresh
+and `MLA`/`MLSIPP`; `CBS` plans one goal at a time with its own low level
+(`STA`), so it needs `GOAL_REACHED` (or `EVERY_TIMESTEP`) and `CHANGED`.
+Repeated Hungarian rematches every task not yet picked up at each event, which
+makes single-goal CBS segments oscillate, so it is not paired with `CBS`.
 
 ## Algorithm setup
 

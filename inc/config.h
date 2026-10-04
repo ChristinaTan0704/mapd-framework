@@ -22,11 +22,12 @@ enum AssignMethod {
     AM_REPEATED_HUNGARIAN_LNS
 };
 enum AssignTrigger {
-    AT_ON_FREE_WAITS,
+    AT_ON_FREE_WAITS,     // an agent is free (TP: one agent per call)
     AT_EVERY_TIMESTEP,
-    AT_ON_NEW_TASK_OR_AGENT_BECOMES_FREE,
+    // A task is released, an assignment method deferred a task, or an agent
+    // became free.
     AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE,
-    AT_ONCE
+    AT_ONCE               // at time 0, with the complete task set
 };
 // When paths are replanned: a set of these flags. With none, the assignment
 // method plans the paths itself while assigning (TP, TPTS, HBH).
@@ -141,7 +142,8 @@ struct MAPDConfig {
         assign_method(AM_DECOUPLED_GREEDY), assign_trigger(AT_ON_FREE_WAITS), replan_on(0),
         agent_selection(SELECT_ALL),
         mapf(MAPF_PP_PER_TASK), single_agent(SA_STA_TASK_EP),
-        dummy_path(true), seed(0), runtime_limit_seconds(1000),
+        dummy_path(true), seed(0), tie_breaking(TIE_BREAK_REFERENCE),
+        runtime_limit_seconds(1000),
         pathfinding_runtime_limit_seconds(600),
         endpoint_strategy(WAIT_OR_NEAREST_SAFE),
         task_sequence_limit(2), wpbs_replan_window(10), lns_time_limit(1),
@@ -150,7 +152,7 @@ struct MAPDConfig {
         cbs_low_level_expansion_limit(INT_MAX),
         cbs_conflict_selection(CBS_CONFLICT_CARDINAL), cbs_bypass(true),
         cbs_target_reasoning(true), cbs_rectangle_reasoning(true),
-        semi_online_lookahead_batches(1), tie_breaking(TIE_BREAK_REFERENCE) {}
+        semi_online_lookahead_batches(1) {}
 };
 
 // ============ Algorithm Presets ============
@@ -201,7 +203,7 @@ inline MAPDConfig get_preset(const string& name) {
              name == "CENTRAL-fixed-ECBS") {
         c.mode = MODE_ONLINE;
         c.assign_method = AM_CENTRAL_HUNGARIAN;
-        c.assign_trigger = AT_ON_NEW_TASK_OR_AGENT_BECOMES_FREE;
+        c.assign_trigger = AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE;
         c.replan_on = REPLAN_AFTER_ASSIGNMENT | REPLAN_GOAL_REACHED;
         c.agent_selection = SELECT_CHANGED;
         c.mapf = MAPF_CBS;

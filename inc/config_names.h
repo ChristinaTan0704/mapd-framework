@@ -45,9 +45,10 @@ inline const NameTable<AssignTrigger>& names(AssignTrigger) {
     static const NameTable<AssignTrigger> table = {
         {AT_ON_FREE_WAITS, "ON_FREE_WAITS"},
         {AT_EVERY_TIMESTEP, "EVERY_TIMESTEP"},
-        {AT_ON_NEW_TASK_OR_AGENT_BECOMES_FREE, "ON_NEW_TASK_OR_AGENT_BECOMES_FREE"},
         {AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE,
          "ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE"},
+        {AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE,
+         "ON_NEW_TASK_OR_AGENT_BECOMES_FREE"},
         {AT_ONCE, "ONCE"}};
     return table;
 }

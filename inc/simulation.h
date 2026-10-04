@@ -1,35 +1,7 @@
 #pragma once
 // ============================================================================
-//  Unified MAPD Framework — task-assignment and path-planning variants include:
-//
-//      Token Passing greedy assignment, with optional TPTS task swaps,
-//      using sequential STA* or MLSIPP
-//      Offline LKH3 tour assignment with prioritized sequential STA*
-//      Repeated Hungarian, with or without the 1-second LNS improvement
-//      CENTRAL/CENTRAL-fixed with segment-by-segment CBS through arbitrary
-//      ordered task goals
-//      PBS / wPBS with MLA* or MLSIPP; PP with MLSIPP
-//        mode              = ONLINE / OFFLINE / SEMI_ONLINE
-//        assign_method     = DECOUPLED_GREEDY / DECOUPLED_GREEDY_SWAPS /
-//                            CENTRALIZED_GREEDY /
-//                            REPEATED_HUNGARIAN /
-//                            LKH3_TSP /
-//                            REPEATED_HUNGARIAN_LNS
-//        assign_trigger    = ON_FREE_WAITS /
-//                            ON_NEW_TASK_OR_AGENT_BECOMES_FREE /
-//                            ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE
-//        mapf              = PBS / wPBS / PP_PER_TASK / PP_TASK_SEQUENCE
-//        single_agent      = STA_TASK_EP / SEQ_STA /
-//                            MLA_SEQUENCE / MLSIPP_SEQUENCE
-//        dummy_path       = true / false
-//        endpoint_strategy = NEAREST_WITH_STRICT_EXCLUSIONS
-//        anytime_improvement = false
-//
-//  The class is laid out along the framework's axes, so a new algorithm is
-//  added by implementing one more case in a dispatcher (task_assignment(),
-//  path_planning(), release_tasks(), advance_time()) — never by touching the
-//  main loop.  Every dispatcher rejects the combinations that are not
-//  implemented yet instead of silently doing something else.
+//  Unified MAPD framework: the simulation and one dispatcher per component.
+//  See the header of src/simulation.cpp for the component -> dispatcher map.
 // ============================================================================
 #include "types.h"
 #include "config.h"
@@ -185,9 +157,6 @@ public:
     void showTask() const;
     void saveOutput(const string& filepath, double runtime_ms,
                     const string& algorithm_name) const;
-    // Optional post-processing (config.anytime_improvement). Not implemented for
-    // this algorithm — the LNS-PBS preset sets anytime_improvement = false.
-    int realpath_lns_imp(int num_rounds, int group_size = 5);
 
 private:
     friend class PBSPlanner;
@@ -228,7 +197,7 @@ private:
     }
     bool all_task_sequences_empty() const;
     void assign_batch_greedy();
-    bool carrier_needs_next_segment() const;
+    bool agent_needs_next_segment() const;
     void clamp_next_ts_to_task_release(unsigned int& next_ts) const;
 
     // ======================================================================
@@ -330,6 +299,10 @@ private:
     void path_planning_pbs();
     void path_planning_wpbs();
     void path_planning_ecbs(bool assignment_triggered);
+    void path_planning_cbs_segments();
+    vector<vector<int>> cbs_solve(const vector<int>& agent_ids, const vector<int>& goals);
+    void commit_segment(int agent_id, const vector<int>& path);
+    vector<int> segment_goal_;     // CBS segments: the goal each path ends at, else -1
     void wpbs_windowed_solve_impl();
     bool pbs_solve_impl();
 
