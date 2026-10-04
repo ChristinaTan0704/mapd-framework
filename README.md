@@ -373,6 +373,25 @@ These runs are resumable: existing per-job JSON files are reused unless
 `--rerun` is supplied. Review `results.csv`, `results.json`, and every `.log`
 file in the selected output directory before accepting an experiment matrix.
 
+## Component switches
+
+`--algo` selects a preset; each component can then be overridden on its own:
+
+| Component | Option | Values |
+|---|---|---|
+| when to assign | `--assign_trigger` | `ON_FREE_WAITS`, `EVERY_TIMESTEP`, `ON_NEW_TASK_OR_AGENT_BECOMES_FREE`, `ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE`, `ONCE` |
+| task assignment | `--assign_method` | `DECOUPLED_GREEDY` (TP), `DECOUPLED_GREEDY_SWAPS` (TPTS), `CENTRALIZED_GREEDY` (HBH), `CENTRAL_HUNGARIAN`, `REPEATED_HUNGARIAN`, `REPEATED_HUNGARIAN_LNS`, `LKH3_TSP`, `LKH3_TSP_REASSIGN` |
+| when to replan | `--replan_on` | comma-separated `AFTER_ASSIGNMENT`, `EVERY_TIMESTEP`, `GOAL_REACHED`, `PERIODIC`; `NONE` = the assignment plans while assigning |
+| MAPF method | `--mapf` | `PP`, `PP_TASK_SEQUENCE`, `CBS`, `PBS`, `wPBS`, `TA_HYBRID_TWO_GROUP` |
+| periodic window | `--wpbs_replan_window` | steps between `PERIODIC` replans; also the wPBS planning window |
+| single-agent search | `--single_agent` | `STA`, `MLA`, `MLSIPP`, `SIPP2` |
+| task endpoint | `--endpoint_strategy`, `--dummy_path` | see [Parking endpoint support](#parking-endpoint-support) |
+| task setup | `--mode` | `ONLINE`, `SEMI_ONLINE`, `OFFLINE` |
+| ties | `--tie_breaking` | `reference` (default), `random` |
+
+Unsupported combinations are rejected before the run starts, with the
+supported values (`src/config_validate.cpp`).
+
 ## Algorithm setup
 
 All rows below also receive `--seed 0`. Preset defaults are

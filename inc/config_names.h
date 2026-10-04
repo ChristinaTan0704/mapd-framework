@@ -88,6 +88,15 @@ inline const NameTable<CBSConflictSelection>& names(CBSConflictSelection) {
     return table;
 }
 
+inline const NameTable<ReplanEvent>& names(ReplanEvent) {
+    static const NameTable<ReplanEvent> table = {
+        {REPLAN_AFTER_ASSIGNMENT, "AFTER_ASSIGNMENT"},
+        {REPLAN_EVERY_TIMESTEP, "EVERY_TIMESTEP"},
+        {REPLAN_GOAL_REACHED, "GOAL_REACHED"},
+        {REPLAN_PERIODIC, "PERIODIC"}};
+    return table;
+}
+
 inline const NameTable<bool>& names(bool) {
     static const NameTable<bool> table = {{false, "0"}, {true, "1"}};
     return table;
@@ -113,6 +122,32 @@ std::string enum_choices() {
         first = false;
     }
     return choices;
+}
+
+// A set of flags of enum E, written "A,B"; "NONE" is the empty set.
+template <typename E>
+std::string flags_name(int flags) {
+    std::string text;
+    for (const auto& entry : names(E()))
+        if (flags & entry.first) text += (text.empty() ? "" : ",") + std::string(entry.second);
+    return text.empty() ? "NONE" : text;
+}
+
+template <typename E>
+E parse_enum(const std::string& option, const std::string& text);
+
+template <typename E>
+int parse_flags(const std::string& option, const std::string& text) {
+    if (text == "NONE") return 0;
+    int flags = 0;
+    std::string::size_type start = 0;
+    while (start <= text.size()) {
+        std::string::size_type end = text.find(',', start);
+        if (end == std::string::npos) end = text.size();
+        flags |= parse_enum<E>(option, text.substr(start, end - start));
+        start = end + 1;
+    }
+    return flags;
 }
 
 template <typename E>

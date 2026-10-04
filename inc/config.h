@@ -25,6 +25,14 @@ enum AssignTrigger {
     AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE,
     AT_ONCE
 };
+// When paths are replanned: a set of these flags. With none, the assignment
+// method plans the paths itself while assigning (TP, TPTS, HBH).
+enum ReplanEvent {
+    REPLAN_AFTER_ASSIGNMENT = 1,   // whenever tasks were assigned
+    REPLAN_EVERY_TIMESTEP = 2,
+    REPLAN_GOAL_REACHED = 4,       // a carrier reached a goal of a multi-goal task
+    REPLAN_PERIODIC = 8            // wpbs_replan_window steps after the last plan
+};
 enum MAPFMethod {
     MAPF_PP_PER_TASK,
     MAPF_PP_TASK_SEQUENCE,
@@ -73,6 +81,7 @@ struct MAPDConfig {
     Mode mode;
     AssignMethod assign_method;
     AssignTrigger assign_trigger;
+    int replan_on;               // set of ReplanEvent flags
     MAPFMethod mapf;
     SingleAgentMethod single_agent;
     // Whether to append a post-delivery path to the selected endpoint. The
@@ -91,7 +100,7 @@ struct MAPDConfig {
     // Algorithm-specific tuning parameters. They are ignored by algorithms
     // that do not use the corresponding planning or assignment component.
     int task_sequence_limit; // PBS/wPBS only: maximum tasks planned per agent
-    int wpbs_replan_window; // wPBS only: executed steps between replans
+    int wpbs_replan_window; // steps between REPLAN_PERIODIC replans; wPBS planning window
     int lns_time_limit;     // LNS only: assignment-improvement budget in seconds
     // LNS only: consecutive rejected moves before early stop; 0 disables it.
     int lns_no_improvement_limit;
@@ -118,7 +127,7 @@ struct MAPDConfig {
     int semi_online_lookahead_batches;
 
     MAPDConfig() : mode(MODE_ONLINE),
-        assign_method(AM_DECOUPLED_GREEDY), assign_trigger(AT_ON_FREE_WAITS),
+        assign_method(AM_DECOUPLED_GREEDY), assign_trigger(AT_ON_FREE_WAITS), replan_on(0),
         mapf(MAPF_PP_PER_TASK), single_agent(SA_STA_TASK_EP),
         dummy_path(true), seed(0), runtime_limit_seconds(1000),
         pathfinding_runtime_limit_seconds(600),
@@ -141,6 +150,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.mode = MODE_ONLINE;
         c.assign_method = AM_DECOUPLED_GREEDY;
         c.assign_trigger = AT_ON_FREE_WAITS;
+        c.replan_on = 0;
         c.mapf = MAPF_PP_PER_TASK;
         c.single_agent = SA_STA_TASK_EP;
         c.dummy_path = true;
@@ -150,6 +160,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.mode = MODE_ONLINE;
         c.assign_method = AM_DECOUPLED_GREEDY_SWAPS;
         c.assign_trigger = AT_ON_FREE_WAITS;
+        c.replan_on = 0;
         c.mapf = MAPF_PP_PER_TASK;
         c.single_agent = SA_STA_TASK_EP;
         c.dummy_path = true;
@@ -160,6 +171,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.mode = MODE_ONLINE;
         c.assign_method = AM_CENTRAL_HUNGARIAN;
         c.assign_trigger = AT_EVERY_TIMESTEP;
+        c.replan_on = REPLAN_EVERY_TIMESTEP;
         c.mapf = MAPF_CBS;
         c.single_agent = SA_STA_TASK_EP;
         // CENTRAL plans only to the next assigned endpoint; it does not append
@@ -175,6 +187,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.mode = MODE_ONLINE;
         c.assign_method = AM_CENTRAL_HUNGARIAN;
         c.assign_trigger = AT_ON_NEW_TASK_OR_AGENT_BECOMES_FREE;
+        c.replan_on = REPLAN_AFTER_ASSIGNMENT | REPLAN_GOAL_REACHED;
         c.mapf = MAPF_CBS;
         c.single_agent = SA_STA_TASK_EP;
         // CENTRAL-fixed retains the endpoint-holding policy but avoids
@@ -187,6 +200,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.mode = MODE_ONLINE;
         c.assign_method = AM_CENTRALIZED_GREEDY;
         c.assign_trigger = AT_ON_FREE_WAITS;
+        c.replan_on = 0;
         c.mapf = MAPF_PP_PER_TASK;
         c.single_agent = SA_MLA_SEQUENCE;
         c.dummy_path = true;
@@ -196,6 +210,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.mode = MODE_OFFLINE;
         c.assign_method = AM_LKH3_TSP;
         c.assign_trigger = AT_ONCE;
+        c.replan_on = REPLAN_AFTER_ASSIGNMENT;
         c.mapf = MAPF_PP_TASK_SEQUENCE;
         c.single_agent = SA_SEQ_STA;
         c.dummy_path = true;
@@ -208,6 +223,7 @@ inline MAPDConfig get_preset(const string& name) {
         // reassign the fixed task set when an agent becomes available.
         c.assign_trigger =
             AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE;
+        c.replan_on = REPLAN_AFTER_ASSIGNMENT | REPLAN_GOAL_REACHED;
         c.mapf = MAPF_TA_HYBRID_TWO_GROUP;
         c.single_agent = SA_STA_TASK_EP;
         c.dummy_path = true;
@@ -217,6 +233,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.mode = MODE_ONLINE;
         c.assign_method = AM_REPEATED_HUNGARIAN;
         c.assign_trigger = AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE;
+        c.replan_on = REPLAN_AFTER_ASSIGNMENT;
         c.mapf = MAPF_PBS;
         c.single_agent = SA_MLA_SEQUENCE;
         c.dummy_path = true;
@@ -226,6 +243,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.mode = MODE_ONLINE;
         c.assign_method = AM_REPEATED_HUNGARIAN;
         c.assign_trigger = AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE;
+        c.replan_on = REPLAN_AFTER_ASSIGNMENT | REPLAN_PERIODIC;
         c.mapf = MAPF_wPBS;
         c.single_agent = SA_MLA_SEQUENCE;
         c.dummy_path = true;
@@ -236,6 +254,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.mode = MODE_ONLINE;
         c.assign_method = AM_REPEATED_HUNGARIAN_LNS;
         c.assign_trigger = AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE;
+        c.replan_on = REPLAN_AFTER_ASSIGNMENT;
         c.mapf = MAPF_PBS;
         c.single_agent = SA_MLA_SEQUENCE;
         c.dummy_path = true;
@@ -246,6 +265,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.mode = MODE_ONLINE;
         c.assign_method = AM_REPEATED_HUNGARIAN_LNS;
         c.assign_trigger = AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE;
+        c.replan_on = REPLAN_AFTER_ASSIGNMENT | REPLAN_PERIODIC;
         c.mapf = MAPF_wPBS;
         c.single_agent = SA_MLA_SEQUENCE;
         c.dummy_path = true;

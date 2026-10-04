@@ -313,56 +313,31 @@ void Simulation::task_assignment() {
     }
 }
 
-// --- ShouldReplan() : switch on assign_trigger ---
+// --- ShouldReplan() : the events in config.replan_on ---
 bool Simulation::should_replan(bool assignment_triggered) const {
-    switch (config.assign_trigger) {
-    case AT_ON_FREE_WAITS:
-        // TP's STA* path is planned and committed inside task assignment.
-        return false;
-    case AT_EVERY_TIMESTEP:
-        return true;
-    case AT_ON_NEW_TASK_OR_AGENT_BECOMES_FREE:
-        if (assignment_triggered) return true;
-        // Reaching a task goal does not rerun Hungarian assignment. It only
-        // invokes the first CBS group for agents that need their next segment.
-        for (const Agent& agent : agents)
-            if (agent.status == AG_CARRYING &&
-                agent.current_task >= 0 &&
-                agent.current_task < (int)all_tasks.size() &&
-                agent.current_goal_index >= 1 &&
-                agent.current_goal_index <
-                    (int)all_tasks[agent.current_task].goals.size() &&
-                (all_tasks[agent.current_task].ag_arrive_start ==
-                    (int)cur_time_ || agent.finish_time <= cur_time_))
-                return true;
-        return false;
-    case AT_ONCE:
-        return assignment_triggered;
-    case AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE:
-        // PBS/PP plan after assignment. wPBS additionally refreshes paths at
-        // fixed window boundaries without rerunning task assignment.
-        if (assignment_triggered) return true;
+    const int on = config.replan_on;
+    if (on & REPLAN_EVERY_TIMESTEP) return true;
+    if ((on & REPLAN_AFTER_ASSIGNMENT) && assignment_triggered) return true;
+    if ((on & REPLAN_GOAL_REACHED) && carrier_needs_next_segment()) return true;
+    if ((on & REPLAN_PERIODIC) && !all_task_sequences_empty())
+        return (int)cur_time_ - (int)last_path_planning_time_ >= config.wpbs_replan_window;
+    return false;
+}
 
-        // TA-Hybrid invokes Group 1 whenever a task agent reaches an ordered
-        // goal and needs the next segment of that same multi-goal task.
-        if (config.mapf == MAPF_TA_HYBRID_TWO_GROUP) {
-            for (const Agent& agent : agents)
-                if (agent.status == AG_CARRYING &&
-                    agent.current_task >= 0 &&
-                    agent.current_task < (int)all_tasks.size() &&
-                    agent.current_goal_index <
-                        (int)all_tasks[agent.current_task].goals.size() &&
-                    agent.finish_time <= cur_time_)
-                    return true;
-        }
-
-        if (config.mapf == MAPF_wPBS && !all_task_sequences_empty())
-            return (int)cur_time_ - (int)last_path_planning_time_ >=
-                   config.wpbs_replan_window;
-        return false;
-    default:
-        throw logic_error("should_replan: unsupported assign_trigger");
-    }
+// A carrying agent has just picked up, or reached a later goal of, a task with
+// further ordered goals; segment planners (CBS, TA-Hybrid) plan the next leg.
+bool Simulation::carrier_needs_next_segment() const {
+    for (const Agent& agent : agents)
+        if (agent.status == AG_CARRYING &&
+            agent.current_task >= 0 &&
+            agent.current_task < (int)all_tasks.size() &&
+            agent.current_goal_index >= 1 &&
+            agent.current_goal_index <
+                (int)all_tasks[agent.current_task].goals.size() &&
+            (all_tasks[agent.current_task].ag_arrive_start == (int)cur_time_ ||
+             agent.finish_time <= cur_time_))
+            return true;
+    return false;
 }
 
 // --- Path_Planning() : switch on mapf ---
@@ -1422,13 +1397,13 @@ void Simulation::assign_repeated_hungarian() {
     // NEAREST_AVAILABLE relaxes selection of the new dummy endpoint, but an
     // endpoint held by the preceding committed plan remains occupied until its
     // agent actually moves. Defer overlapping tasks under either PBS policy.
-    // wPBS replans every window, so it reaches such a goal once the parked
-    // agent leaves; deferring there can wait forever on an idle agent.
+    // Periodic replanning reaches such a goal once the parked agent leaves;
+    // deferring there can wait forever on an idle agent.
     const bool defer_old_dummy_conflicts =
         config.dummy_path &&
         (config.endpoint_strategy == NEAREST_WITH_STRICT_EXCLUSIONS ||
          (config.endpoint_strategy == NEAREST_AVAILABLE &&
-          config.mapf != MAPF_wPBS));
+          !(config.replan_on & REPLAN_PERIODIC)));
     if (defer_old_dummy_conflicts) {
         for (const auto& path : path_table_)
             if (!path.empty())
@@ -6754,7 +6729,7 @@ void Simulation::advance_time() {
             AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE &&
         new_or_deferred_task_event_)
         next_ts = min(next_ts, cur_time_ + 1);
-    if (config.mapf == MAPF_wPBS) {
+    if (config.replan_on & REPLAN_PERIODIC) {
         // The next periodic replan is due one window after the last plan, not
         // after the current event; jumping past it would leave agents parked at
         // the end of their windowed paths.

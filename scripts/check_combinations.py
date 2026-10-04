@@ -3,7 +3,8 @@
 or be rejected by validate_config() before the simulation starts.
 
 Each algorithm preset is crossed with every --mapf and --single_agent override,
-and separately with every --endpoint_strategy and --mode, on a small instance.
+and separately with every --endpoint_strategy, --mode, --dummy_path and
+--replan_on, on a small instance.
 A run passes when it
 
   * is rejected immediately (exit 1, "is not supported" / "requires"), or
@@ -36,6 +37,8 @@ ENDPOINTS = ("WAIT_OR_NEAREST_SAFE", "WAIT_OR_NEAREST_FREE_NONTASK",
              "NEAREST_AVAILABLE", "NEAREST_WITH_STRICT_EXCLUSIONS",
              "PAIRWISE_TASK_THEN_HOME", "RETURN_TO_HOME")
 MODES = ("ONLINE", "SEMI_ONLINE", "OFFLINE")
+REPLANS = ("NONE", "AFTER_ASSIGNMENT", "EVERY_TIMESTEP", "AFTER_ASSIGNMENT,GOAL_REACHED",
+           "AFTER_ASSIGNMENT,PERIODIC", "AFTER_ASSIGNMENT,GOAL_REACHED,PERIODIC")
 LOG_CAP = 2_000_000
 
 
@@ -49,6 +52,7 @@ def combinations() -> list[tuple[str, list[str]]]:
         jobs += [(preset, ["--endpoint_strategy", e]) for e in ENDPOINTS]
         jobs += [(preset, ["--mode", m]) for m in MODES]
         jobs += [(preset, ["--dummy_path", d]) for d in ("0", "1")]
+        jobs += [(preset, ["--replan_on", r]) for r in REPLANS]
     return jobs
 
 
