@@ -261,7 +261,8 @@ def run_one(args, output_dir: Path, job: dict) -> dict:
     collision_passed = "COLLISION CHECK PASSED" in output
     saved_files = sorted(str(p) for p in paths_dir.glob("*.txt"))
 
-    if timed_out:
+    # The executable stops itself at its runtime limits; that is a timeout too.
+    if timed_out or re.search(r"^Error: (System|Pathfinding) runtime timeout", output, re.M):
         status = "timeout"
     elif return_code != 0:
         status = f"error({return_code})"
