@@ -2121,10 +2121,13 @@ DummyEndpointRequest Simulation::make_central_endpoint_request(
         agents[agent_id].initial_loc, reserved_endpoints};
 }
 
+// A re-planned sequence never keeps its previous dummy endpoint when
+// leave_previous_endpoint is set (the reference's choose_good_endpoint excludes
+// every agent's old endpoint, its own included).
 DummyEndpointRequest Simulation::make_sequence_endpoint_request(
     int agent_id, int reference_location,
     const vector<int>& reserved_endpoints,
-    bool exclude_own_future_goals) const {
+    bool leave_previous_endpoint) const {
     DummyEndpointRequest request{agent_id, reference_location,
         (int)agents[agent_id].loc, agents[agent_id].initial_loc,
         reserved_endpoints};
@@ -2139,11 +2142,12 @@ DummyEndpointRequest Simulation::make_sequence_endpoint_request(
         request.forbidden_endpoints.insert(
             (int)path_table_[other][maxtime - 1]);
     }
-    if (exclude_own_future_goals)
-        for (int task_id : agents[agent_id].task_sequence)
-            for (int goal : all_tasks[task_id].goals)
-                if (goal != request.current_location)
-                    request.forbidden_endpoints.insert(goal);
+    for (int task_id : agents[agent_id].task_sequence)
+        for (int goal : all_tasks[task_id].goals)
+            if (goal != request.current_location)
+                request.forbidden_endpoints.insert(goal);
+    if (leave_previous_endpoint)
+        request.forbidden_endpoints.insert((int)path_table_[agent_id][maxtime - 1]);
     return request;
 }
 
@@ -2151,7 +2155,7 @@ DummyEndpointRequest Simulation::make_ta_endpoint_request(
     int agent_id, int reference_location,
     const vector<int>& reserved_endpoints, bool fixed_home_only) const {
     DummyEndpointRequest request = make_sequence_endpoint_request(
-        agent_id, reference_location, reserved_endpoints, true);
+        agent_id, reference_location, reserved_endpoints, false);
     if (fixed_home_only) {
         request.candidate_endpoints = {request.home_location};
     } else {
@@ -2290,8 +2294,9 @@ int Simulation::choose_dummy_endpoint(
     if (strategy != NEAREST_WITH_STRICT_EXCLUSIONS)
         throw logic_error("unsupported endpoint strategy");
 
-    // PBS/PP strict policy: new dummy endpoints must be distinct and must avoid
-    // unfinished-task goals plus the old parking endpoints of other agents.
+    // PBS/PP strict policy (the reference's choose_good_endpoint): the nearest
+    // task endpoint that is distinct from the other new dummy endpoints and
+    // avoids unfinished-task goals and the old parking endpoints.
     set<int> forbidden = request.forbidden_endpoints;
 
     for (int i = 0; i < (int)reserved_endpoints.size(); i++)
@@ -2302,7 +2307,7 @@ int Simulation::choose_dummy_endpoint(
     int best_dist = INT_MAX;
     for (int e = 0; e < (int)mapd_map.endpoints.size(); e++) {
         int loc = mapd_map.endpoints[e].loc;
-        if (forbidden.count(loc)) continue;
+        if (!mapd_map.endpoints[e].is_task_endpoint || forbidden.count(loc)) continue;
         int d = mapd_map.endpoints[e].h_val[last_goal_loc];
         if (d <= best_dist) { best_dist = d; best_loc = loc; }
     }
@@ -4079,13 +4084,15 @@ PBSNode* Simulation::pbs_generate_root() {
     return root;
 }
 
-// Node cost = number of moves (waits are free), matching the reference.
+// Node cost = sum of path durations: each agent's arrival time at its final
+// goal, waits included (the reference's unit-weight get_path_cost).
 int Simulation::pbs_node_cost(const PBSNode* node) const {
     int total = 0;
     for (int i = 0; i < pbs_.num_ag; i++) {
-        int lim = min((int)node->paths[i].size(), pbs_.max_t) - 1;
-        for (int t = (int)cur_time_; t < lim; t++)
-            if (node->paths[i][t] != node->paths[i][t+1]) total++;
+        const auto& p = node->paths[i];
+        int last = min((int)p.size(), pbs_.max_t) - 1;
+        while (last > (int)cur_time_ && p[last] == p[last-1]) last--;
+        total += last - (int)cur_time_;
     }
     return total;
 }
@@ -4218,26 +4225,30 @@ PBSNode* Simulation::pbs_generate_child(PBSNode* parent, int lower, int higher) 
 bool Simulation::pbs_resolve_cascade(PBSNode* node, int replanned_agent, const PBSNode* parent) {
     int horizon = pbs_conflict_horizon(node->paths);
 
+    // Parent's conflicts first, the re-planned agent's new ones appended (the
+    // order breaks ties when choosing the earliest conflict).
     node->conflicts.clear();
-    pbs_detect_conflicts_for(replanned_agent, node->paths, horizon, node->conflicts);
     for (auto& conf : parent->conflicts)
         if (get<0>(conf) != replanned_agent && get<1>(conf) != replanned_agent)
             node->conflicts.push_back(conf);
+    pbs_detect_conflicts_for(replanned_agent, node->paths, horizon, node->conflicts);
 
     set<int> replan;
     pbs_find_replan_agents(node->priorities, node->conflicts, replan);
 
-    const int cascade_budget = pbs_.num_ag * 5;   // reference: node->paths.size() * 5
-    int cascade_count = 0;
+    // Budget as in the reference: five low-level calls per distinct agent
+    // re-planned in this node, counting the one that opened it.
+    set<int> replanned = {replanned_agent};
+    int calls = 1;
 
     while (!replan.empty()) {
-        RuntimeDeadline::check_periodic(
-            (uint64_t)cascade_count, "PBS cascade replanning");
-        if (cascade_count > cascade_budget) return false;
+        RuntimeDeadline::check_periodic((uint64_t)calls, "PBS cascade replanning");
+        if (calls > 5 * (int)replanned.size()) return false;
 
         int a = *replan.begin();
         replan.erase(replan.begin());
-        cascade_count++;
+        replanned.insert(a);
+        calls++;
 
         set<int> hp = node->priorities.get_higher_priority(a);
         vector<vector<int>> a_cons = pbs_.fixed_paths;
@@ -4385,11 +4396,17 @@ bool Simulation::pbs_solve_impl() {
         int a1 = get<0>(chosen);
         int a2 = get<1>(chosen);
 
-        // Two ways to resolve it: a1 yields to a2, or a2 yields to a1.
+        // Two ways to resolve it: a1 yields to a2, or a2 yields to a1.  A
+        // conflict-free child at the root's cost (a lower bound) ends the search.
+        auto solves = [&](const PBSNode* n) {
+            return n && n->conflicts.empty() && n->cost == root->cost;
+        };
         PBSNode* child0 = pbs_generate_child(curr, a1, a2);
-        PBSNode* child1 = pbs_generate_child(curr, a2, a1);
         if (child0) all_nodes.push_back(child0);
+        if (solves(child0)) { best_node = child0; break; }
+        PBSNode* child1 = pbs_generate_child(curr, a2, a1);
         if (child1) all_nodes.push_back(child1);
+        if (solves(child1)) { best_node = child1; break; }
 
         if (child0 && child1) {
             // Explore the cheaper child first (cost, then fewer conflicts).

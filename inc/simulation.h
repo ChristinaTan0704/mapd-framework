@@ -285,7 +285,7 @@ private:
         const vector<int>& reserved_endpoints) const;
     DummyEndpointRequest make_sequence_endpoint_request(
         int agent_id, int reference_location,
-        const vector<int>& reserved_endpoints, bool exclude_own_future_goals) const;
+        const vector<int>& reserved_endpoints, bool leave_previous_endpoint) const;
     DummyEndpointRequest make_ta_endpoint_request(
         int agent_id, int reference_location,
         const vector<int>& reserved_endpoints, bool fixed_home_only) const;

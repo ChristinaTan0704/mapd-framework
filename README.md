@@ -482,7 +482,7 @@ the configured `endpoint_strategy` and implemented centrally by
 | HBH+MLA* | `WAIT_OR_NEAREST_FREE_NONTASK` | An idle blocking agent relocates to the nearest reachable safe parking endpoint. |
 | CENTRAL-CBS, CENTRAL-fixed-CBS | `NEAREST_AVAILABLE` | Hungarian assignment may select any unreserved task or parking endpoint for a free agent. |
 | TA-Prioritized, TA-Hybrid | `RETURN_TO_HOME` | Each agent returns to its own home parking endpoint after its offline sequence. |
-| Hungarian/LNS with PBS or PP | `NEAREST_WITH_STRICT_EXCLUSIONS` | Dummy selection considers both task and parking endpoints after excluding reserved and unfinished-task locations. |
+| Hungarian/LNS with PBS or PP | `NEAREST_WITH_STRICT_EXCLUSIONS` | Select the nearest task endpoint that no other new dummy, unfinished task or previous parking location uses (the agent's own included, so an idle agent moves on at each replan); the home endpoint is the fallback. |
 | Hungarian/LNS with wPBS | `PAIRWISE_TASK_THEN_HOME` | Select a pairwise-distinct task endpoint first, then any available parking endpoint, then remain in place as the final fallback. |
 
 Parking support does not mean every agent is forced to park after each task.
