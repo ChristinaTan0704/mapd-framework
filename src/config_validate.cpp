@@ -163,6 +163,9 @@ std::string mismatch(const Support& row, const MAPDConfig& config) {
 }  // namespace
 
 void validate_config(const MAPDConfig& config, bool has_tour) {
+    // With a one-step window two agents can block each other forever.
+    if (config.mapf == MAPF_wPBS && config.wpbs_replan_window < 2)
+        throw std::invalid_argument("wPBS requires --wpbs_replan_window of at least 2");
     std::set<std::string> mapf_options;
     std::vector<std::string> reasons;
     for (const Support& row : SUPPORT) {

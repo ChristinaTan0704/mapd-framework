@@ -605,8 +605,8 @@ bool Simulation::assign_tpts(Agent& agent, int depth) {
 
 // --- TP / TPTS / HBH when planning is a separate step -----------------------
 // The decoupled rules assign only; the configured MAPF method plans afterwards.
-// Without paths, an agent's arrival is estimated by its endpoint distance, as
-// repeated Hungarian does. TP's rule still applies: a task whose goal is
+// Without paths, an agent's arrival is estimated by its endpoint distance (or
+// the task's release, if later), as repeated Hungarian does. TP's rule still applies: a task whose goal is
 // another agent's parking endpoint waits until that agent has moved on.
 //   TP    each free agent takes the nearest available task;
 //   TPTS  as TP, and it may take over a task whose assignee has not reached
@@ -626,8 +626,10 @@ void Simulation::assign_batch_greedy() {
         }
         return true;
     };
+    // Time until the agent could pick the task up: travel, or the release.
     auto distance = [&](int agent_id, const Task* task) {
-        return mapd_map.endpoints[task->pickup].h_val[agents[agent_id].loc];
+        return max(mapd_map.endpoints[task->pickup].h_val[agents[agent_id].loc],
+                   task->release_time - (int)cur_time_);
     };
     auto assign = [&](int agent_id, Task* task) {
         agents[agent_id].task_sequence.push_back(task->id);
@@ -4079,7 +4081,7 @@ int Simulation::pbs_path_cost(int agent_id, const vector<int>& path) const {
     const auto& goals = pbs_.goal_seqs[agent_id];
     if (pbs_.window != INT_MAX && !goals.empty()) {
         // Goals reached in order inside the window; the final one must be held.
-        const int end = (int)cur_time_ + pbs_.window;
+        const int end = min((int)cur_time_ + pbs_.window, (int)path.size() - 1);
         size_t g = 0;
         for (int t = (int)cur_time_; t <= end && g + 1 < goals.size(); t++)
             while (g + 1 < goals.size() && path[t] == goals[g].first && t >= goals[g].second) g++;

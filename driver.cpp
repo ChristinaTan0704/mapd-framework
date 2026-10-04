@@ -230,8 +230,9 @@ int main(int argc, char** argv)
 
     double elapsed = (double)(clock() - t_start) / CLOCKS_PER_SEC * 1000.0;
 
-    sim.fullCollisionCheck(algorithm_name);
-    sim.taskOrderCheck(algorithm_name);
+    // Both checks always print; a failed one makes the exit status 2.
+    const bool checks_passed = sim.fullCollisionCheck(algorithm_name) &
+                               sim.taskOrderCheck(algorithm_name);
 
     if (screen >= 1) {
         cout << endl;
@@ -259,5 +260,5 @@ int main(int argc, char** argv)
             cout << "Output saved to: " << filepath << endl;
     }
 
-    return 0;
+    return checks_passed ? 0 : 2;
 }

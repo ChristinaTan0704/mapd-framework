@@ -264,10 +264,10 @@ def run_one(args, output_dir: Path, job: dict) -> dict:
     # The executable stops itself at its runtime limits; that is a timeout too.
     if timed_out or re.search(r"^Error: (System|Pathfinding) runtime timeout", output, re.M):
         status = "timeout"
+    elif collision_failed:   # also exits with status 2
+        status = "collision"
     elif return_code != 0:
         status = f"error({return_code})"
-    elif collision_failed:
-        status = "collision"
     elif not collision_passed:
         status = "error(no collision-check result)"
     elif None in (makespan, swt, runtime_ms, completed_tasks, total_tasks):

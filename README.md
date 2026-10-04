@@ -423,7 +423,9 @@ and `MLA`/`MLSIPP`; `CBS` plans one goal at a time with its own low level
 Repeated Hungarian rematches every task not yet picked up at each event, which
 makes single-goal CBS segments oscillate, so it is not paired with `CBS`.
 `PBS` and `PP` are not run `OFFLINE`: their searches fail for pickups released
-far in the future.
+far in the future (the same happens with a large `--semi_online_lookahead_batches`;
+the run then fails its collision check). `wPBS` needs a window of at least 2.
+When the collision or task-order check fails, `mapd` exits with status 2.
 
 ## Algorithm setup
 
