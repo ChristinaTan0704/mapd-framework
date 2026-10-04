@@ -8,7 +8,9 @@ Each algorithm configuration (configs/) is crossed with every --mapf and
 and with each planner set up the way it is used on its own (assignment
 trigger, replan events, endpoints), on the kiva map with 10 agents; the
 endpoint and planner axes also run with 50 agents, where crowding exposes
-deadlocks.
+deadlocks. Every planner also runs with releases far ahead of the agents
+(kiva-0.2 with every task known upfront, or 1000 release batches ahead), fed
+by repeated Hungarian and by the LKH3 tour, with 10 and 50 agents.
 A run passes when it
 
   * is rejected immediately (exit 1, "is not supported" / "requires"), or
@@ -16,7 +18,7 @@ A run passes when it
 
 Anything else (crash, timeout, incomplete run, collision) fails the check.
 
-Usage: scripts/check_combinations.py [--executable ./mapd] [--max-parallel 20]
+Usage: scripts/check_combinations.py [--executable ./mapd] [--max-parallel 5]
 """
 from __future__ import annotations
 
@@ -37,7 +39,7 @@ CONFIGS = ("table1/TP", "table1/TPTS", "table1/HBH", "table1/CENTRAL",
            "table1/TA-Hybrid")
 OFFLINE_ONLY = {"table1/TA-Prioritized", "table1/TA-Hybrid"}
 MAPF = (None, "PP", "PP_TASK_SEQUENCE", "CBS", "PBS", "wPBS")
-SINGLE_AGENT = (None, "STA", "MLA", "MLSIPP", "SIPP2")
+SINGLE_AGENT = (None, "STA", "MLA", "MLSIPP", "SIPP2", "SEQ_STA")
 ENDPOINTS = ("WAIT_OR_NEAREST_SAFE", "WAIT_OR_NEAREST_FREE_NONTASK",
              "NEAREST_AVAILABLE", "NEAREST_WITH_STRICT_EXCLUSIONS",
              "PAIRWISE_TASK_THEN_HOME", "RETURN_TO_HOME")
@@ -46,50 +48,76 @@ TRIGGERS = ("ON_FREE_WAITS", "EVERY_TIMESTEP",
 MODES = ("ONLINE", "SEMI_ONLINE", "OFFLINE")
 REPLANS = ("NONE", "AFTER_ASSIGNMENT", "EVERY_TIMESTEP", "AFTER_ASSIGNMENT,GOAL_REACHED",
            "AFTER_ASSIGNMENT,PERIODIC", "AFTER_ASSIGNMENT,GOAL_REACHED,PERIODIC")
+REFRESH = "AFTER_ASSIGNMENT,PERIODIC"
 # Each planner with the trigger, replanning events and endpoints it needs, so
 # any assignment method can be paired with it as a separate planning step.
 PLANNER_SETUPS = (
     ("PBS", "AFTER_ASSIGNMENT", "NEAREST_WITH_STRICT_EXCLUSIONS"),
     ("PP", "AFTER_ASSIGNMENT", "NEAREST_WITH_STRICT_EXCLUSIONS"),
-    ("wPBS", "AFTER_ASSIGNMENT,PERIODIC", "PAIRWISE_TASK_THEN_HOME"),
+    ("PP_TASK_SEQUENCE", "AFTER_ASSIGNMENT", "NEAREST_WITH_STRICT_EXCLUSIONS"),
+    ("wPBS", REFRESH, "PAIRWISE_TASK_THEN_HOME"),
     ("CBS", "AFTER_ASSIGNMENT,GOAL_REACHED", "NEAREST_WITH_STRICT_EXCLUSIONS"),
 )
+# Releases far ahead of the agents: the planners fed by repeated Hungarian in
+# both modes, and by the (offline) LKH3 tour; a tour planned a few tasks at a
+# time is refreshed periodically.
+FUTURE_MODES = (("--mode", "OFFLINE"),
+                ("--mode", "SEMI_ONLINE", "--semi_online_lookahead_batches", "1000"))
+FUTURE_HUNGARIAN = (("variants/Hungarian-PBS", "PBS"), ("variants/Hungarian-PBS", "PP"),
+                    ("variants/Hungarian-PBS", "PP_TASK_SEQUENCE"),
+                    ("variants/Hungarian-wPBS", "wPBS"))
+FUTURE_TOUR = (("PP_TASK_SEQUENCE", "AFTER_ASSIGNMENT"), ("PP", REFRESH), ("PBS", REFRESH),
+               ("wPBS", REFRESH))
 LOG_CAP = 2_000_000
 
 
-def combinations() -> list[tuple[str, int, list[str]]]:
-    """(configuration, agents, overriding options) of every job."""
+def combinations() -> list[tuple[str, int, list[str], str]]:
+    """(configuration, agents, overriding options, task frequency) of every job."""
     jobs = []
     for config in CONFIGS:
+        # The offline TA configurations run the task set of their LKH3 tours.
+        frequency = "500" if config in OFFLINE_ONLY else "1"
         for mapf in MAPF:
             for sa in SINGLE_AGENT:
                 jobs.append((config, 10, (["--mapf", mapf] if mapf else []) +
-                                         (["--single_agent", sa] if sa else [])))
-        jobs += [(config, 10, ["--assign_trigger", t]) for t in TRIGGERS]
+                                         (["--single_agent", sa] if sa else []), frequency))
+        jobs += [(config, 10, ["--assign_trigger", t], frequency) for t in TRIGGERS]
         # Releases far in the future (kiva-0.2) exercise the modes.
-        jobs += [(config, 10, ["--mode", m]) for m in MODES]
-        jobs += [(config, 10, ["--dummy_path", d]) for d in ("0", "1")]
-        jobs += [(config, 10, ["--replan_on", r]) for r in REPLANS]
-        jobs += [(config, 10, ["--agent_selection", a]) for a in ("ALL", "CHANGED")]
+        jobs += [(config, 10, ["--mode", m], "500" if config in OFFLINE_ONLY else "0.2")
+                 for m in MODES]
+        jobs += [(config, 10, ["--dummy_path", d], frequency) for d in ("0", "1")]
+        jobs += [(config, 10, ["--replan_on", r], frequency) for r in REPLANS]
+        jobs += [(config, 10, ["--agent_selection", a], frequency) for a in ("ALL", "CHANGED")]
         for agents in (10, 50):
-            jobs += [(config, agents, ["--endpoint_strategy", e]) for e in ENDPOINTS]
+            jobs += [(config, agents, ["--endpoint_strategy", e], frequency) for e in ENDPOINTS]
             for mapf, replan, endpoint in PLANNER_SETUPS:
                 for selection in ("ALL", "CHANGED"):
                     jobs.append((config, agents, [
                         "--mapf", mapf, "--assign_trigger",
                         "ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE",
                         "--replan_on", replan, "--endpoint_strategy", endpoint,
-                        "--agent_selection", selection]))
+                        "--agent_selection", selection], frequency))
+    for agents in (10, 50):
+        for config, mapf in FUTURE_HUNGARIAN:
+            for mode in FUTURE_MODES:
+                for selection in ("ALL", "CHANGED"):
+                    jobs.append((config, agents, ["--mapf", mapf, *mode,
+                                                  "--agent_selection", selection], "0.2"))
+        for mapf, replan in FUTURE_TOUR:
+            jobs.append(("table1/TA-Prioritized", agents,
+                         ["--mapf", mapf, "--replan_on", replan], "0.2"))
+    for config, mapf in FUTURE_HUNGARIAN:
+        for sa in SINGLE_AGENT[1:]:
+            jobs.append((config, 10, ["--mapf", mapf, "--mode", "OFFLINE",
+                                      "--single_agent", sa], "0.2"))
     return jobs
 
 
-def run(executable: Path, config: str, agents: int, extra: list[str], timeout: int) -> str:
+def run(executable: Path, config: str, agents: int, extra: list[str], frequency: str,
+        timeout: int) -> str:
+    instance = ["-t", str(DATA / f"kiva-{frequency}.task")]
     if config in OFFLINE_ONLY:
-        instance = ["-t", str(DATA / "kiva-500.task"),
-                    "--tour", str(ROOT / "tour" / f"{agents}-500.tour")]
-    else:
-        frequency = "0.2" if "--mode" in extra else "1"
-        instance = ["-t", str(DATA / f"kiva-{frequency}.task")]
+        instance += ["--tour", str(ROOT / "tour" / f"{agents}-500.tour")]
     command = [str(executable), "-m", str(DATA / f"kiva-{agents}-500-5.map"), *instance,
                "--config", str(ROOT / "configs" / f"{config}.cfg"), "--seed", "0", "-s", "1",
                "--runtime_limit", str(timeout), "--pathfinding_runtime_limit", str(timeout),
@@ -117,7 +145,7 @@ def run(executable: Path, config: str, agents: int, extra: list[str], timeout: i
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--executable", type=Path, default=ROOT / "mapd")
-    parser.add_argument("--max-parallel", type=int, default=20)
+    parser.add_argument("--max-parallel", type=int, default=5)
     parser.add_argument("--timeout", type=int, default=300, help="seconds per run")
     args = parser.parse_args()
 
@@ -126,10 +154,10 @@ def main() -> int:
         results = list(pool.map(
             lambda job: run(args.executable.resolve(), *job, args.timeout), jobs))
 
-    failures = [(c, a, " ".join(e), r)
-                for (c, a, e), r in zip(jobs, results) if r.startswith("FAIL")]
+    failures = [(c, a, " ".join(e) + f" (kiva-{f})", r)
+                for (c, a, e, f), r in zip(jobs, results) if r.startswith("FAIL")]
     for config in CONFIGS:
-        rows = [r for (c, _, _), r in zip(jobs, results) if c == config]
+        rows = [r for (c, _, _, _), r in zip(jobs, results) if c == config]
         print(f"{config:24s} ok {rows.count('ok'):3d}  rejected {rows.count('rejected'):3d}  "
               f"failed {sum(r.startswith('FAIL') for r in rows):3d}")
     for config, agents, extra, result in failures:

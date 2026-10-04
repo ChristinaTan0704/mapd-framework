@@ -33,9 +33,6 @@ struct Support {
 };
 
 const std::vector<Mode> ALL_MODES = {MODE_ONLINE, MODE_SEMI_ONLINE, MODE_OFFLINE};
-// PBS and PP fail to plan pickups released far in the future (OFFLINE) and
-// then keep colliding waiting paths.
-const std::vector<Mode> NOT_OFFLINE = {MODE_ONLINE, MODE_SEMI_ONLINE};
 // Planning inside assignment relocates an idle agent only when its endpoint is
 // needed; strategies that always pick a new endpoint can deadlock there.
 const std::vector<EndpointStrategy> RELOCATION_ENDPOINTS = {
@@ -45,11 +42,15 @@ const std::vector<EndpointStrategy> FLEXIBLE_ENDPOINTS = {
 const std::vector<EndpointStrategy> WINDOWED_ENDPOINTS = {
     PAIRWISE_TASK_THEN_HOME, NEAREST_WITH_STRICT_EXCLUSIONS, NEAREST_AVAILABLE,
     RETURN_TO_HOME};
+// Planning a complete LKH3 tour at once can also let agents stop at their
+// last goal (no dummy path, WAIT_*), moving on only when another task needs
+// it. PAIRWISE parks idle agents on endpoints other tasks need, which only
+// wPBS, planning a window at a time, can push them off again.
+const std::vector<EndpointStrategy> SEQUENCE_ENDPOINTS = {
+    WAIT_OR_NEAREST_SAFE, WAIT_OR_NEAREST_FREE_NONTASK, NEAREST_AVAILABLE,
+    NEAREST_WITH_STRICT_EXCLUSIONS, RETURN_TO_HOME};
 const std::vector<SingleAgentMethod> ANY_SEARCH = {
-    SA_STA_TASK_EP, SA_MLA_SEQUENCE, SA_MLSIPP_SEQUENCE, SA_SIPP_SEGMENTS};
-// wPBS stops every search at the end of its window; SIPP2 cannot.
-const std::vector<SingleAgentMethod> WINDOWED_SEARCH = {
-    SA_STA_TASK_EP, SA_MLA_SEQUENCE, SA_MLSIPP_SEQUENCE};
+    SA_STA_TASK_EP, SA_MLA_SEQUENCE, SA_MLSIPP_SEQUENCE, SA_SIPP_SEGMENTS, SA_SEQ_STA};
 const std::vector<AgentSelection> CHANGED = {SELECT_CHANGED};
 const std::vector<AgentSelection> ALL = {SELECT_ALL};
 const std::vector<AgentSelection> EITHER_SELECTION = {SELECT_ALL, SELECT_CHANGED};
@@ -88,8 +89,6 @@ std::vector<Support> supported_rows() {
          WITH_SEGMENTS, CHANGED, {SA_STA_TASK_EP}, {NEAREST_AVAILABLE, RETURN_TO_HOME},
          ALL_MODES, {false}},
         // The LKH3 tour covers the complete task set, so it must be known upfront.
-        {AM_LKH3_TSP, MAPF_PP_TASK_SEQUENCE, {AT_ONCE}, {AFTER}, ALL, {SA_SEQ_STA},
-         {RETURN_TO_HOME, NEAREST_AVAILABLE}, {MODE_OFFLINE}, WITH_DUMMY},
         {AM_LKH3_TSP_REASSIGN, MAPF_TA_HYBRID_TWO_GROUP,
          {AT_EVERY_TIMESTEP, ON_EVENT}, {SEGMENTS},
          CHANGED, {SA_STA_TASK_EP}, {RETURN_TO_HOME, NEAREST_AVAILABLE}, {MODE_OFFLINE},
@@ -97,17 +96,21 @@ std::vector<Support> supported_rows() {
     };
     // Methods that only assign tasks feed the same planners: repeated
     // Hungarian with or without LNS, and TP, TPTS and HBH whenever planning is
-    // a separate step (replan_on is set).
+    // a separate step (replan_on is set). The prioritized planners and PBS
+    // plan every agent's next tasks (PP_TASK_SEQUENCE all of them); wPBS plans
+    // a window of them and must refresh it before it runs out.
     for (AssignMethod method : {AM_REPEATED_HUNGARIAN, AM_REPEATED_HUNGARIAN_LNS,
                                 AM_DECOUPLED_GREEDY, AM_DECOUPLED_GREEDY_SWAPS,
                                 AM_CENTRALIZED_GREEDY}) {
         const std::vector<AssignTrigger> triggers = {ON_EVENT, AT_EVERY_TIMESTEP};
         rows.push_back({method, MAPF_PBS, triggers, ANY_REPLAN, EITHER_SELECTION,
-                        ANY_SEARCH, FLEXIBLE_ENDPOINTS, NOT_OFFLINE, WITH_DUMMY});
-        rows.push_back({method, MAPF_wPBS, triggers, WITH_REFRESH, ALL, WINDOWED_SEARCH,
+                        ANY_SEARCH, FLEXIBLE_ENDPOINTS, ALL_MODES, WITH_DUMMY});
+        rows.push_back({method, MAPF_wPBS, triggers, WITH_REFRESH, ALL, ANY_SEARCH,
                         WINDOWED_ENDPOINTS, ALL_MODES, WITH_DUMMY});
         rows.push_back({method, MAPF_PP_PER_TASK, triggers, ANY_REPLAN, EITHER_SELECTION,
-                        ANY_SEARCH, FLEXIBLE_ENDPOINTS, NOT_OFFLINE, WITH_DUMMY});
+                        ANY_SEARCH, FLEXIBLE_ENDPOINTS, ALL_MODES, WITH_DUMMY});
+        rows.push_back({method, MAPF_PP_TASK_SEQUENCE, triggers, ANY_REPLAN,
+                        EITHER_SELECTION, ANY_SEARCH, FLEXIBLE_ENDPOINTS, ALL_MODES, WITH_DUMMY});
         // CBS plans one goal at a time for the agents whose next goal changed
         // (one joint CBS over every agent at every event does not scale).
         // Repeated Hungarian rematches every task not yet picked up at each
@@ -116,14 +119,21 @@ std::vector<Support> supported_rows() {
             rows.push_back({method, MAPF_CBS, triggers, WITH_SEGMENTS, CHANGED,
                             {SA_STA_TASK_EP}, FLEXIBLE_ENDPOINTS, ALL_MODES, WITH_DUMMY});
     }
-    // The LKH3 task sequences can be planned a few tasks at a time like any
-    // other assignment; the plan is refreshed as agents work through them.
-    // (Not by PBS or PP: the tour needs OFFLINE.)
+    // The LKH3 task sequences feed the same planners. A planner that plans only
+    // the next tasks of a sequence must be refreshed as the agents work through
+    // it (by its periodic or per-goal replans); PP_TASK_SEQUENCE plans all of it.
     const std::vector<AssignTrigger> tour_triggers = {AT_ONCE, ON_EVENT};
-    rows.push_back({AM_LKH3_TSP, MAPF_wPBS, tour_triggers, WITH_REFRESH, ALL, WINDOWED_SEARCH,
-                    WINDOWED_ENDPOINTS, {MODE_OFFLINE}, WITH_DUMMY});
+    const std::vector<Mode> OFFLINE = {MODE_OFFLINE};
+    rows.push_back({AM_LKH3_TSP, MAPF_PP_TASK_SEQUENCE, tour_triggers, ANY_REPLAN,
+                    EITHER_SELECTION, ANY_SEARCH, SEQUENCE_ENDPOINTS, OFFLINE, EITHER});
+    rows.push_back({AM_LKH3_TSP, MAPF_PP_PER_TASK, tour_triggers, WITH_REFRESH,
+                    EITHER_SELECTION, ANY_SEARCH, FLEXIBLE_ENDPOINTS, OFFLINE, WITH_DUMMY});
+    rows.push_back({AM_LKH3_TSP, MAPF_PBS, tour_triggers, WITH_REFRESH, EITHER_SELECTION,
+                    ANY_SEARCH, FLEXIBLE_ENDPOINTS, OFFLINE, WITH_DUMMY});
+    rows.push_back({AM_LKH3_TSP, MAPF_wPBS, tour_triggers, WITH_REFRESH, ALL, ANY_SEARCH,
+                    WINDOWED_ENDPOINTS, OFFLINE, WITH_DUMMY});
     rows.push_back({AM_LKH3_TSP, MAPF_CBS, tour_triggers, WITH_SEGMENTS, CHANGED,
-                    {SA_STA_TASK_EP}, FLEXIBLE_ENDPOINTS, {MODE_OFFLINE}, WITH_DUMMY});
+                    {SA_STA_TASK_EP}, FLEXIBLE_ENDPOINTS, OFFLINE, WITH_DUMMY});
     return rows;
 }
 
