@@ -283,15 +283,20 @@ bool Simulation::should_assign() {
 
 // --- AssignTask() : switch on assign_method ---
 void Simulation::task_assignment() {
+    // TP, TPTS and HBH plan while assigning unless planning is a separate step.
+    const bool plans_separately = config.replan_on != 0;
     switch (config.assign_method) {
     case AM_DECOUPLED_GREEDY:
-        assign_decoupled_greedy_step();
+        if (plans_separately) assign_batch_greedy();
+        else assign_decoupled_greedy_step();
         break;
     case AM_DECOUPLED_GREEDY_SWAPS:
-        assign_tpts_step();
+        if (plans_separately) assign_batch_greedy();
+        else assign_tpts_step();
         break;
     case AM_CENTRALIZED_GREEDY:
-        assign_hbh_mla();
+        if (plans_separately) assign_batch_greedy();
+        else assign_hbh_mla();
         break;
     case AM_CENTRAL_HUNGARIAN:
         assign_central_hungarian();
@@ -622,6 +627,99 @@ bool Simulation::assign_tpts(Agent& agent, int depth) {
     for (int i = 0; i < (int)agents.size(); i++)
         agents[i] = saved_agents[i];
     return false;
+}
+
+// --- TP / TPTS / HBH when planning is a separate step -----------------------
+// The decoupled rules assign only; the configured MAPF method plans afterwards.
+// Without paths, an agent's arrival is estimated by its endpoint distance, as
+// repeated Hungarian does. TP's rule still applies: a task whose goal is
+// another agent's parking endpoint waits until that agent has moved on.
+//   TP    each free agent takes the nearest available task;
+//   TPTS  as TP, and it may take over a task whose assignee has not reached
+//         the pickup when it would get there sooner;
+//   HBH   the globally nearest free (agent, task) pairs are matched first.
+void Simulation::assign_batch_greedy() {
+    unordered_map<int, int> parked;   // endpoint -> agent whose plan ends there
+    for (int i = 0; i < (int)agents.size(); i++)
+        parked[(int)path_table_[i][maxtime - 1]] = i;
+    auto available = [&](const Task* task, int agent_id) {
+        for (int goal : task->goals) {
+            auto holder = parked.find(goal);
+            if (holder != parked.end() && holder->second != agent_id) {
+                new_or_deferred_task_event_ = true;   // retry once it moves
+                return false;
+            }
+        }
+        return true;
+    };
+    auto distance = [&](int agent_id, const Task* task) {
+        return mapd_map.endpoints[task->pickup].h_val[agents[agent_id].loc];
+    };
+    auto assign = [&](int agent_id, Task* task) {
+        agents[agent_id].task_sequence.push_back(task->id);
+        task->status = agent_id;
+        open_tasks_.remove(task);
+    };
+    auto is_free = [&](int agent_id) {
+        return agents[agent_id].task_sequence.empty() &&
+               agents[agent_id].status != AG_CARRYING;
+    };
+
+    if (config.assign_method == AM_CENTRALIZED_GREEDY) {
+        vector<tuple<int, int, Task*>> pairs;   // (distance, agent, task)
+        for (int i = 0; i < (int)agents.size(); i++)
+            if (is_free(i))
+                for (Task* task : open_tasks_)
+                    if (task->status == -1 && available(task, i))
+                        pairs.emplace_back(distance(i, task), i, task);
+        sort(pairs.begin(), pairs.end(), [](const auto& a, const auto& b) {
+            if (get<0>(a) != get<0>(b)) return get<0>(a) < get<0>(b);
+            if (get<1>(a) != get<1>(b)) return get<1>(a) < get<1>(b);
+            return get<2>(a)->id < get<2>(b)->id;
+        });
+        for (const auto& pair : pairs)
+            if (is_free(get<1>(pair)) && get<2>(pair)->status == -1)
+                assign(get<1>(pair), get<2>(pair));
+        return;
+    }
+
+    const bool swaps = config.assign_method == AM_DECOUPLED_GREEDY_SWAPS;
+    deque<int> queue;
+    for (int i = 0; i < (int)agents.size(); i++)
+        if (is_free(i)) queue.push_back(i);
+    while (!queue.empty()) {
+        RuntimeDeadline::check_periodic(queue.size(), "greedy task assignment");
+        int agent_id = queue.front();
+        queue.pop_front();
+        Task* best = nullptr;
+        int best_distance = INT_MAX;
+        for (int i = 0; i < (int)all_tasks.size(); i++) {
+            Task* task = &all_tasks[i];
+            bool open = task->status == -1 &&
+                find(open_tasks_.begin(), open_tasks_.end(), task) != open_tasks_.end();
+            // TPTS may take over an assigned task its owner has not picked up.
+            int owner = task->status;
+            bool stealable = swaps && owner >= 0 && owner != INT_MAX &&
+                agents[owner].status != AG_CARRYING &&
+                !agents[owner].task_sequence.empty() &&
+                agents[owner].task_sequence.front() == task->id &&
+                distance(agent_id, task) < distance(owner, task);
+            if (!open && !stealable) continue;
+            if (!available(task, agent_id)) continue;
+            int d = distance(agent_id, task);
+            if (d < best_distance) { best = task; best_distance = d; }
+        }
+        if (!best) continue;
+        int owner = best->status;
+        if (owner >= 0) {   // a TPTS take-over frees the previous assignee
+            agents[owner].task_sequence.pop_front();
+            agents[owner].status = AG_FREE;
+            agents[owner].current_task = -1;
+            agents[owner].current_goal_index = 0;
+            queue.push_back(owner);
+        }
+        assign(agent_id, best);
+    }
 }
 
 // --- HBH: centralized h-value greedy assignment ----------------------------

@@ -4,7 +4,9 @@ or be rejected by validate_config() before the simulation starts.
 
 Each algorithm preset is crossed with every --mapf and --single_agent override,
 and separately with every --endpoint_strategy, --mode, --dummy_path,
---replan_on and --agent_selection, on a small instance.
+--replan_on and --agent_selection, and with each planner set up the way it is
+used on its own (assignment trigger, replanning events, endpoints), on a small
+instance.
 A run passes when it
 
   * is rejected immediately (exit 1, "is not supported" / "requires"), or
@@ -39,6 +41,13 @@ ENDPOINTS = ("WAIT_OR_NEAREST_SAFE", "WAIT_OR_NEAREST_FREE_NONTASK",
 MODES = ("ONLINE", "SEMI_ONLINE", "OFFLINE")
 REPLANS = ("NONE", "AFTER_ASSIGNMENT", "EVERY_TIMESTEP", "AFTER_ASSIGNMENT,GOAL_REACHED",
            "AFTER_ASSIGNMENT,PERIODIC", "AFTER_ASSIGNMENT,GOAL_REACHED,PERIODIC")
+# Each planner with the trigger, replanning events and endpoints it needs, so
+# any assignment method can be paired with it as a separate planning step.
+PLANNER_SETUPS = (
+    ("PBS", "AFTER_ASSIGNMENT", "NEAREST_WITH_STRICT_EXCLUSIONS"),
+    ("PP", "AFTER_ASSIGNMENT", "NEAREST_WITH_STRICT_EXCLUSIONS"),
+    ("wPBS", "AFTER_ASSIGNMENT,PERIODIC", "PAIRWISE_TASK_THEN_HOME"),
+)
 LOG_CAP = 2_000_000
 
 
@@ -54,6 +63,12 @@ def combinations() -> list[tuple[str, list[str]]]:
         jobs += [(preset, ["--dummy_path", d]) for d in ("0", "1")]
         jobs += [(preset, ["--replan_on", r]) for r in REPLANS]
         jobs += [(preset, ["--agent_selection", a]) for a in ("ALL", "CHANGED")]
+        for mapf, replan, endpoint in PLANNER_SETUPS:
+            for selection in ("ALL", "CHANGED"):
+                jobs.append((preset, ["--mapf", mapf, "--assign_trigger",
+                                      "ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE",
+                                      "--replan_on", replan, "--endpoint_strategy", endpoint,
+                                      "--agent_selection", selection]))
     return jobs
 
 

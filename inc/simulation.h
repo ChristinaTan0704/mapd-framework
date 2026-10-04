@@ -227,6 +227,7 @@ private:
         return false;
     }
     bool all_task_sequences_empty() const;
+    void assign_batch_greedy();
     bool carrier_needs_next_segment() const;
     void clamp_next_ts_to_task_release(unsigned int& next_ts) const;
 
