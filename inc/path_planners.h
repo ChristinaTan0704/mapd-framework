@@ -2,12 +2,52 @@
 
 #include "types.h"
 #include "config.h"
+#include <algorithm>
+#include <tuple>
 #include <utility>
 #include <vector>
 
 class Simulation;
 struct Agent;
 struct Task;
+
+// CBS constraints on one agent, in absolute timesteps: (loc, -1, t) it is not
+// at loc at t, (loc, -2, t) it is never at loc from t on, and (from, to, t) it
+// does not move from `from` at t to `to` at t + 1. The other CBS agents' paths
+// (starting at `start`) are soft: equally short paths that meet them less are
+// preferred, as in ECBS.
+class CBSConstraintTable {
+public:
+    CBSConstraintTable(const std::vector<std::tuple<int,int,int>>& constraints,
+                       const std::vector<std::vector<int>>& others = {}, int start = 0);
+    // How many of the other agents' paths are at loc at timestep t.
+    int conflicts(int loc, int t) const {
+        int step = t - start_;
+        if (others_.empty() || step < 0) return 0;
+        int count = 0;
+        for (const std::vector<int>* path : others_)
+            count += (*path)[std::min(step, (int)path->size() - 1)] == loc;
+        return count;
+    }
+    // Whether moving from curr to next, arriving at timestep t, is forbidden.
+    bool blocks(int curr, int next, int t) const;
+    // First timestep from which the agent may stay at loc forever; INT_MAX
+    // when it may never.
+    int holdable_from(int loc) const;
+    // Calls f(loc, begin, end) for every interval [begin, end) in which the
+    // agent may not be at loc; range constraints end at `horizon`.
+    template <typename F> void for_each_forbidden_interval(int horizon, F f) const {
+        for (int t = 0; t < (int)by_time_.size(); t++)
+            for (const auto& constraint : by_time_[t])
+                if (constraint.second == -1) f(constraint.first, t, t + 1);
+        for (const auto& range : ranges_) f(range.first, range.second, horizon);
+    }
+private:
+    std::vector<std::vector<std::pair<int,int>>> by_time_;  // [t]: (loc, -1), (from, to)
+    std::vector<std::pair<int,int>> ranges_;                // (loc, first timestep)
+    std::vector<const std::vector<int>*> others_;
+    int start_;
+};
 
 // Explicit input to the configured single-agent search (config.single_agent).
 // Goals are (location, earliest arrival) pairs grouped by task, with the dummy
@@ -24,6 +64,8 @@ struct SingleAgentRequest {
     // Windowed planning: the search ends at this timestep and returns the best
     // partial path (the agent then holds its last cell).
     int stop_time = INT_MAX;
+    // CBS: the constraints of the high-level node, or none.
+    const CBSConstraintTable* constraints = nullptr;
 };
 
 // Strategy objects used by Simulation's dispatchers. They receive the live
@@ -34,56 +76,6 @@ public:
     bool solve();
 private:
     Simulation& simulation_;
-};
-
-struct ECBSRequest {
-    const std::vector<bool>& grid;
-    const std::vector<int>& start_locations;
-    const std::vector<int>& goal_locations;
-    const std::vector<int>& goal_endpoint_indices;
-    const std::vector<std::vector<int>>& constraint_paths;
-    int current_time;
-    int columns;
-    double focal_weight;
-    int high_level_expansion_limit;
-    int low_level_expansion_limit;
-    const std::vector<Endpoint>& endpoints;
-    int max_time;
-    CBSConflictSelection conflict_selection;
-    bool bypass;
-    bool target_reasoning;
-    bool rectangle_reasoning;
-
-    ECBSRequest(const std::vector<bool>& map_grid,
-                const std::vector<int>& starts,
-                const std::vector<int>& goals,
-                const std::vector<int>& goal_endpoints,
-                const std::vector<std::vector<int>>& constraints,
-                int time, int map_columns, double weight,
-                int high_expansion_limit, int low_expansion_limit,
-                const std::vector<Endpoint>& map_endpoints, int horizon,
-                CBSConflictSelection selection, bool use_bypass,
-                bool use_target_reasoning, bool use_rectangle_reasoning)
-        : grid(map_grid), start_locations(starts), goal_locations(goals),
-          goal_endpoint_indices(goal_endpoints), constraint_paths(constraints),
-          current_time(time), columns(map_columns), focal_weight(weight),
-          high_level_expansion_limit(high_expansion_limit),
-          low_level_expansion_limit(low_expansion_limit),
-          endpoints(map_endpoints), max_time(horizon),
-          conflict_selection(selection), bypass(use_bypass),
-          target_reasoning(use_target_reasoning),
-          rectangle_reasoning(use_rectangle_reasoning) {}
-};
-
-struct ECBSResult {
-    bool solution_found = false;
-    double solution_cost = -1;
-    std::vector<std::vector<int>> paths;
-};
-
-class ECBSPlanner {
-public:
-    ECBSResult solve(const ECBSRequest& request) const;
 };
 
 // Space-time A* from start_location at current_time to a goal the agent can

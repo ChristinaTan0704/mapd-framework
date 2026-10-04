@@ -238,8 +238,8 @@ private:
     void assign_ta_hybrid();
     int ta_sequence_cost(int agent_id, int start) const;
     vector<int> ta_agents_in_sequence_order() const;
-    void central_phase1_instant_pickup();
-    Task* central_current_task(int agent_id);
+    vector<bool> central_carried_goals() const;
+    void central_phase1_instant_pickup(vector<bool>& held);
     void assign_central_hungarian();
     int central_path_cost(int agent_id, int start_loc, int goal_loc,
                           int start_time, const vector<vector<int>>& constraints,
@@ -261,6 +261,7 @@ private:
     //  Section 4 — Task sequences -> goal sequences (planner input)
     // ======================================================================
     vector<vector<pair<int,int>>> task_goal_sequences(int max_tasks) const;
+    bool final_goal_assigned(int agent_id) const;
     vector<vector<pair<int,int>>> build_goal_sequences();
     vector<vector<pair<int,int>>> build_goal_sequences(const vector<bool>& planned);
 
@@ -308,11 +309,11 @@ private:
     void path_planning_pp_task_sequence();
     void path_planning_ta_hybrid(bool assignment_triggered);
     void path_planning_pbs();
-    void path_planning_ecbs(bool assignment_triggered);
-    void path_planning_cbs_segments();
-    vector<vector<int>> cbs_solve(const vector<int>& agent_ids, const vector<int>& goals);
-    void commit_segment(int agent_id, const vector<int>& path);
-    vector<int> segment_goal_;     // CBS segments: the goal each path ends at, else -1
+    void path_planning_cbs();
+    vector<bool> cbs_mdd_singletons(int agent_id, const CBSConstraintTable& constraints,
+                                    int cost) const;
+    void commit_path(int agent_id, const vector<int>& path);
+    void start_assigned_tasks();
     vector<unsigned int> last_goal_time_;   // when each agent last reached a task goal
     unsigned int path_end_time(int agent_id) const;
     bool pbs_solve_impl();
@@ -382,27 +383,31 @@ private:
                                       const vector<vector<pair<int,int>>>& task_groups,
                                       const vector<vector<int>>& cons_paths,
                                       const vector<vector<int>>& old_paths,
-                                      bool use_old_paths, int stop_time = INT_MAX);
+                                      bool use_old_paths, int stop_time = INT_MAX,
+                                      const CBSConstraintTable* constraints = nullptr);
     vector<int> seq_mla_star(int agent_id, int start_loc, int start_time,
                              const vector<pair<int,int>>& goals,
                              const vector<vector<int>>& cons_paths,
                              const vector<vector<int>>& old_paths,
                              bool use_old_paths,
-                             bool skip_holding = false, int stop_time = INT_MAX);
+                             bool skip_holding = false, int stop_time = INT_MAX,
+                             const CBSConstraintTable* constraints = nullptr);
 
     vector<int> sipp_search_impl(int agent_id, int start_loc, int start_time,
                                 const vector<pair<int,int>>& goals,
                                 const vector<vector<int>>& cons_paths,
                                 const vector<vector<int>>& old_paths,
                                 bool use_old_paths,
-                                bool skip_holding = false, int stop_time = INT_MAX);
+                                bool skip_holding = false, int stop_time = INT_MAX,
+                                const CBSConstraintTable* constraints = nullptr);
 
     // TP/TPTS ordered-goal low-level planning and endpoint-vacating fallback.
     vector<int> plan_sipp_segments(
         int agent_id, int start_loc, int start_time,
         const vector<pair<int,int>>& goals,
         const vector<vector<int>>& constraint_paths,
-        const vector<vector<int>>& old_paths, bool use_old_paths);
+        const vector<vector<int>>& old_paths, bool use_old_paths,
+        const CBSConstraintTable* constraints = nullptr);
     pair<int,int> plan_token_task(Agent& agent, Task& task, int hidden_agent = -1);
     bool sta_is_constrained(int agent_id, int current_loc, int next_loc,
                             int next_time, int hidden_agent) const;

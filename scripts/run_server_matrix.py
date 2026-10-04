@@ -78,8 +78,8 @@ BASE_METHOD_COUNT = 21
 SMOKE_BASELINE = {
     "TP-STA*": (2541, 18884),
     "TPTS-STA*": (2516, 14305),
-    "CENTRAL-CBS": (2513, 14019),
-    "CENTRAL-fixed-CBS": (2514, 14177),
+    "CENTRAL-CBS": (2513, 14122),
+    "CENTRAL-fixed-CBS": (2514, 14183),
     "HBH+MLA*": (2532, 14728),
     "HBH+MLSIPP": (2532, 14618),
     "HBH+2-segment SIPP": (2514, 14659),
@@ -110,8 +110,8 @@ SMOKE_BASELINE = {
 MULTIGOAL_BASELINE = {
     "TP-STA*": (161, 1045),
     "TPTS-STA*": (161, 1014),
-    "CENTRAL-CBS": (159, 1033),
-    "CENTRAL-fixed-CBS": (154, 1031),
+    "CENTRAL-CBS": (164, 1020),
+    "CENTRAL-fixed-CBS": (156, 1020),
     "HBH+MLA*": (161, 1014),
     "HBH+MLSIPP": (161, 1014),
     "HBH+2-segment SIPP": (161, 1014),

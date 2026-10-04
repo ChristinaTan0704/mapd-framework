@@ -182,9 +182,9 @@ struct Agent {
     int current_goal_index;
     unsigned int finish_time; // timestep when current path ends
     vector<unsigned int> path; // path[timestep] = location
-    // Current assigned endpoint location for one-endpoint planning methods
-    // such as CENTRAL; initialized to the agent's home location.
-    int last_endpoint;
+    // The endpoint the assignment parks the agent at while it has no task
+    // (CENTRAL), or -1: the final goal of an agent without tasks.
+    int parking_endpoint;
     deque<int> task_sequence; // ordered assigned-task queue
 
     // TA-Hybrid specific fields
@@ -197,7 +197,7 @@ struct Agent {
     vector<int> non_dummy_path; // path without dummy (for constraint in cost flow)
 
     Agent() : id(-1), loc(-1), initial_loc(-1), status(AG_FREE),
-              current_task(-1), current_goal_index(0), finish_time(0), last_endpoint(-1),
+              current_task(-1), current_goal_index(0), finish_time(0), parking_endpoint(-1),
               dummy_start_step(0), park_loc(-1), delivering(false),
               task_ptr(nullptr), goal_loc(-1), release_time_agent(0) {}
 
@@ -209,7 +209,7 @@ struct Agent {
         current_task = -1;
         current_goal_index = 0;
         finish_time = 0;
-        last_endpoint = _loc;
+        parking_endpoint = -1;
         dummy_start_step = 0;
         park_loc = _loc;
         delivering = false;

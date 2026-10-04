@@ -115,12 +115,11 @@ struct MAPDConfig {
     int lns_time_limit;     // LNS only: assignment-improvement budget in seconds
     // LNS only: consecutive rejected moves before early stop; 0 disables it.
     int lns_no_improvement_limit;
-    // CBS/ECBS only: focal bound; 1.0 is optimal CBS and >1.0 is ECBS.
+    // CBS only: high-level focal bound; 1.0 is optimal CBS and >1.0 bounded-
+    // suboptimal (ECBS-style).
     double ecbs_focal_weight;
     // CBS/ECBS only: maximum high-level conflict-tree nodes expanded per batch.
     int cbs_high_level_expansion_limit;
-    // CBS/ECBS only: maximum nodes expanded by each low-level ECBS search.
-    int cbs_low_level_expansion_limit;
     // CBS/ECBS only: high-level conflict selection.
     CBSConflictSelection cbs_conflict_selection;
     // CBS/ECBS only: ICBS bypass. A child with the same cost and fewer
@@ -148,7 +147,6 @@ struct MAPDConfig {
         task_sequence_limit(2), wpbs_replan_window(10), lns_time_limit(1),
         lns_no_improvement_limit(2000), ecbs_focal_weight(1.0),
         cbs_high_level_expansion_limit(INT_MAX),
-        cbs_low_level_expansion_limit(INT_MAX),
         cbs_conflict_selection(CBS_CONFLICT_CARDINAL), cbs_bypass(true),
         cbs_target_reasoning(true), cbs_rectangle_reasoning(true),
         semi_online_lookahead_batches(1) {}
