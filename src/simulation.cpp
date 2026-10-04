@@ -1147,6 +1147,13 @@ void Simulation::assign_central_hungarian() {
             }
             int agent_id = agent_ids[row];
             int endpoint_id = candidate_endpoint_ids[column];
+            // A home is parking for its own agent only: another agent parked
+            // there would block its owner's way home.
+            if (column >= task_destination_count && config.endpoint_strategy == RETURN_TO_HOME &&
+                agent_ids[column - task_destination_count] != agent_id) {
+                costs(row, column) = INT_MIN / 2;
+                continue;
+            }
             int path_cost = central_path_cost(
                 agent_id, agents[agent_id].loc,
                 mapd_map.endpoints[endpoint_id].loc, (int)cur_time_, fixed_paths,
