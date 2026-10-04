@@ -21,22 +21,17 @@ struct SingleAgentRequest {
     const std::vector<std::vector<int>>& constraint_paths;   // never collide
     const std::vector<std::vector<int>>& old_paths;          // PBS: previous plans
     bool use_old_paths;
+    // Windowed planning: the search ends at this timestep and returns the best
+    // partial path (the agent then holds its last cell).
+    int stop_time = INT_MAX;
 };
 
 // Strategy objects used by Simulation's dispatchers. They receive the live
-// Simulation explicitly because PBS/wPBS update the shared committed paths.
+// Simulation explicitly because PBS updates the shared committed paths.
 class PBSPlanner {
 public:
     explicit PBSPlanner(Simulation& simulation) : simulation_(simulation) {}
     bool solve();
-private:
-    Simulation& simulation_;
-};
-
-class wPBSPlanner {
-public:
-    explicit wPBSPlanner(Simulation& simulation) : simulation_(simulation) {}
-    void solve();
 private:
     Simulation& simulation_;
 };

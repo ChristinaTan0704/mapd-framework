@@ -44,8 +44,9 @@ const std::vector<EndpointStrategy> WINDOWED_ENDPOINTS = {
     RETURN_TO_HOME};
 const std::vector<SingleAgentMethod> ANY_SEARCH = {
     SA_STA_TASK_EP, SA_MLA_SEQUENCE, SA_MLSIPP_SEQUENCE, SA_SIPP_SEGMENTS};
-// wPBS runs its own windowed solver (native_wpbs_solve) with MLA* or MLSIPP.
-const std::vector<SingleAgentMethod> MLA_OR_MLSIPP = {SA_MLA_SEQUENCE, SA_MLSIPP_SEQUENCE};
+// wPBS stops every search at the end of its window; SIPP2 cannot.
+const std::vector<SingleAgentMethod> WINDOWED_SEARCH = {
+    SA_STA_TASK_EP, SA_MLA_SEQUENCE, SA_MLSIPP_SEQUENCE};
 const std::vector<AgentSelection> CHANGED = {SELECT_CHANGED};
 const std::vector<AgentSelection> ALL = {SELECT_ALL};
 const std::vector<AgentSelection> EITHER_SELECTION = {SELECT_ALL, SELECT_CHANGED};
@@ -100,7 +101,7 @@ std::vector<Support> supported_rows() {
         const std::vector<AssignTrigger> triggers = {ON_EVENT, AT_EVERY_TIMESTEP};
         rows.push_back({method, MAPF_PBS, triggers, ANY_REPLAN, EITHER_SELECTION,
                         ANY_SEARCH, FLEXIBLE_ENDPOINTS, ALL_MODES, WITH_DUMMY});
-        rows.push_back({method, MAPF_wPBS, triggers, WITH_REFRESH, ALL, MLA_OR_MLSIPP,
+        rows.push_back({method, MAPF_wPBS, triggers, WITH_REFRESH, ALL, WINDOWED_SEARCH,
                         WINDOWED_ENDPOINTS, ALL_MODES, WITH_DUMMY});
         rows.push_back({method, MAPF_PP_PER_TASK, triggers, ANY_REPLAN, EITHER_SELECTION,
                         ANY_SEARCH, FLEXIBLE_ENDPOINTS, ALL_MODES, WITH_DUMMY});
@@ -117,7 +118,7 @@ std::vector<Support> supported_rows() {
     const std::vector<AssignTrigger> tour_triggers = {AT_ONCE, ON_EVENT};
     rows.push_back({AM_LKH3_TSP, MAPF_PBS, tour_triggers, WITH_REFRESH, EITHER_SELECTION,
                     ANY_SEARCH, FLEXIBLE_ENDPOINTS, {MODE_OFFLINE}, WITH_DUMMY});
-    rows.push_back({AM_LKH3_TSP, MAPF_wPBS, tour_triggers, WITH_REFRESH, ALL, MLA_OR_MLSIPP,
+    rows.push_back({AM_LKH3_TSP, MAPF_wPBS, tour_triggers, WITH_REFRESH, ALL, WINDOWED_SEARCH,
                     WINDOWED_ENDPOINTS, {MODE_OFFLINE}, WITH_DUMMY});
     rows.push_back({AM_LKH3_TSP, MAPF_PP_PER_TASK, tour_triggers, WITH_REFRESH,
                     EITHER_SELECTION, ANY_SEARCH, FLEXIBLE_ENDPOINTS, {MODE_OFFLINE},

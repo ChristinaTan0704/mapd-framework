@@ -160,7 +160,6 @@ public:
 
 private:
     friend class PBSPlanner;
-    friend class wPBSPlanner;
 
     // ======================================================================
     //  Instance + system state
@@ -298,19 +297,17 @@ private:
     //  Section 5 — MAPF: PP / PBS / wPBS
     // ======================================================================
     // Public algorithm boundaries live in path_planners.h. Simulation calls
-    // PBSPlanner/wPBSPlanner; every planner reaches the low level through
-    // plan_single_agent() with an explicit SingleAgentRequest.
+    // PBSPlanner (wPBS is PBS with a planning window); every planner reaches
+    // the low level through plan_single_agent() with a SingleAgentRequest.
     void path_planning_pp_per_task();
     void path_planning_pp_task_sequence();
     void path_planning_ta_hybrid(bool assignment_triggered);
     void path_planning_pbs();
-    void path_planning_wpbs();
     void path_planning_ecbs(bool assignment_triggered);
     void path_planning_cbs_segments();
     vector<vector<int>> cbs_solve(const vector<int>& agent_ids, const vector<int>& goals);
     void commit_segment(int agent_id, const vector<int>& path);
     vector<int> segment_goal_;     // CBS segments: the goal each path ends at, else -1
-    void wpbs_windowed_solve_impl();
     bool pbs_solve_impl();
 
     // Per-solve context, shared by the pbs_* helpers (set up by pbs_solve).
@@ -325,12 +322,16 @@ private:
         vector<vector<pair<int,int>>> task_goals;
         vector<bool> planned;            // false: keeps its committed path
         vector<vector<int>> fixed_paths; // paths of the agents that are not planned
+        // wPBS planning window (RHCR): only [t, t + window] is planned and made
+        // conflict-free, without the old paths; INT_MAX for PBS.
+        int window = INT_MAX;
     };
     PBSContext pbs_;
 
     void pbs_build_context();
     vector<int> pbs_plan_agent(int agent_id, const vector<vector<int>>& cons_paths,
                                const vector<vector<int>>& old_paths, bool use_old);
+    vector<vector<int>> pbs_others_old_paths(int agent_id) const;
     PBSNode* pbs_generate_root();
     void pbs_detect_conflicts(const vector<vector<int>>& paths, list<Conflict>& out) const;
     void pbs_detect_conflicts_for(int agent_id, const vector<vector<int>>& paths,
@@ -340,7 +341,8 @@ private:
                                 set<int>& replan) const;
     PBSNode* pbs_generate_child(PBSNode* parent, int lower, int higher);
     bool pbs_resolve_cascade(PBSNode* node, int replanned_agent, const PBSNode* parent);
-    int  pbs_node_cost(const PBSNode* node) const;
+    int  pbs_path_cost(int agent_id, const vector<int>& path) const;
+    void pbs_set_path(PBSNode* node, int agent_id, const vector<int>& path);
     int  pbs_settle_time(const vector<vector<int>>& paths) const;
     int  pbs_conflict_horizon(const vector<vector<int>>& paths) const;
     void pbs_final_deconflict(PBSNode* node);
@@ -373,20 +375,20 @@ private:
                                       const vector<vector<pair<int,int>>>& task_groups,
                                       const vector<vector<int>>& cons_paths,
                                       const vector<vector<int>>& old_paths,
-                                      bool use_old_paths);
+                                      bool use_old_paths, int stop_time = INT_MAX);
     vector<int> seq_mla_star(int agent_id, int start_loc, int start_time,
                              const vector<pair<int,int>>& goals,
                              const vector<vector<int>>& cons_paths,
                              const vector<vector<int>>& old_paths,
                              bool use_old_paths,
-                             bool skip_holding = false);
+                             bool skip_holding = false, int stop_time = INT_MAX);
 
     vector<int> sipp_search_impl(int agent_id, int start_loc, int start_time,
                                 const vector<pair<int,int>>& goals,
                                 const vector<vector<int>>& cons_paths,
                                 const vector<vector<int>>& old_paths,
                                 bool use_old_paths,
-                                bool skip_holding = false);
+                                bool skip_holding = false, int stop_time = INT_MAX);
 
     // TP/TPTS ordered-goal low-level planning and endpoint-vacating fallback.
     vector<int> plan_sipp_segments(

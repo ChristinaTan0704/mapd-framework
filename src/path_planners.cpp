@@ -6,10 +6,6 @@ bool PBSPlanner::solve() {
     return simulation_.pbs_solve_impl();
 }
 
-void wPBSPlanner::solve() {
-    simulation_.wpbs_windowed_solve_impl();
-}
-
 ECBSResult ECBSPlanner::solve(const ECBSRequest& request) const {
     CBSSearch search(
         request.grid, request.start_locations, request.goal_locations,

@@ -111,8 +111,8 @@ Exact ties between equally good search nodes follow `--tie_breaking`:
   key only for an exact tie, so different seeds explore different equal-cost
   alternatives. This was the behavior from `e584564` until this option existed.
 
-The rule applies to STA*, assignment-cost A*, dummy-path A*, MLA*, MLSIPP,
-CBS/ECBS, and the wPBS search queues. The seed also controls LNS in both modes.
+The rule applies to STA*, assignment-cost A*, dummy-path A*, MLA*, MLSIPP and
+CBS/ECBS. The seed also controls LNS in both modes.
 
 ```bash
 python3 scripts/run_server_matrix.py \
