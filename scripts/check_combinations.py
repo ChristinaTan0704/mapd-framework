@@ -30,8 +30,8 @@ PRESETS = ("TP", "TPTS", "HBH_MLA", "CENTRAL-CBS", "CENTRAL-fixed",
            "HUNGARIAN_PBS", "HUNGARIAN_wPBS", "LNS_PBS", "LNS_wPBS",
            "TA_PRIORITIZED", "TA_HYBRID")
 OFFLINE_ONLY = {"TA_PRIORITIZED", "TA_HYBRID"}
-MAPF = ("default", "PP", "PP_TASK_SEQUENCE", "CBS", "PBS", "wPBS")
-SINGLE_AGENT = ("default", "STA", "MLA", "MLSIPP", "SIPP2")
+MAPF = (None, "PP", "PP_TASK_SEQUENCE", "CBS", "PBS", "wPBS")
+SINGLE_AGENT = (None, "STA", "MLA", "MLSIPP", "SIPP2")
 ENDPOINTS = ("WAIT_OR_NEAREST_SAFE", "WAIT_OR_NEAREST_FREE_NONTASK",
              "NEAREST_AVAILABLE", "NEAREST_WITH_STRICT_EXCLUSIONS",
              "PAIRWISE_TASK_THEN_HOME", "RETURN_TO_HOME")
@@ -44,9 +44,11 @@ def combinations() -> list[tuple[str, list[str]]]:
     for preset in PRESETS:
         for mapf in MAPF:
             for sa in SINGLE_AGENT:
-                jobs.append((preset, ["--mapf", mapf, "--single_agent", sa]))
+                jobs.append((preset, (["--mapf", mapf] if mapf else []) +
+                                     (["--single_agent", sa] if sa else [])))
         jobs += [(preset, ["--endpoint_strategy", e]) for e in ENDPOINTS]
         jobs += [(preset, ["--mode", m]) for m in MODES]
+        jobs += [(preset, ["--dummy_path", d]) for d in ("0", "1")]
     return jobs
 
 

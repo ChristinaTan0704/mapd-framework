@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <boost/program_options.hpp>
 #include "simulation.h"
+#include "config_names.h"
 
 namespace po = boost::program_options;
 using namespace std;
@@ -12,50 +13,22 @@ void set_parameters(MAPDConfig& config, const po::variables_map& vm)
 {
     config = get_preset(vm["algo"].as<string>());
 
-    if (vm.count("mode")) {
-        string mode = vm["mode"].as<string>();
-        if (mode == "ONLINE") config.mode = MODE_ONLINE;
-        else if (mode == "OFFLINE") config.mode = MODE_OFFLINE;
-        else if (mode == "SEMI_ONLINE") config.mode = MODE_SEMI_ONLINE;
-        else
-            throw invalid_argument(
-                "mode must be ONLINE, OFFLINE, or SEMI_ONLINE");
-    }
+    // Component overrides; an option that is not given keeps the preset value.
+    auto override_enum = [&](const char* option, auto& field) {
+        if (vm.count(option))
+            field = parse_enum<decay_t<decltype(field)>>(option, vm[option].as<string>());
+    };
+    override_enum("assign_method", config.assign_method);
+    override_enum("assign_trigger", config.assign_trigger);
+    override_enum("mapf", config.mapf);
+    override_enum("single_agent", config.single_agent);
+    override_enum("endpoint_strategy", config.endpoint_strategy);
+    override_enum("mode", config.mode);
+    override_enum("tie_breaking", config.tie_breaking);
+    override_enum("cbs_conflict_selection", config.cbs_conflict_selection);
+    if (vm.count("dummy_path"))
+        config.dummy_path = vm["dummy_path"].as<int>() != 0;
 
-
-    string sa = vm["single_agent"].as<string>();
-    if (sa == "MLA") config.single_agent = SA_MLA_SEQUENCE;
-    else if (sa == "MLSIPP" || sa == "SIPP") config.single_agent = SA_MLSIPP_SEQUENCE;
-    else if (sa == "SIPP2" || sa == "2SEG_SIPP")
-        config.single_agent = SA_SIPP_SEGMENTS;
-    else if (sa == "STA") config.single_agent = SA_STA_TASK_EP;
-    string mf = vm["mapf"].as<string>();
-    if (mf == "PBS") config.mapf = MAPF_PBS;
-    else if (mf == "wPBS") config.mapf = MAPF_wPBS;
-    else if (mf == "CBS") config.mapf = MAPF_CBS;
-    else if (mf == "PP" || mf == "PP_PER_TASK") config.mapf = MAPF_PP_PER_TASK;
-    else if (mf == "PP_TASK_SEQUENCE") config.mapf = MAPF_PP_TASK_SEQUENCE;
-    else if (mf != "default")
-        throw invalid_argument("unsupported MAPF override: " + mf);
-
-    if (vm.count("endpoint_strategy")) {
-        string strategy = vm["endpoint_strategy"].as<string>();
-        if (strategy == "WAIT_OR_NEAREST_SAFE")
-            config.endpoint_strategy = WAIT_OR_NEAREST_SAFE;
-        else if (strategy == "RETURN_TO_HOME")
-            config.endpoint_strategy = RETURN_TO_HOME;
-        else if (strategy == "NEAREST_WITH_STRICT_EXCLUSIONS")
-            config.endpoint_strategy = NEAREST_WITH_STRICT_EXCLUSIONS;
-        else if (strategy == "PAIRWISE_TASK_THEN_HOME")
-            config.endpoint_strategy = PAIRWISE_TASK_THEN_HOME;
-        else if (strategy == "WAIT_OR_NEAREST_FREE_NONTASK")
-            config.endpoint_strategy = WAIT_OR_NEAREST_FREE_NONTASK;
-        else if (strategy == "NEAREST_AVAILABLE")
-            config.endpoint_strategy = NEAREST_AVAILABLE;
-        else
-            throw invalid_argument(
-                "unsupported endpoint strategy: " + strategy);
-    }
     config.seed = vm["seed"].as<int>();
     config.runtime_limit_seconds = vm["runtime_limit"].as<int>();
     if (config.runtime_limit_seconds < 0)
@@ -112,25 +85,6 @@ void set_parameters(MAPDConfig& config, const po::variables_map& vm)
         if (config.sta_expansion_limit <= 0)
             throw invalid_argument("sta_expansion_limit must be positive");
     }
-    if (vm.count("cbs_conflict_selection")) {
-        string selection = vm["cbs_conflict_selection"].as<string>();
-        if (selection == "earliest")
-            config.cbs_conflict_selection = CBS_CONFLICT_EARLIEST;
-        else if (selection == "cardinal")
-            config.cbs_conflict_selection = CBS_CONFLICT_CARDINAL;
-        else
-            throw invalid_argument(
-                "cbs_conflict_selection must be earliest or cardinal");
-    }
-    if (vm.count("tie_breaking")) {
-        string rule = vm["tie_breaking"].as<string>();
-        if (rule == "reference")
-            config.tie_breaking = TIE_BREAK_REFERENCE;
-        else if (rule == "random")
-            config.tie_breaking = TIE_BREAK_RANDOM;
-        else
-            throw invalid_argument("tie_breaking must be reference or random");
-    }
     if (vm.count("cbs_bypass"))
         config.cbs_bypass = vm["cbs_bypass"].as<int>() != 0;
     if (vm.count("cbs_target_reasoning"))
@@ -155,27 +109,6 @@ string basename_no_ext(const string& path) {
     return (dot == string::npos) ? name : name.substr(0, dot);
 }
 
-string mapf_name(MAPFMethod m) {
-    switch (m) {
-    case MAPF_CBS: return "CBS";
-    case MAPF_PBS: return "PBS";
-    case MAPF_wPBS: return "wPBS";
-    case MAPF_PP_PER_TASK: return "PP_PER_TASK";
-    case MAPF_PP_TASK_SEQUENCE: return "PP_TASK_SEQUENCE";
-    default: return "PP";
-    }
-}
-
-string sa_name(SingleAgentMethod s) {
-    switch (s) {
-    case SA_MLA_SEQUENCE: return "MLA";
-    case SA_MLSIPP_SEQUENCE: return "MLSIPP";
-    case SA_SIPP_SEGMENTS: return "SIPP2";
-    case SA_STA_TASK_EP: return "STA";
-    default: return "";
-    }
-}
-
 int main(int argc, char** argv)
 {
     po::options_description desc("Allowed options");
@@ -184,10 +117,14 @@ int main(int argc, char** argv)
         ("map,m",          po::value<string>()->required(),            "input map file")
         ("task,t",         po::value<string>()->required(),            "input task file")
         ("algo,a",         po::value<string>()->default_value("TP"),   "algorithm")
-        ("mode",           po::value<string>(),                        "task-information mode: ONLINE, OFFLINE, or SEMI_ONLINE")
-        ("single_agent",   po::value<string>()->default_value("default"), "low-level: STA, MLA, MLSIPP, or SIPP2")
-        ("mapf",           po::value<string>()->default_value("default"), "MAPF override: CBS, PBS, wPBS, PP (or PP_PER_TASK), PP_TASK_SEQUENCE")
-        ("endpoint_strategy", po::value<string>(),                       "endpoint override: WAIT_OR_NEAREST_SAFE, RETURN_TO_HOME, NEAREST_WITH_STRICT_EXCLUSIONS, PAIRWISE_TASK_THEN_HOME, WAIT_OR_NEAREST_FREE_NONTASK, or NEAREST_AVAILABLE")
+        // Component overrides of the preset chosen with --algo.
+        ("assign_method",  po::value<string>(), ("task assignment: " + enum_choices<AssignMethod>()).c_str())
+        ("assign_trigger", po::value<string>(), ("when to assign: " + enum_choices<AssignTrigger>()).c_str())
+        ("mapf",           po::value<string>(), ("MAPF method: " + enum_choices<MAPFMethod>()).c_str())
+        ("single_agent",   po::value<string>(), ("single-agent search: " + enum_choices<SingleAgentMethod>()).c_str())
+        ("endpoint_strategy", po::value<string>(), ("endpoint strategy: " + enum_choices<EndpointStrategy>()).c_str())
+        ("dummy_path",     po::value<int>(),    "1 = append a path to the chosen endpoint after the last task, 0 = stop at the last goal")
+        ("mode",           po::value<string>(), ("task-information mode: " + enum_choices<Mode>()).c_str())
         ("seed",           po::value<int>()->default_value(0),         "general RNG seed (>=0 deterministic, <0 = time(NULL))")
         ("tie_breaking",   po::value<string>(),                        "search-node ties: reference (original implementations) or random (--seed) (default reference)")
         ("runtime_limit",  po::value<int>()->default_value(1000),      "whole-run wall-clock limit in seconds; 0 disables")
@@ -259,10 +196,9 @@ int main(int argc, char** argv)
         cout << "Map: " << map_file << endl;
         cout << "Task: " << task_file << endl;
         cout << "Algorithm: " << algorithm_name << endl;
-        string sa_override = vm["single_agent"].as<string>();
-        string mf_override = vm["mapf"].as<string>();
-        if (sa_override != "default") cout << "Single-agent: " << sa_override << endl;
-        if (mf_override != "default") cout << "MAPF: " << mf_override << endl;
+        if (vm.count("single_agent"))
+            cout << "Single-agent: " << vm["single_agent"].as<string>() << endl;
+        if (vm.count("mapf")) cout << "MAPF: " << vm["mapf"].as<string>() << endl;
         if (vm.count("endpoint_strategy"))
             cout << "Endpoint strategy: "
                  << vm["endpoint_strategy"].as<string>() << endl;
@@ -319,12 +255,9 @@ int main(int argc, char** argv)
         string map_name = basename_no_ext(map_file);
         string task_name = basename_no_ext(task_file);
         string algo = algorithm_name;
-        string sa_str = vm["single_agent"].as<string>();
-        string mf_str = vm["mapf"].as<string>();
-
         string filename = algo;
-        if (sa_str != "default") filename += "_sa-" + sa_str;
-        if (mf_str != "default") filename += "_mapf-" + mf_str;
+        if (vm.count("single_agent")) filename += "_sa-" + vm["single_agent"].as<string>();
+        if (vm.count("mapf")) filename += "_mapf-" + vm["mapf"].as<string>();
         if (lns_imp_rounds > 0)
             filename += "_lnsimp-" + to_string(lns_imp_rounds) + "g" + to_string(lns_imp_group);
         filename += "_" + map_name + "_" + task_name + ".txt";

@@ -16,6 +16,7 @@
 /inc/*
 !/inc/cbs.h
 !/inc/config.h
+!/inc/config_names.h
 !/inc/map_loader.h
 !/inc/path_planners.h
 !/inc/simulation.h

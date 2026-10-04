@@ -21,6 +21,7 @@ REQUIRED = {
     "history/2026-08-24_linux_server_handover.md",
     "inc/cbs.h",
     "inc/config.h",
+    "inc/config_names.h",
     "inc/map_loader.h",
     "inc/path_planners.h",
     "inc/simulation.h",
