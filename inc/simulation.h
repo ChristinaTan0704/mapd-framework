@@ -299,9 +299,6 @@ private:
     DummyEndpointRequest make_ta_endpoint_request(
         int agent_id, int reference_location,
         const vector<int>& reserved_endpoints, bool fixed_home_only) const;
-    DummyEndpointRequest make_pairwise_endpoint_request(
-        int agent_id, int reference_location,
-        const vector<int>& reserved_endpoints) const;
     int choose_dummy_endpoint(EndpointStrategy strategy,
                               const DummyEndpointRequest& request);
     vector<vector<pair<int,int>>> split_into_task_groups(

@@ -1999,19 +1999,6 @@ DummyEndpointRequest Simulation::make_ta_endpoint_request(
     return request;
 }
 
-DummyEndpointRequest Simulation::make_pairwise_endpoint_request(
-    int agent_id, int reference_location,
-    const vector<int>& reserved_endpoints) const {
-    // wPBS's own pairwise policy reads only the reserved endpoints. Policies
-    // that read the forbidden set (NEAREST_AVAILABLE) need the same facts as
-    // PBS: repeated Hungarian defers a task whose goal is an occupied parking
-    // endpoint, so parking must avoid open-task goals, other agents' task
-    // goals, and other agents' current parking endpoints, or the deferred task
-    // waits forever.
-    return make_sequence_endpoint_request(
-        agent_id, reference_location, reserved_endpoints, false);
-}
-
 // Unified endpoint/parking selector. In the loaded map, task endpoints have
 // Endpoint::is_task_endpoint=true and parking/home endpoints have false. Every
 // supported algorithm delegates its explicit parking/relocation choice to this
@@ -6825,49 +6812,7 @@ void Simulation::wpbs_windowed_solve_impl() {
     std::vector<int> start_locs(num_ag);
     for (int i = 0; i < num_ag; i++) start_locs[i] = (int)agents[i].loc;
 
-    // --- Build task-goal part per agent (identical to build_goal_sequences)
-    //     with ABSOLUTE release times and the configured task limit. ---
-    std::vector<std::vector<std::pair<int,int>>> goal_seqs(num_ag);
-    const int task_truncated_size = config.task_sequence_limit;
-    for (int i = 0; i < num_ag; i++) {
-        int current_task_count = 0;
-        for (int tid : agents[i].task_sequence) {
-            if (current_task_count >= task_truncated_size) break;
-            Task& task = all_tasks[tid];
-            int start_goal = (tid == agents[i].current_task)
-                ? agents[i].current_goal_index : 0;
-            for (int g = start_goal; g < (int)task.goals.size(); g++)
-                goal_seqs[i].push_back({task.goals[g], g == 0 ? task.release_time : 0});
-            current_task_count++;
-        }
-    }
-
-    if (config.dummy_path) {
-        vector<int> assigned_dummies(num_ag, -1);
-        // Non-free agents first, then free agents (matches reference ordering).
-        for (int i = 0; i < num_ag; i++) {
-            if (goal_seqs[i].empty()) continue;
-            int last_loc = goal_seqs[i].back().first;
-            int dummy = choose_dummy_endpoint(config.endpoint_strategy,
-                make_pairwise_endpoint_request(
-                i, last_loc, assigned_dummies));
-            goal_seqs[i].push_back({dummy, 0});
-            assigned_dummies[i] = dummy;
-        }
-        for (int i = 0; i < num_ag; i++) {
-            if (!goal_seqs[i].empty()) continue;
-            int last_loc = start_locs[i];
-            int dummy = choose_dummy_endpoint(config.endpoint_strategy,
-                make_pairwise_endpoint_request(
-                i, last_loc, assigned_dummies));
-            goal_seqs[i].push_back({dummy, 0});
-            assigned_dummies[i] = dummy;
-        }
-    } else {
-        for (int i = 0; i < num_ag; i++)
-            if (goal_seqs[i].empty())
-                goal_seqs[i].push_back({start_locs[i], 0});
-    }
+    std::vector<std::vector<std::pair<int,int>>> goal_seqs = build_goal_sequences();
 
     // --- Run the native windowed integrated solve (mapd_map-backed). ---
     std::vector<std::vector<int>> out_paths;
