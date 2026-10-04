@@ -91,41 +91,43 @@ std::vector<Support> supported_rows() {
          EITHER},
     };
     // Methods that only assign tasks feed the same planners: repeated
-    // Hungarian with or without LNS, TP, TPTS and HBH whenever planning is a
-    // separate step (replan_on is set), and CENTRAL. PBS, PP and CBS plan the
-    // selected agents' goal sequences with any single-agent search. CBS plans
-    // the agents whose goals changed: one CBS over every agent's goal
-    // sequence at every event hits exponential plateaus with 50 agents.
+    // Hungarian with or without LNS, and TP, TPTS and HBH whenever planning is
+    // a separate step (replan_on is set). PBS, PP and CBS plan the selected
+    // agents' goal sequences with any single-agent search. CBS plans the
+    // agents whose goals changed: one CBS over every agent's goal sequence at
+    // every event hits exponential plateaus with 50 agents.
+    const std::vector<AssignTrigger> triggers = {ON_EVENT, AT_EVERY_TIMESTEP};
     for (AssignMethod method : {AM_REPEATED_HUNGARIAN, AM_REPEATED_HUNGARIAN_LNS,
                                 AM_DECOUPLED_GREEDY, AM_DECOUPLED_GREEDY_SWAPS,
-                                AM_CENTRALIZED_GREEDY, AM_CENTRAL_HUNGARIAN}) {
-        const std::vector<AssignTrigger> triggers = {ON_EVENT, AT_EVERY_TIMESTEP};
-        // CENTRAL matches released tasks only, so no search waits for a
-        // pickup far in the future, and it parks idle agents itself, so CBS
-        // and wPBS need no dummy path (PBS and PP cannot route around agents
-        // holding their deliveries). An agent plans its matched pickup only,
-        // so a replan must follow when it gets there.
-        const bool central = method == AM_CENTRAL_HUNGARIAN;
-        const std::vector<Mode> modes = central ? ALL_MODES : NOT_OFFLINE;
-        const std::vector<int> replans = central ? WITH_SEGMENTS : ANY_REPLAN;
-        const std::vector<bool> dummy_paths = central ? EITHER : WITH_DUMMY;
-        for (MAPFMethod mapf : {MAPF_PBS, MAPF_PP_PER_TASK})
-            rows.push_back({method, mapf, triggers, replans, EITHER_SELECTION, ANY_SEARCH,
-                            FLEXIBLE_ENDPOINTS, modes, WITH_DUMMY});
-        rows.push_back({method, MAPF_CBS, triggers, replans, CHANGED, ANY_SEARCH,
-                        FLEXIBLE_ENDPOINTS, modes, dummy_paths});
+                                AM_CENTRALIZED_GREEDY}) {
+        rows.push_back({method, MAPF_PBS, triggers, ANY_REPLAN, EITHER_SELECTION,
+                        ANY_SEARCH, FLEXIBLE_ENDPOINTS, NOT_OFFLINE, WITH_DUMMY});
         rows.push_back({method, MAPF_wPBS, triggers, WITH_REFRESH, ALL, WINDOWED_SEARCH,
-                        WINDOWED_ENDPOINTS, ALL_MODES, dummy_paths});
+                        WINDOWED_ENDPOINTS, ALL_MODES, WITH_DUMMY});
+        rows.push_back({method, MAPF_PP_PER_TASK, triggers, ANY_REPLAN, EITHER_SELECTION,
+                        ANY_SEARCH, FLEXIBLE_ENDPOINTS, NOT_OFFLINE, WITH_DUMMY});
+        rows.push_back({method, MAPF_CBS, triggers, ANY_REPLAN, CHANGED, ANY_SEARCH,
+                        FLEXIBLE_ENDPOINTS, NOT_OFFLINE, WITH_DUMMY});
     }
+    // CENTRAL matches released tasks only, so no search waits for a pickup
+    // far in the future, and it parks idle agents itself, so they need no
+    // dummy path. An agent is planned to its matched pickup only, so a replan
+    // must follow when it gets there. The strict policy parks only on task
+    // endpoints, where idle agents crowd the tasks and CBS stalls with 50
+    // agents; PBS and PP deadlock with 50 agents under its rematching.
+    const std::vector<EndpointStrategy> central_parking = {NEAREST_AVAILABLE, RETURN_TO_HOME};
+    rows.push_back({AM_CENTRAL_HUNGARIAN, MAPF_CBS, triggers, WITH_SEGMENTS, CHANGED,
+                    ANY_SEARCH, central_parking, ALL_MODES, EITHER});
+    rows.push_back({AM_CENTRAL_HUNGARIAN, MAPF_wPBS, triggers, WITH_REFRESH, ALL,
+                    WINDOWED_SEARCH, {PAIRWISE_TASK_THEN_HOME, NEAREST_AVAILABLE, RETURN_TO_HOME},
+                    ALL_MODES, EITHER});
     // The LKH3 task sequences can be planned a few tasks at a time like any
     // other assignment; the plan is refreshed as agents work through them.
-    // (Not by PBS or PP: the tour needs OFFLINE. CBS manages because its
-    // tasks are all released at time 0.)
+    // (Not by PBS or PP: the tour needs OFFLINE. Not by CBS: every agent
+    // starts a sequence at time 0, a CBS over 50 agents' sequences stalls.)
     const std::vector<AssignTrigger> tour_triggers = {AT_ONCE, ON_EVENT};
     rows.push_back({AM_LKH3_TSP, MAPF_wPBS, tour_triggers, WITH_REFRESH, ALL, WINDOWED_SEARCH,
                     WINDOWED_ENDPOINTS, {MODE_OFFLINE}, WITH_DUMMY});
-    rows.push_back({AM_LKH3_TSP, MAPF_CBS, tour_triggers, ANY_REPLAN, CHANGED,
-                    ANY_SEARCH, FLEXIBLE_ENDPOINTS, {MODE_OFFLINE}, WITH_DUMMY});
     return rows;
 }
 

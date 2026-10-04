@@ -14,8 +14,8 @@ struct Task;
 // CBS constraints on one agent, in absolute timesteps: (loc, -1, t) it is not
 // at loc at t, (loc, -2, t) it is never at loc from t on, and (from, to, t) it
 // does not move from `from` at t to `to` at t + 1. The other CBS agents' paths
-// (starting at `start`) are soft: equally short paths that meet them less are
-// preferred, as in ECBS.
+// (starting at `start`; referenced, so they must outlive the table) are soft:
+// equally short paths that meet them less are preferred, as in ECBS.
 class CBSConstraintTable {
 public:
     CBSConstraintTable(const std::vector<std::tuple<int,int,int>>& constraints,
