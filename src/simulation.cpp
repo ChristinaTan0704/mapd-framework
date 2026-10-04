@@ -355,22 +355,35 @@ bool Simulation::agent_needs_next_segment() const {
 // --- Path_Planning() : switch on mapf ---
 // A planner that replans only the changed agents (select_agents) records them
 // in last_planned_. If it fails, or their new paths clash with a path that was
-// kept, every agent is replanned. A planner that still fails has left the
-// agents it could not plan on their committed paths, which stay collision-free;
-// it plans again at the next timestep.
+// kept, every agent is replanned; PBS then falls back to prioritized planning.
+// A planner that still fails leaves the agents it could not plan on their
+// committed paths, which stay collision-free (after a clash, every agent goes
+// back to its path from before this replan), and plans again at the next
+// timestep.
 void Simulation::path_planning(bool assignment_triggered) {
+    const vector<vector<unsigned int>> committed = path_table_;
     last_planned_.clear();
     bool solved = plan_paths(assignment_triggered);
-    if (config.agent_selection == SELECT_CHANGED &&
-        (!solved || (!last_planned_.empty() && kept_paths_conflict()))) {
+    const bool clash = !last_planned_.empty() && kept_paths_conflict();
+    if (!solved || clash) {
         select_all_ = true;
-        solved = plan_paths(assignment_triggered);
+        if (config.agent_selection == SELECT_CHANGED)
+            solved = plan_paths(assignment_triggered);
+        if (!solved && (config.mapf == MAPF_PBS || config.mapf == MAPF_wPBS))
+            solved = path_planning_pp();
         select_all_ = false;
     }
     replan_pending_ = !solved;
-    if (!solved)
-        cerr << "Warning: " << enum_name(config.mapf) << " could not plan every agent at t="
-             << cur_time_ << "; the others keep their paths until the next timestep" << endl;
+    if (solved) return;
+    cerr << "Warning: " << enum_name(config.mapf) << " could not plan every agent at t="
+         << cur_time_ << "; they keep their paths until the next timestep" << endl;
+    has_plan_.assign(agents.size(), false);   // the next replan plans every agent
+    if (!clash) return;
+    path_table_ = committed;
+    for (int i = 0; i < (int)agents.size(); i++) {
+        agents[i].path = committed[i];
+        agents[i].finish_time = path_end_time(i);
+    }
 }
 
 // Whether a replanned agent now collides with an agent whose path was kept.
@@ -3503,17 +3516,33 @@ struct CompareTADummyNode {
         return lhs->tie_breaker > rhs->tie_breaker;
     }
 };
+
+// The last time a constraint path or vertex constraint occupies `cell` (-1 if
+// none): an agent can stay there for good from then on.
+int last_occupied(const vector<vector<int>>& constraint_paths,
+                  const vector<tuple<int,int,int>>& cbs_constraints, int cell) {
+    int last = -1;
+    for (const vector<int>& constraint : constraint_paths)
+        for (int t = (int)constraint.size() - 1; t > last; t--)
+            if (constraint[t] == cell) { last = t; break; }
+    for (const auto& constraint : cbs_constraints)
+        if (get<1>(constraint) < 0 && get<0>(constraint) == cell)
+            last = max(last, get<2>(constraint));
+    return last;
+}
 }
 
 // Space-time A* whose accepted path reaches goal_loc and then the selected
 // endpoint. The second leg is the dummy path and may have zero length.
+// hold_from is last_occupied() of the endpoint, computed here if not given.
 int Simulation::astar_with_dummy(
         Agent& agent, int start_loc, int start_time,
         int goal_loc, int endpoint_loc,
         const vector<int>& goal_h, const vector<int>& endpoint_h,
         const vector<vector<int>>& constraint_paths,
         int release_time, bool goal_optimal,
-        const vector<tuple<int,int,int>>& cbs_constraints, int stop_time) {
+        const vector<tuple<int,int,int>>& cbs_constraints, int stop_time,
+        int hold_from) {
     const int map_size = mapd_map.row * mapd_map.col;
     const int max_time = (int)maxtime;
     const int relative_release = max(0, release_time - start_time);
@@ -3532,13 +3561,8 @@ int Simulation::astar_with_dummy(
     open.push(&nodes.back());
 
     // The endpoint can be held from the last time a constraint occupies it.
-    int hold_from = -1;
-    for (const vector<int>& constraint : constraint_paths)
-        for (int t = (int)constraint.size() - 1; t > hold_from; t--)
-            if (constraint[t] == endpoint_loc) { hold_from = t; break; }
-    for (const auto& constraint : cbs_constraints)
-        if (get<1>(constraint) < 0 && get<0>(constraint) == endpoint_loc)
-            hold_from = max(hold_from, get<2>(constraint));
+    if (hold_from == INT_MIN)
+        hold_from = last_occupied(constraint_paths, cbs_constraints, endpoint_loc);
 
     // Write the path to `last` (held afterwards) into agent.path; returns the
     // goal arrival, or stop_time when a windowed search ends before the goal.
@@ -3803,8 +3827,11 @@ void Simulation::pbs_build_context() {
     // every committed plan is active until then and constant afterwards.
     // Sizing the per-node path tables to that window (instead of the full
     // horizon) shrinks every node copy and the conflict scan; the constant tail
-    // is restored on commit.
-    pbs_.work_len = min(pbs_.max_t, pbs_.last_release + 512 + 16);
+    // is restored on commit. The tables also cover every committed move.
+    int last_move = (int)cur_time_;
+    for (int i = 0; i < pbs_.num_ag; i++)
+        last_move = max(last_move, (int)path_end_time(i));
+    pbs_.work_len = min(pbs_.max_t, max(pbs_.last_release + 512 + 16, last_move + 1));
 
     pbs_.old_paths.assign(pbs_.num_ag, {});
     for (int i = 0; i < pbs_.num_ag; i++) {
@@ -3880,10 +3907,14 @@ void Simulation::pbs_build_shared_old_table() {
 vector<int> Simulation::pbs_plan_agent(int agent_id, const vector<vector<int>>& cons_paths,
                                        const vector<vector<int>>& old_paths, bool use_old) {
     const bool windowed = pbs_.window != INT_MAX;
-    return plan_single_agent({agent_id, (int)agents[agent_id].loc, (int)cur_time_,
-                              pbs_.task_groups[agent_id], cons_paths, old_paths,
-                              use_old && !windowed,
-                              windowed ? (int)cur_time_ + pbs_.window : INT_MAX});
+    vector<int> path = plan_single_agent({agent_id, (int)agents[agent_id].loc, (int)cur_time_,
+                                          pbs_.task_groups[agent_id], cons_paths, old_paths,
+                                          use_old && !windowed,
+                                          windowed ? (int)cur_time_ + pbs_.window : INT_MAX});
+    // A path still moving beyond the node tables cannot be checked: not found.
+    for (int t = pbs_.work_len; t < (int)path.size(); t++)
+        if (path[t] != path[t - 1]) return {};
+    return path;
 }
 
 // The other agents' old paths, which stay in the table (reference find_path);
@@ -4154,6 +4185,7 @@ bool Simulation::pbs_resolve_cascade(PBSNode* node, int replanned_agent, const P
 // each agent's final cell out to the full horizon.
 void Simulation::pbs_commit(const PBSNode* node) {
     for (int i = 0; i < pbs_.num_ag; i++) {
+        if (!pbs_.planned[i]) continue;   // keeps its committed path
         int plen = (int)node->paths[i].size();
         int hold = node->paths[i][min(plen, pbs_.max_t) - 1];
         for (int t = 0; t < pbs_.max_t; t++) {
@@ -4659,11 +4691,13 @@ vector<int> Simulation::plan_sequential_sta(const SingleAgentRequest& request,
     Agent probe = agents[request.agent_id];   // receives the path
     const int endpoint = goals.back().first;
     const vector<int>& endpoint_h = distances_to(endpoint);
+    const int hold_from = last_occupied(constraints, {}, endpoint);   // shared by the legs
     int location = request.start_loc;
     int time = request.start_time;
     auto leg = [&](int goal, const vector<int>& goal_h, int release, bool goal_optimal) {
         return astar_with_dummy(probe, location, time, goal, endpoint, goal_h, endpoint_h,
-                                constraints, release, goal_optimal, {}, request.stop_time);
+                                constraints, release, goal_optimal, {}, request.stop_time,
+                                hold_from);
     };
 
     const int legs = (int)goals.size() - 1 + (goals.back().second > time);

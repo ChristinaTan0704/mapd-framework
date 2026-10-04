@@ -193,7 +193,8 @@ python3 scripts/check_combinations.py --max-parallel 5
 
 It also runs every planner with releases far ahead of the agents (every task
 known upfront, or 1000 release batches ahead, on `kiva-0.2`), fed by repeated
-Hungarian and by the LKH3 tour, with 10 and 50 agents.
+Hungarian (10 agents), TP's greedy assignment (50 agents) and the LKH3 tour
+(10 and 50 agents).
 
 It also runs every method on ten committed tasks containing five ordered goals
 each:
@@ -401,7 +402,7 @@ options override. The experiment scripts run the configuration files.
 |---|---|---|---|---|
 | 1 | When to call task assignment | `--assign_trigger` | `ON_FREE_WAITS`<br>`EVERY_TIMESTEP`<br>`ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE` (alias `ON_NEW_TASK_OR_AGENT_BECOMES_FREE`)<br>`ONCE` | `ON_FREE_WAITS` only with `--replan_on NONE` (TP/TPTS/HBH as published).<br>`ONCE` only for LKH3, and needs `OFFLINE`.<br>`EVERY_TIMESTEP` assigns and advances every step, which is slow on large maps. |
 | 2 | Task assignment | `--assign_method` | `DECOUPLED_GREEDY` (TP)<br>`DECOUPLED_GREEDY_SWAPS` (TPTS)<br>`CENTRALIZED_GREEDY` (HBH)<br>`CENTRAL_HUNGARIAN`<br>`REPEATED_HUNGARIAN`<br>`REPEATED_HUNGARIAN_LNS`<br>`LKH3_TSP`<br>`LKH3_TSP_REASSIGN` | `LKH3_*` need `--tour <file>` and `OFFLINE`.<br>`CENTRAL_HUNGARIAN` only with `CBS` and `--dummy_path 0`.<br>`REPEATED_HUNGARIAN(_LNS)` not with `CBS` (agents oscillate).<br>LNS budget is `--lns_time` (wall-clock seconds), so its results vary slightly between runs. |
-| 3 | When to plan paths | `--replan_on` | `NONE`, or a comma-separated set of `AFTER_ASSIGNMENT`, `EVERY_TIMESTEP`, `GOAL_REACHED`, `PERIODIC` (e.g. `AFTER_ASSIGNMENT,PERIODIC`) | `NONE` = plan while assigning; only TP/TPTS/HBH with `ON_FREE_WAITS`.<br>`wPBS` needs `PERIODIC` or `EVERY_TIMESTEP`; so do `PBS` and `PP` with `LKH3_TSP` (they plan only the next tasks of a tour).<br>`CBS` needs `GOAL_REACHED` or `EVERY_TIMESTEP`.<br>A planner that fails also replans at the next timestep. |
+| 3 | When to plan paths | `--replan_on` | `NONE`, or a comma-separated set of `AFTER_ASSIGNMENT`, `EVERY_TIMESTEP`, `GOAL_REACHED`, `PERIODIC` (e.g. `AFTER_ASSIGNMENT,PERIODIC`) | `NONE` = plan while assigning; only TP/TPTS/HBH with `ON_FREE_WAITS`.<br>`wPBS` needs `PERIODIC` or `EVERY_TIMESTEP`; so do `PBS` and `PP` with `LKH3_TSP` (they plan only the next tasks of a tour).<br>`PP_TASK_SEQUENCE` with `LKH3_TSP`: `AFTER_ASSIGNMENT` only (replanning whole tours at every goal or period is too slow).<br>`CBS` needs `GOAL_REACHED` or `EVERY_TIMESTEP`.<br>A planner that fails also replans at the next timestep. |
 | 4 | Which agents to plan | `--agent_selection` | `ALL`<br>`CHANGED` | `wPBS`: `ALL` only.<br>`CBS`, TA-Hybrid and TP/TPTS/HBH as published: `CHANGED` only.<br>`PBS`, `PP` and `PP_TASK_SEQUENCE`: either. |
 | 5 | High-level planner | `--mapf` | `PP` (alias `PP_PER_TASK`)<br>`PP_TASK_SEQUENCE`<br>`CBS`<br>`PBS`<br>`wPBS`<br>`TA_HYBRID_TWO_GROUP` | `PBS`/`wPBS` plan the first `--task_sequence_limit` tasks (default 2; the Excel originals used 1); repeated Hungarian/LNS keep that many tasks per agent for every planner but `PP` (one).<br>`PP_TASK_SEQUENCE` plans every agent's whole sequence and tentatively plans every remaining agent at each priority level (n(n+1)/2 searches per plan).<br>`PP`, `PP_TASK_SEQUENCE`, `PBS` and `wPBS` combine with every assignment except `CENTRAL_HUNGARIAN` and `LKH3_TSP_REASSIGN`, and run in every mode.<br>`TA_HYBRID_TWO_GROUP` only with `LKH3_TSP_REASSIGN`. |
 | 5.1 | wPBS window | `--wpbs_replan_window` | integer, default 10 | At least 2 for `wPBS`.<br>Also the `PERIODIC` replan interval for any planner. |
@@ -418,9 +419,10 @@ General:
   values that work; the full rules are in `src/config_validate.cpp`.
 - `mapd` exits with status 2 when the collision or task-order check fails;
   check the exit status in scripts.
-- A planner that cannot plan every agent prints a `Warning:` line: the agents
-  it could not plan keep their committed (collision-free) paths, and it plans
-  again at the next timestep.
+- A planner that cannot plan every agent (after replanning every agent; PBS
+  and wPBS then fall back to prioritized planning) prints a `Warning:` line;
+  the agents it could not plan keep their collision-free committed paths, and
+  it plans again at the next timestep.
 - `./mapd --help` lists every option and its values.
 
 ### Values in detail
@@ -550,11 +552,13 @@ and `ALL`; `PBS` and `PP` plan only the next tasks of an LKH3 tour, so with
 own low level (`STA`), so it needs `GOAL_REACHED` (or `EVERY_TIMESTEP`) and
 `CHANGED`. Repeated Hungarian rematches every task not yet picked up at each
 event, which makes single-goal CBS segments oscillate, so it is not paired with
-`CBS`. `wPBS` needs a window of at least 2. A planner that cannot plan every
-agent (PP's priorities can box an agent in; PBS can exhaust its search) prints
-a warning, leaves those agents on their committed paths, which stay
-collision-free, and plans again at the next timestep. When the collision or
-task-order check fails, `mapd` exits with status 2.
+`CBS`. `PP_TASK_SEQUENCE` replans an LKH3 tour only after the assignment.
+`wPBS` needs a window of at least 2. A planner that cannot plan every agent
+(PP's priorities can box an agent in; PBS can exhaust its search, and then
+falls back to prioritized planning) prints a warning, leaves the agents it
+could not plan on their collision-free committed paths, and plans again at
+the next timestep. When the collision or task-order check fails, `mapd` exits with
+status 2.
 
 ## Algorithm setup
 

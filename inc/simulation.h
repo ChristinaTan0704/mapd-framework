@@ -431,7 +431,7 @@ private:
                          const vector<vector<int>>& constraint_paths,
                          int release_time, bool goal_optimal = true,
                          const vector<tuple<int,int,int>>& cbs_constraints = {},
-                         int stop_time = INT_MAX);
+                         int stop_time = INT_MAX, int hold_from = INT_MIN);
 
     // Reused safe-interval buffers; only cells touched by the previous search
     // are reset, avoiding an O(map size) allocation for every PBS low-level call.

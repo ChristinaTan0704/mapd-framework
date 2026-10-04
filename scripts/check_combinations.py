@@ -10,7 +10,8 @@ trigger, replan events, endpoints), on the kiva map with 10 agents; the
 endpoint and planner axes also run with 50 agents, where crowding exposes
 deadlocks. Every planner also runs with releases far ahead of the agents
 (kiva-0.2 with every task known upfront, or 1000 release batches ahead), fed
-by repeated Hungarian and by the LKH3 tour, with 10 and 50 agents.
+by repeated Hungarian (10 agents), TP's greedy assignment (50 agents) and the
+LKH3 tour (10 and 50 agents).
 A run passes when it
 
   * is rejected immediately (exit 1, "is not supported" / "requires"), or
@@ -58,14 +59,14 @@ PLANNER_SETUPS = (
     ("wPBS", REFRESH, "PAIRWISE_TASK_THEN_HOME"),
     ("CBS", "AFTER_ASSIGNMENT,GOAL_REACHED", "NEAREST_WITH_STRICT_EXCLUSIONS"),
 )
-# Releases far ahead of the agents: the planners fed by repeated Hungarian in
-# both modes, and by the (offline) LKH3 tour; a tour planned a few tasks at a
-# time is refreshed periodically.
+# Releases far ahead of the agents, in both modes: the planners fed by
+# repeated Hungarian with 10 agents and by TP's greedy batch assignment with 50
+# (Hungarian rematching ~500 known tasks at every event outlasts the time
+# limit there), and by the (offline) LKH3 tour; a tour planned a few tasks at
+# a time is refreshed periodically.
 FUTURE_MODES = (("--mode", "OFFLINE"),
                 ("--mode", "SEMI_ONLINE", "--semi_online_lookahead_batches", "1000"))
-FUTURE_HUNGARIAN = (("variants/Hungarian-PBS", "PBS"), ("variants/Hungarian-PBS", "PP"),
-                    ("variants/Hungarian-PBS", "PP_TASK_SEQUENCE"),
-                    ("variants/Hungarian-wPBS", "wPBS"))
+FUTURE_PLANNERS = ("PBS", "PP", "PP_TASK_SEQUENCE", "wPBS")
 FUTURE_TOUR = (("PP_TASK_SEQUENCE", "AFTER_ASSIGNMENT"), ("PP", REFRESH), ("PBS", REFRESH),
                ("wPBS", REFRESH))
 LOG_CAP = 2_000_000
@@ -97,19 +98,24 @@ def combinations() -> list[tuple[str, int, list[str], str]]:
                         "ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE",
                         "--replan_on", replan, "--endpoint_strategy", endpoint,
                         "--agent_selection", selection], frequency))
+    setups = {mapf: (replan, endpoint) for mapf, replan, endpoint in PLANNER_SETUPS}
+    for mapf in FUTURE_PLANNERS:
+        hungarian = "variants/Hungarian-wPBS" if mapf == "wPBS" else "variants/Hungarian-PBS"
+        replan, endpoint = setups[mapf]
+        greedy = ["--assign_trigger", "ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE",
+                  "--replan_on", replan, "--endpoint_strategy", endpoint]
+        for mode in FUTURE_MODES:
+            for selection in ("ALL", "CHANGED"):
+                options = ["--mapf", mapf, *mode, "--agent_selection", selection]
+                jobs.append((hungarian, 10, options, "0.2"))
+                jobs.append(("table1/TP", 50, options + greedy, "0.2"))
+        for sa in SINGLE_AGENT[1:]:
+            jobs.append((hungarian, 10, ["--mapf", mapf, "--mode", "OFFLINE",
+                                         "--single_agent", sa], "0.2"))
     for agents in (10, 50):
-        for config, mapf in FUTURE_HUNGARIAN:
-            for mode in FUTURE_MODES:
-                for selection in ("ALL", "CHANGED"):
-                    jobs.append((config, agents, ["--mapf", mapf, *mode,
-                                                  "--agent_selection", selection], "0.2"))
         for mapf, replan in FUTURE_TOUR:
             jobs.append(("table1/TA-Prioritized", agents,
                          ["--mapf", mapf, "--replan_on", replan], "0.2"))
-    for config, mapf in FUTURE_HUNGARIAN:
-        for sa in SINGLE_AGENT[1:]:
-            jobs.append((config, 10, ["--mapf", mapf, "--mode", "OFFLINE",
-                                      "--single_agent", sa], "0.2"))
     return jobs
 
 

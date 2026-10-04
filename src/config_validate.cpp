@@ -124,7 +124,9 @@ std::vector<Support> supported_rows() {
     // it (by its periodic or per-goal replans); PP_TASK_SEQUENCE plans all of it.
     const std::vector<AssignTrigger> tour_triggers = {AT_ONCE, ON_EVENT};
     const std::vector<Mode> OFFLINE = {MODE_OFFLINE};
-    rows.push_back({AM_LKH3_TSP, MAPF_PP_TASK_SEQUENCE, tour_triggers, ANY_REPLAN,
+    // Replanning complete tours at every goal or period (n(n+1)/2 whole-tour
+    // searches each time) does not finish in reasonable time.
+    rows.push_back({AM_LKH3_TSP, MAPF_PP_TASK_SEQUENCE, tour_triggers, {AFTER},
                     EITHER_SELECTION, ANY_SEARCH, SEQUENCE_ENDPOINTS, OFFLINE, EITHER});
     rows.push_back({AM_LKH3_TSP, MAPF_PP_PER_TASK, tour_triggers, WITH_REFRESH,
                     EITHER_SELECTION, ANY_SEARCH, FLEXIBLE_ENDPOINTS, OFFLINE, WITH_DUMMY});
