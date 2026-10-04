@@ -1996,6 +1996,10 @@ vector<vector<pair<int,int>>> Simulation::build_goal_sequences(const vector<bool
         else                            free_agents.push_back(i);
     }
     for (int i : busy_agents) {
+        if (!config.dummy_path) {   // no path after the last goal
+            assigned_dummies[i] = goal_seqs[i].back().first;
+            continue;
+        }
         int dummy = rest_endpoint(make_sequence_endpoint_request(
             i, goal_seqs[i].back().first, assigned_dummies, true));
         assigned_dummies[i] = dummy;
@@ -2186,8 +2190,9 @@ DummyEndpointRequest Simulation::make_ta_endpoint_request(
 }
 
 // Where an agent rests after its last goal (the request's reference
-// location): with --dummy_path 1 the strategy's endpoint, with 0 the reference
-// location itself unless another agent or task needs that cell.
+// location): with --dummy_path 1 the strategy's endpoint. With 0 no path
+// after the last goal is planned in advance: an idle agent stays where it is
+// unless another agent or task needs that cell.
 int Simulation::rest_endpoint(const DummyEndpointRequest& request) {
     // An idle token-passing agent that already moved to its rest endpoint
     // after its last task does not move again unless it must.
@@ -3919,7 +3924,7 @@ void Simulation::path_planning_pp_per_task() {
         vector<pair<int,int>> goals = task_goals[agent_id];
 
         int last_goal = goals.empty() ? (int)agent.loc : goals.back().first;
-        if (!final_goal_assigned(agent_id)) {
+        if (!final_goal_assigned(agent_id) && (config.dummy_path || goals.empty())) {
             int dummy = rest_endpoint(make_sequence_endpoint_request(
                 agent_id, last_goal, assigned_dummies, true));
             assigned_dummies[agent_id] = dummy;
