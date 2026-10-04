@@ -139,6 +139,10 @@ struct DummyEndpointRequest {
     bool use_safe_relocation_search = false;
     bool parking_endpoints_only = false;
     bool exclude_all_open_goals = false;
+    // PAIRWISE also skips the forbidden endpoints: the plan holds the endpoint
+    // for good (every planner but windowed wPBS), or CENTRAL needs pairwise
+    // distinct destinations.
+    bool avoid_forbidden = false;
 };
 
 // ============================================================================
@@ -275,6 +279,8 @@ private:
     vector<vector<pair<int,int>>> planned_goals_;
     vector<bool> has_plan_;
     vector<bool> last_planned_;    // agents planned by the current replan
+    bool pp_retry_ = false;        // path_planning_pp: retry pass (pp_first_ first)
+    vector<int> pp_first_;
     bool select_all_ = false;      // fall back to replanning every agent
     bool kept_paths_conflict() const;
     bool plan_paths(bool assignment_triggered);
@@ -285,7 +291,7 @@ private:
         int agent_id, int reference_location) const;
     DummyEndpointRequest make_central_endpoint_request(
         int agent_id, int reference_location,
-        const vector<int>& reserved_endpoints) const;
+        const vector<int>& taken) const;
     DummyEndpointRequest make_sequence_endpoint_request(
         int agent_id, int reference_location,
         const vector<int>& reserved_endpoints, bool leave_previous_endpoint) const;
@@ -316,7 +322,8 @@ private:
     bool path_planning_pp();
     void path_planning_ta_hybrid(bool assignment_triggered);
     bool path_planning_pbs();
-    void path_planning_cbs();
+    bool path_planning_cbs();
+    bool retry_pp_failed_first();
     vector<bool> cbs_mdd_singletons(int agent_id, const CBSConstraintTable& constraints,
                                     int cost) const;
     void commit_path(int agent_id, const vector<int>& path);
@@ -439,7 +446,8 @@ private:
                          const vector<vector<int>>& constraint_paths,
                          int release_time, bool goal_optimal = true,
                          const vector<tuple<int,int,int>>& cbs_constraints = {},
-                         int stop_time = INT_MAX, int hold_from = INT_MIN);
+                         int stop_time = INT_MAX, int hold_from = INT_MIN,
+                         const CBSConstraintTable* table = nullptr);
 
     // Reused safe-interval buffers; only cells touched by the previous search
     // are reset, avoiding an O(map size) allocation for every PBS low-level call.

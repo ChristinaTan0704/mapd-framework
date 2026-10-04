@@ -16,7 +16,8 @@
 //        REPEATED_HUNGARIAN_LNS / LKH3_TSP / LKH3_TSP_REASSIGN
 //   3  when to plan paths              --replan_on           should_replan()
 //        set of AFTER_ASSIGNMENT / EVERY_TIMESTEP / GOAL_REACHED / PERIODIC;
-//        NONE = TP, TPTS and HBH plan inside the assignment
+//        WHEN_ASSIGNED (the empty set) = TP, TPTS and HBH plan each agent
+//        inside the assignment
 //   4  which agents to plan            --agent_selection     select_agents()
 //        ALL / CHANGED (the others keep their committed paths)
 //   5  high-level planner              --mapf                plan_paths()
@@ -24,13 +25,13 @@
 //   5.1 window                         --wpbs_replan_window  wPBS = PBS that
 //        plans w steps ahead; also the PERIODIC replan interval
 //   6  low-level planner               --single_agent        plan_single_agent()
-//        STA / MLA / MLSIPP / SIPP2 / SEQ_STA (also CBS's low level);
-//        TA-Hybrid uses its own searches
+//        STA / MLA / MLSIPP / SIPP2 / SEQ_STA (also the low level of CBS
+//        and of TA-Hybrid's carriers)
 //   7  task endpoint                   --endpoint_strategy   choose_dummy_endpoint()
 //        WAIT_OR_NEAREST_SAFE / WAIT_OR_NEAREST_FREE_NONTASK /
 //        NEAREST_AVAILABLE / NEAREST_WITH_STRICT_EXCLUSIONS /
 //        PAIRWISE_TASK_THEN_HOME / RETURN_TO_HOME;
-//        --dummy_path 0/1                                    append_endpoint()
+//        --dummy_path 0/1                                    rest_endpoint()
 //   8  task setup                      --mode                release_tasks()
 //        ONLINE / SEMI_ONLINE / OFFLINE
 //   9  task type                       --task_type           checked in init();
@@ -66,6 +67,7 @@
 #include "cbs.h"
 #include "config_names.h"
 
+#include <deque>
 #include <algorithm>
 #include <chrono>
 #include <climits>
@@ -351,7 +353,9 @@ bool Simulation::agent_needs_next_segment() const {
 // --- Path_Planning() : switch on mapf ---
 // A planner that replans only the changed agents (select_agents) records them
 // in last_planned_. If it fails, or their new paths clash with a path that was
-// kept, every agent is replanned; PBS then falls back to prioritized planning.
+// kept, every agent is replanned; PBS, wPBS and CBS then fall back to
+// prioritized planning, which is retried with the agents it could not plan
+// first (retry_pp_failed_first).
 // A planner that still fails leaves the agents it could not plan on their
 // committed paths, which stay collision-free (after a clash, every agent goes
 // back to its path from before this replan), and plans again at the next
@@ -365,8 +369,11 @@ void Simulation::path_planning(bool assignment_triggered) {
         select_all_ = true;
         if (config.agent_selection == SELECT_CHANGED)
             solved = plan_paths(assignment_triggered);
-        if (!solved && (config.mapf == MAPF_PBS || config.mapf == MAPF_wPBS))
+        if (!solved && (config.mapf == MAPF_PBS || config.mapf == MAPF_wPBS ||
+                        config.mapf == MAPF_CBS))
             solved = path_planning_pp();
+        if (!solved && config.mapf != MAPF_TA_HYBRID_TWO_GROUP)
+            solved = retry_pp_failed_first();
         select_all_ = false;
     }
     replan_pending_ = !solved;
@@ -380,6 +387,32 @@ void Simulation::path_planning(bool assignment_triggered) {
         agents[i].path = committed[i];
         agents[i].finish_time = path_end_time(i);
     }
+}
+
+// Prioritized planning could not plan every agent: plan the agents it missed
+// first, each against the agents planned before it and the kept ones (see
+// path_planning_pp). The retry is kept only if it plans every agent.
+bool Simulation::retry_pp_failed_first() {
+    pp_first_.clear();
+    for (int i = 0; i < (int)last_planned_.size(); i++)
+        if (!last_planned_[i]) pp_first_.push_back(i);
+    if (pp_first_.empty()) return false;
+    const vector<vector<unsigned int>> table = path_table_;
+    const auto goals = planned_goals_;
+    const vector<bool> has_plan = has_plan_, last_planned = last_planned_;
+    pp_retry_ = true;
+    const bool solved = path_planning_pp();
+    pp_retry_ = false;
+    if (solved) return true;
+    path_table_ = table;
+    planned_goals_ = goals;
+    has_plan_ = has_plan;
+    last_planned_ = last_planned;
+    for (int i = 0; i < (int)agents.size(); i++) {
+        agents[i].path = table[i];
+        agents[i].finish_time = path_end_time(i);
+    }
+    return false;
 }
 
 // Whether a replanned agent now collides with an agent whose path was kept.
@@ -410,8 +443,7 @@ bool Simulation::plan_paths(bool assignment_triggered) {
     case MAPF_PP_TASK_SEQUENCE:
         return path_planning_pp();
     case MAPF_CBS:
-        path_planning_cbs();
-        return true;
+        return path_planning_cbs();
     case MAPF_PBS:
     case MAPF_wPBS:
         return path_planning_pbs();
@@ -2080,12 +2112,16 @@ vector<bool> Simulation::select_agents(
         return planned;
     case SELECT_CHANGED: {
         // Cells another task still needs: an agent parked on one must move.
-        unordered_map<int, int> goal_holder;   // location -> agent, -1 = open task
+        // location -> the agent whose goal it is, -1 = an open task's goal,
+        // -2 = the goal of several agents
+        unordered_map<int, int> goal_holder;
         for (const Task* task : open_tasks_)
             for (int goal : task->goals) goal_holder[goal] = -1;
         for (int i = 0; i < num_ag; i++)
-            for (const auto& goal : task_goals[i])
-                if (!goal_holder.count(goal.first)) goal_holder[goal.first] = i;
+            for (const auto& goal : task_goals[i]) {
+                auto holder = goal_holder.emplace(goal.first, i).first;
+                if (holder->second >= 0 && holder->second != i) holder->second = -2;
+            }
         for (int i = 0; i < num_ag; i++) {
             // Reaching goals only shortens the sequence a path was planned for.
             const auto& before = planned_goals_[i];
@@ -2099,7 +2135,7 @@ vector<bool> Simulation::select_agents(
             bool own_goal = any_of(now.begin(), now.end(),
                 [&](const pair<int,int>& goal) { return goal.first == final_cell; });
             bool blocking = holder != goal_holder.end() && holder->second != i &&
-                (holder->second >= 0 || !own_goal);
+                (holder->second != -1 || !own_goal);
             // A path that stops short of the next goal (a windowed plan, say)
             // must be extended.
             bool stuck = !now.empty() && !path_reaches(i, now.front());
@@ -2198,11 +2234,20 @@ DummyEndpointRequest Simulation::make_hbh_endpoint_request(
     return request;
 }
 
+// CENTRAL's destinations (pickups and parking endpoints) are pairwise
+// distinct: `taken` holds those chosen so far, which the endpoint must avoid.
+// An agent that is off an endpoint, or on a taken one, must move.
 DummyEndpointRequest Simulation::make_central_endpoint_request(
-    int agent_id, int reference_location,
-    const vector<int>& reserved_endpoints) const {
-    return {agent_id, reference_location, (int)agents[agent_id].loc,
-        agents[agent_id].initial_loc, reserved_endpoints};
+    int agent_id, int reference_location, const vector<int>& taken) const {
+    DummyEndpointRequest request{agent_id, reference_location,
+        (int)agents[agent_id].loc, agents[agent_id].initial_loc, {}};
+    request.forbidden_endpoints.insert(taken.begin(), taken.end());
+    request.avoid_forbidden = true;
+    request.parking_endpoints_only = request.exclude_all_open_goals =
+        config.endpoint_strategy == WAIT_OR_NEAREST_FREE_NONTASK;
+    request.relocation_required = !mapd_map.is_endpoint[reference_location] ||
+        request.forbidden_endpoints.count(reference_location);
+    return request;
 }
 
 // A re-planned sequence never keeps its previous dummy endpoint when
@@ -2218,6 +2263,7 @@ DummyEndpointRequest Simulation::make_sequence_endpoint_request(
     request.reserved_endpoints = reserved_endpoints;
     request.parking_endpoints_only = request.exclude_all_open_goals =
         config.endpoint_strategy == WAIT_OR_NEAREST_FREE_NONTASK;
+    request.avoid_forbidden = config.mapf != MAPF_wPBS;
     request.relocation_required = !mapd_map.is_endpoint[reference_location] ||
         request.forbidden_endpoints.count(reference_location);
     for (int other = 0; other < (int)reserved_endpoints.size(); other++)
@@ -2362,13 +2408,33 @@ int Simulation::endpoint_nearest_available(const DummyEndpointRequest& request) 
             best_location = endpoint.loc;
         }
     }
-    // Every endpoint taken: the agent's own home, as the strict policy does.
+    if (best_location >= 0) return best_location;
+    // Every endpoint taken: the agent's own home, as the strict policy does,
+    // unless another agent ends there; then the nearest endpoint of any kind
+    // that no other agent ends at.
+    auto reserved_by_other = [&](int location) {
+        for (int other = 0; other < (int)request.reserved_endpoints.size(); other++)
+            if (other != request.agent_id && request.reserved_endpoints[other] == location)
+                return true;
+        return false;
+    };
+    if (!reserved_by_other(request.home_location)) return request.home_location;
+    for (const Endpoint& endpoint : mapd_map.endpoints) {
+        if (reserved_by_other(endpoint.loc)) continue;
+        int distance = endpoint.h_val[last_goal_loc] +
+                       (forbidden.count(endpoint.loc) ? (int)maxtime : 0);
+        if (distance <= best_distance) {
+            best_distance = distance;
+            best_location = endpoint.loc;
+        }
+    }
     return best_location >= 0 ? best_location : request.home_location;
 }
 
 // wPBS: the nearest task endpoint not chosen by another agent (skipping the
 // reference location), then the nearest such parking endpoint; staying is the
-// last resort.
+// last resort. A plan that holds the endpoint for good also skips the
+// endpoints others need (the request's forbidden endpoints).
 int Simulation::endpoint_pairwise(const DummyEndpointRequest& request) const {
     const int last_goal_loc = request.reference_location;
     const vector<int>& reserved = request.reserved_endpoints;
@@ -2378,6 +2444,8 @@ int Simulation::endpoint_pairwise(const DummyEndpointRequest& request) const {
         for (const Endpoint& endpoint : mapd_map.endpoints) {
             if (endpoint.is_task_endpoint != task_endpoint) continue;
             if (endpoint.loc == last_goal_loc) continue;
+            if (request.avoid_forbidden && request.forbidden_endpoints.count(endpoint.loc))
+                continue;
             bool taken = false;
             for (int i = 0; i < (int)reserved.size() && !taken; i++)
                 taken = i != request.agent_id && reserved[i] == endpoint.loc;
@@ -2450,9 +2518,10 @@ vector<vector<pair<int,int>>> Simulation::split_into_task_groups(
 // endpoint. Each high-level node plans one agent with the configured
 // single-agent search under the node's constraints, avoiding the agents that
 // keep their paths (cbs.cpp holds the high level). A focal weight above 1.0
-// makes the high level bounded-suboptimal. If the kept paths leave no
-// solution, every agent is replanned.
-void Simulation::path_planning_cbs() {
+// makes the high level bounded-suboptimal. A failed search reports it;
+// path_planning() then replans every agent, and falls back to prioritized
+// planning.
+bool Simulation::path_planning_cbs() {
     pbs_build_context();
     vector<int> agent_ids;
     for (int i = 0; i < pbs_.num_ag; i++)
@@ -2491,17 +2560,12 @@ void Simulation::path_planning_cbs() {
                      config.ecbs_focal_weight, config.cbs_high_level_expansion_limit,
                      config.cbs_conflict_selection, config.cbs_bypass,
                      config.cbs_target_reasoning, config.cbs_rectangle_reasoning);
-    if (!search.run()) {
-        if (select_all_) throw runtime_error("CBS found no conflict-free paths");
-        select_all_ = true;
-        path_planning_cbs();
-        select_all_ = false;
-        return;
-    }
+    if (!search.run()) return false;
     for (int k = 0; k < (int)agent_ids.size(); k++)
         commit_path(agent_ids[k], search.paths[k]);
     remember_plans(pbs_.planned, pbs_.task_goals);
     start_assigned_tasks();
+    return true;
 }
 
 // ICBS MDD summary of agent_id's goal sequence (see CBSLowLevel): the
@@ -2762,13 +2826,21 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
     const int now = (int)cur_time_;
     const int horizon = (int)maxtime;
 
-    // Every other agent's path ends at its parking endpoint, which stays taken.
-    auto parking_of = [&](int agent_id, int location) {
+    // Where an agent rests after reaching `location` (rest_endpoint: the
+    // strategy's endpoint, or with --dummy_path 0 `location` itself unless it
+    // is needed); one that `must_move` leaves `location`. Every other agent's
+    // path ends at its parking endpoint, which stays taken.
+    auto parking_of = [&](int agent_id, int location, bool must_move) {
         vector<int> reserved(agent_count, -1);
         for (int other = 0; other < agent_count; other++)
             if (other != agent_id) reserved[other] = (int)agents[other].path[horizon - 1];
-        return choose_dummy_endpoint(config.endpoint_strategy,
-            make_ta_endpoint_request(agent_id, location, reserved, true));
+        DummyEndpointRequest request =
+            make_ta_endpoint_request(agent_id, location, reserved, true);
+        if (must_move) {
+            request.relocation_required = true;
+            request.forbidden_endpoints.insert(location);
+        }
+        return rest_endpoint(request);
     };
 
     // The paths that `group` must avoid: the complete path of an idle or held
@@ -2791,12 +2863,13 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
     };
 
     // Reference GoHome() search: a dummy path from the agent's location at
-    // time `start` to its parking endpoint that avoids `constraints`.
+    // time `start` to its parking endpoint that avoids `constraints`. A
+    // re-routed one (`must_move`) leaves that location, where it collided.
     auto plan_dummy_path = [&](int agent_id, int start,
-                               const vector<vector<int>>& constraints) {
+                               const vector<vector<int>>& constraints, bool must_move) {
         vector<unsigned int>& path = agents[agent_id].path;
         int location = path[start];
-        int parking = parking_of(agent_id, location);
+        int parking = parking_of(agent_id, location, must_move);
         vector<int> dummy = plan_ta_dummy_path(
             mapd_map.grid,
             mapd_map.endpoints[mapd_map.ep_index(parking)].h_val,
@@ -2846,7 +2919,7 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                     others.emplace_back(agents[other].path.begin(),
                                         agents[other].path.end());
             if (!plan_dummy_path(agent_id, max(agent.dummy_start_step, now),
-                                 others))
+                                 others, true))
                 failed.push_back(agent_id);
             else
                 settle = max(settle, last_move(agent_id));
@@ -2877,6 +2950,47 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
             picked_up = true;
         }
         return picked_up;
+    };
+
+    // The configured single-agent search (component 6) for the agent's path
+    // through `goal` (not before `release`) on to `parking`, avoiding
+    // `constraints` and the CBS constraints `cbs` (a vertex constraint at its
+    // time, an edge constraint on the move arriving at it); the path is written
+    // to probe.path. Returns the goal arrival, or -1. SEQ_STA is TA-Hybrid's
+    // own search (goal-optimal first if `goal_optimal_first`, as in the
+    // reference); the other searches run through plan_single_agent.
+    auto search_through = [&](Agent& probe, int goal, int release, int parking,
+                              const vector<vector<int>>& constraints,
+                              const vector<tuple<int,int,int>>& cbs,
+                              bool goal_optimal_first) {
+        if (config.single_agent == SA_SEQ_STA) {
+            const vector<int>& goal_h = mapd_map.endpoints[mapd_map.ep_index(goal)].h_val;
+            const vector<int>& parking_h =
+                mapd_map.endpoints[mapd_map.ep_index(parking)].h_val;
+            int arrival = -1;
+            if (goal_optimal_first)
+                arrival = astar_with_dummy(probe, probe.loc, now, goal, parking, goal_h,
+                                           parking_h, constraints, release, true, cbs);
+            if (arrival < 0)
+                arrival = astar_with_dummy(probe, probe.loc, now, goal, parking, goal_h,
+                                           parking_h, constraints, release, false, cbs);
+            return arrival;
+        }
+        vector<tuple<int,int,int>> departures = cbs;   // the table times an edge by its departure
+        for (auto& constraint : departures)
+            if (get<1>(constraint) >= 0) get<2>(constraint)--;
+        const CBSConstraintTable table(departures);
+        const vector<vector<pair<int,int>>> goal_groups = {{{goal, release}}, {{parking, 0}}};
+        const vector<vector<int>> no_old_paths;
+        const vector<int> path = plan_single_agent({probe.id, (int)probe.loc, now, goal_groups,
+            constraints, no_old_paths, false, INT_MAX, cbs.empty() ? nullptr : &table});
+        for (int t = max(now, release); t < (int)path.size() && t < horizon; t++)
+            if (path[t] == goal) {
+                for (int time = now; time < horizon; time++)
+                    probe.path[time] = path[min(time, (int)path.size() - 1)];
+                return t;
+            }
+        return -1;
     };
 
     // ---------------- Group 1: task agents -> next ordered goal ---------
@@ -2911,6 +3025,24 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
             int conflict_time = -1;
         };
 
+        // Each carrier's parking endpoint, chosen in group order: not where
+        // another agent parks (its path's end) or a carrier before it chose.
+        vector<int> group_parking(group1.size());
+        {
+            vector<int> reserved(agent_count, -1);
+            for (int other = 0; other < agent_count; other++)
+                reserved[other] = (int)agents[other].path[horizon - 1];
+            for (int index = 0; index < (int)group1.size(); index++) {
+                const int agent_id = group1[index];
+                const Agent& agent = agents[agent_id];
+                const int goal = all_tasks[agent.current_task].goals[agent.current_goal_index];
+                reserved[agent_id] = -1;
+                group_parking[index] = rest_endpoint(
+                    make_ta_endpoint_request(agent_id, goal, reserved, true));
+                reserved[agent_id] = group_parking[index];
+            }
+        }
+
         auto low_level = [&](int group_index,
                              const vector<tuple<int,int,int>>& constraints,
                              vector<int>& path) {
@@ -2919,42 +3051,17 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
             const Task& task = all_tasks[probe.current_task];
             int goal = task.goals[probe.current_goal_index];
             int goal_endpoint = mapd_map.ep_index(goal);
-            vector<int> reserved(agent_count, -1);
-            int parking = choose_dummy_endpoint(config.endpoint_strategy,
-                make_ta_endpoint_request(
-                agent_id, goal, reserved, true));
+            int parking = group_parking[group_index];
             int parking_endpoint = mapd_map.ep_index(parking);
             if (goal_endpoint < 0 || parking_endpoint < 0)
                 throw runtime_error(
                     "TA-Hybrid Group 1 received a non-endpoint goal");
 
-            int arrival = astar_with_dummy(
-                probe, probe.loc, now, goal, parking,
-                mapd_map.endpoints[goal_endpoint].h_val,
-                mapd_map.endpoints[parking_endpoint].h_val,
-                fixed_paths, 0, true, constraints);
-            if (arrival < 0)
-                arrival = astar_with_dummy(
-                    probe, probe.loc, now, goal, parking,
-                    mapd_map.endpoints[goal_endpoint].h_val,
-                    mapd_map.endpoints[parking_endpoint].h_val,
-                    fixed_paths, 0, false, constraints);
-            if (arrival < 0 &&
-                parking != agents[agent_id].initial_loc) {
-                parking = agents[agent_id].initial_loc;
-                parking_endpoint = mapd_map.ep_index(parking);
-                arrival = astar_with_dummy(
-                    probe, probe.loc, now, goal, parking,
-                    mapd_map.endpoints[goal_endpoint].h_val,
-                    mapd_map.endpoints[parking_endpoint].h_val,
-                    fixed_paths, 0, true, constraints);
-                if (arrival < 0)
-                    arrival = astar_with_dummy(
-                        probe, probe.loc, now, goal, parking,
-                        mapd_map.endpoints[goal_endpoint].h_val,
-                        mapd_map.endpoints[parking_endpoint].h_val,
-                        fixed_paths, 0, false, constraints);
-            }
+            int arrival = search_through(probe, goal, 0, parking, fixed_paths,
+                                         constraints, true);
+            if (arrival < 0 && parking != agents[agent_id].initial_loc)
+                arrival = search_through(probe, goal, 0, agents[agent_id].initial_loc,
+                                         fixed_paths, constraints, true);
             if (arrival < 0) return -1;
             path.assign(probe.path.begin(), probe.path.end());
             return arrival;
@@ -3094,6 +3201,24 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
         vector<int> failed = repair_dummy_paths(group1);
         if (failed.empty()) break;
         for (int agent_id : failed) held[agent_id] = true;
+    }
+
+    // An idle agent (no tasks left) whose path ends on a cell another agent
+    // or task needs moves off it to its rest endpoint, as the other planners'
+    // agent selection moves blocking agents; no group plans it otherwise.
+    for (int agent_id = 0; agent_id < agent_count; agent_id++) {
+        const Agent& agent = agents[agent_id];
+        if (!agent.task_sequence.empty() || agent.status == AG_CARRYING) continue;
+        vector<int> reserved(agent_count, -1);
+        vector<vector<int>> others;
+        for (int other = 0; other < agent_count; other++)
+            if (other != agent_id) {
+                reserved[other] = (int)agents[other].path[horizon - 1];
+                others.emplace_back(agents[other].path.begin(), agents[other].path.end());
+            }
+        if (make_ta_endpoint_request(agent_id, (int)agent.path[horizon - 1], reserved, true)
+                .relocation_required)
+            plan_dummy_path(agent_id, now, others, true);
     }
 
     // Group 2 is recomputed only when assignment ran, which the TA_HYBRID
@@ -3374,10 +3499,7 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                 Task& task = *tasks[target[agent_id]];
                 int pickup = task.goals.front();
                 int pickup_endpoint = mapd_map.ep_index(pickup);
-                vector<int> reserved(agent_count, -1);
-                int parking = choose_dummy_endpoint(config.endpoint_strategy,
-                    make_ta_endpoint_request(
-                    agent_id, pickup, reserved, true));
+                int parking = parking_of(agent_id, pickup, false);
                 int parking_endpoint = mapd_map.ep_index(parking);
                 if (pickup_endpoint < 0 || parking_endpoint < 0)
                     throw runtime_error(
@@ -3390,7 +3512,7 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                             agents[other].path.begin(),
                             agents[other].path.end());
                 int result = plan_dummy_path(
-                    agent_id, arrival[agent_id], constraints)
+                    agent_id, arrival[agent_id], constraints, false)
                     ? arrival[agent_id] : -1;
                 if (result < 0) {
                     // Reference GoHome retries the flow with a later pickup
@@ -3398,23 +3520,12 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                     // this agent's complete current->pickup->home path against
                     // the already fixed paths, allowing STA* to delay pickup
                     // arrival as much as necessary.
-                    result = astar_with_dummy(
-                        agents[agent_id], agents[agent_id].loc, now,
-                        pickup, parking,
-                        mapd_map.endpoints[pickup_endpoint].h_val,
-                        mapd_map.endpoints[parking_endpoint].h_val,
-                        constraints, task.release_time, false);
-                    if (result < 0 &&
-                        parking != agents[agent_id].initial_loc) {
-                        parking = agents[agent_id].initial_loc;
-                        parking_endpoint = mapd_map.ep_index(parking);
-                        result = astar_with_dummy(
-                            agents[agent_id], agents[agent_id].loc, now,
-                            pickup, parking,
-                            mapd_map.endpoints[pickup_endpoint].h_val,
-                            mapd_map.endpoints[parking_endpoint].h_val,
-                            constraints, task.release_time, false);
-                    }
+                    result = search_through(agents[agent_id], pickup, task.release_time,
+                                            parking, constraints, {}, false);
+                    if (result < 0 && parking != agents[agent_id].initial_loc)
+                        result = search_through(agents[agent_id], pickup, task.release_time,
+                                                agents[agent_id].initial_loc, constraints,
+                                                {}, false);
                     if (result >= 0) {
                         arrival[agent_id] = result;
                         continue;
@@ -3448,12 +3559,7 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
             for (int agent_id : fallback_order) {
                 Task& task = *tasks[target[agent_id]];
                 int pickup = task.goals.front();
-                int pickup_endpoint = mapd_map.ep_index(pickup);
-                vector<int> reserved(agent_count, -1);
-                int parking = choose_dummy_endpoint(config.endpoint_strategy,
-                    make_ta_endpoint_request(
-                    agent_id, pickup, reserved, true));
-                int parking_endpoint = mapd_map.ep_index(parking);
+                int parking = parking_of(agent_id, pickup, false);
 
                 vector<vector<int>> constraints = fixed_paths;
                 for (const vector<int>& path : planned_paths)
@@ -3464,21 +3570,12 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                             maxtime, agents[other].initial_loc);
 
                 Agent probe = agents[agent_id];
-                int result = astar_with_dummy(
-                    probe, probe.loc, now, pickup, parking,
-                    mapd_map.endpoints[pickup_endpoint].h_val,
-                    mapd_map.endpoints[parking_endpoint].h_val,
-                    constraints, task.release_time, false);
-                if (result < 0 &&
-                    parking != agents[agent_id].initial_loc) {
-                    parking = agents[agent_id].initial_loc;
-                    parking_endpoint = mapd_map.ep_index(parking);
-                    result = astar_with_dummy(
-                        probe, probe.loc, now, pickup, parking,
-                        mapd_map.endpoints[pickup_endpoint].h_val,
-                        mapd_map.endpoints[parking_endpoint].h_val,
-                        constraints, task.release_time, false);
-                }
+                int result = search_through(probe, pickup, task.release_time, parking,
+                                            constraints, {}, false);
+                if (result < 0 && parking != agents[agent_id].initial_loc)
+                    result = search_through(probe, pickup, task.release_time,
+                                            agents[agent_id].initial_loc, constraints,
+                                            {}, false);
                 if (result < 0) {
                     failed_agent = agent_id;
                     dummy_success = false;
@@ -3595,7 +3692,7 @@ int Simulation::astar_with_dummy(
         const vector<vector<int>>& constraint_paths,
         int release_time, bool goal_optimal,
         const vector<tuple<int,int,int>>& cbs_constraints, int stop_time,
-        int hold_from) {
+        int hold_from, const CBSConstraintTable* table) {
     const int map_size = mapd_map.row * mapd_map.col;
     const int max_time = (int)maxtime;
     const int relative_release = max(0, release_time - start_time);
@@ -3684,7 +3781,10 @@ int Simulation::astar_with_dummy(
                     break;
                 }
             }
+            if (table && table->blocks(current->location, next_location, next_time))
+                constrained = true;
             for (const auto& constraint : cbs_constraints) {
+                if (constrained) break;
                 if (get<2>(constraint) != next_time) continue;
                 int from = get<0>(constraint);
                 int to = get<1>(constraint);
@@ -3729,6 +3829,10 @@ int Simulation::astar_with_dummy(
 // tour, else to the lower agent id). An agent that cannot be planned keeps its
 // committed path, which every agent planned before it has avoided, so the
 // joint plan stays collision-free; the planner then reports the failure.
+// A retry pass (pp_retry_) plans pp_first_ first, and each agent only against
+// the agents planned before it and those not selected: the agents still to be
+// planned move out of its way (two agents standing on each other's next goal
+// cannot both avoid the other's committed path).
 bool Simulation::path_planning_pp() {
     const bool whole_sequence = config.mapf == MAPF_PP_TASK_SEQUENCE;
     const int num_agents = (int)agents.size();
@@ -3751,6 +3855,11 @@ bool Simulation::path_planning_pp() {
     stable_sort(remaining.begin(), remaining.end(), [&](int a, int b) {
         return agents[a].task_sequence.empty() < agents[b].task_sequence.empty();
     });
+    vector<bool> planned(num_agents, false);
+    deque<int> first;   // planned before the others, in this order
+    if (pp_retry_)
+        for (int agent_id : pp_first_)
+            if (selected[agent_id]) first.push_back(agent_id);
 
     struct Plan {
         int agent;
@@ -3767,10 +3876,18 @@ bool Simulation::path_planning_pp() {
         const int loc = (int)agents[agent_id].loc;
 
         // The constraints are the other agents' paths: set the agent's own
-        // aside (their order does not matter to the searches).
-        swap(paths[agent_id], paths.back());
-        vector<int> own = std::move(paths.back());
-        paths.pop_back();
+        // aside (their order does not matter to the searches). A retry pass
+        // also sets aside the agents still to be planned.
+        vector<int> aside;
+        for (int other = 0; other < num_agents; other++)
+            if (other == agent_id || (pp_retry_ && selected[other] && !planned[other]))
+                aside.push_back(other);
+        vector<vector<int>> set_aside(aside.size());
+        for (int k = (int)aside.size() - 1; k >= 0; k--) {
+            swap(paths[aside[k]], paths.back());
+            set_aside[k] = std::move(paths.back());
+            paths.pop_back();
+        }
         Plan result{agent_id, plan_single_agent({agent_id, loc, (int)cur_time_, task_groups,
                                                  paths, no_old_paths, false}),
                     reserved[agent_id], (int)cur_time_};
@@ -3779,8 +3896,10 @@ bool Simulation::path_planning_pp() {
         if (result.path.empty() && config.single_agent == SA_MLSIPP_SEQUENCE)
             result.path = mla_star_taskwise_impl(agent_id, loc, (int)cur_time_, task_groups,
                                                  paths, no_old_paths, false);
-        paths.push_back(std::move(own));
-        swap(paths[agent_id], paths.back());
+        for (int k = 0; k < (int)aside.size(); k++) {
+            paths.push_back(std::move(set_aside[k]));
+            swap(paths[aside[k]], paths.back());
+        }
 
         if (!result.path.empty())
             for (const auto& goal : task_goals[agent_id])
@@ -3791,11 +3910,16 @@ bool Simulation::path_planning_pp() {
         return result;
     };
 
-    vector<bool> planned(num_agents, false);
     while (!remaining.empty()) {
         RuntimeDeadline::check("prioritized planning");
+        const bool forced = !first.empty();
+        if (forced) {
+            remaining.erase(find(remaining.begin(), remaining.end(), first.front()));
+            remaining.insert(remaining.begin(), first.front());
+            first.pop_front();
+        }
         Plan next = plan(remaining.front());
-        if (whole_sequence)
+        if (whole_sequence && !forced)
             for (size_t k = 1; k < remaining.size(); k++) {
                 Plan candidate = plan(remaining[k]);
                 if (candidate.path.empty()) continue;
@@ -4736,7 +4860,8 @@ vector<int> Simulation::plan_single_agent(const SingleAgentRequest& request) {
 // and the next leg starts where this one reached its goal. A final goal that
 // is released later is a leg of its own; without any leg the agent takes a
 // dummy path from its start to the endpoint. Old paths are avoided like the
-// constraint paths.
+// constraint paths, and CBS constraints are obeyed (the endpoint is held only
+// after the last one there).
 vector<int> Simulation::plan_sequential_sta(const SingleAgentRequest& request,
                                             const vector<pair<int,int>>& goals) {
     vector<vector<int>> with_old;
@@ -4749,13 +4874,18 @@ vector<int> Simulation::plan_sequential_sta(const SingleAgentRequest& request,
     Agent probe = agents[request.agent_id];   // receives the path
     const int endpoint = goals.back().first;
     const vector<int>& endpoint_h = distances_to(endpoint);
-    const int hold_from = last_occupied(constraints, {}, endpoint);   // shared by the legs
+    int hold_from = last_occupied(constraints, {}, endpoint);   // shared by the legs
+    if (request.constraints) {
+        const int holdable = request.constraints->holdable_from(endpoint);
+        if (holdable == INT_MAX) return {};
+        hold_from = max(hold_from, holdable - 1);
+    }
     int location = request.start_loc;
     int time = request.start_time;
     auto leg = [&](int goal, const vector<int>& goal_h, int release, bool goal_optimal) {
         return astar_with_dummy(probe, location, time, goal, endpoint, goal_h, endpoint_h,
                                 constraints, release, goal_optimal, {}, request.stop_time,
-                                hold_from);
+                                hold_from, request.constraints);
     };
 
     const int legs = (int)goals.size() - 1 + (goals.back().second > time);
@@ -5305,18 +5435,22 @@ vector<int> Simulation::sipp_search_impl(
                 break;
             }
 
+        // A location of -1 (TA-Hybrid's task paths) constrains nothing.
+        auto occupy = [&](int loc, int begin, int end) {
+            if (loc < 0) return;
+            touch_occupied(loc);
+            occupied[loc].push_back({begin, end});
+        };
         int range_start = 0;
         int range_loc = path[0];
         for (int t = 1; t <= last_change; t++) {
             if (path[t] != range_loc) {
-                touch_occupied(range_loc);
-                occupied[range_loc].push_back({range_start, t});
+                occupy(range_loc, range_start, t);
                 range_loc = path[t];
                 range_start = t;
             }
         }
-        touch_occupied(range_loc);
-        occupied[range_loc].push_back({range_start, horizon});
+        occupy(range_loc, range_start, horizon);
 
         if (constraint_index >= 0) {
             constraint_last_change[constraint_index] = last_change;
@@ -5699,7 +5833,7 @@ vector<int> Simulation::sipp_search_impl(
 // ============================================================================
 
 //  How far the clock may jump depends on how paths are planned:
-//    * planning inside assignment (replan_on NONE) returns to the assignment
+//    * planning inside assignment (replan_on WHEN_ASSIGNED) returns to the assignment
 //      whenever an agent is free (advance_time_tp);
 //    * assigning or replanning at every timestep advances one step at a time;
 //    * otherwise the clock jumps to the next goal arrival, task release or

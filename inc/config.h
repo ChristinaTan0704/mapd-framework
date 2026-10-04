@@ -148,7 +148,7 @@ struct MAPDConfig {
         endpoint_strategy(WAIT_OR_NEAREST_SAFE),
         task_sequence_limit(2), wpbs_replan_window(10), lns_time_limit(1),
         lns_no_improvement_limit(2000), ecbs_focal_weight(1.0),
-        cbs_high_level_expansion_limit(INT_MAX),
+        cbs_high_level_expansion_limit(10000),
         cbs_conflict_selection(CBS_CONFLICT_CARDINAL), cbs_bypass(true),
         cbs_target_reasoning(true), cbs_rectangle_reasoning(true),
         semi_online_lookahead_batches(1) {}

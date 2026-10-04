@@ -483,9 +483,10 @@ bool CBSSearch::run() {
     // hard congested sub-instance (e.g. a delivery agent parked on its goal that another
     // agent must cross — CBS keeps adding ever-later vertex constraints without progress).
     // A real solvable CBS instance in these MAPD sub-problems resolves in a handful of
-    // HL expansions. When the cap is hit, return false to the caller. The
-    // framework default is INT_MAX (effectively uncapped) and can be
-    // overridden from the command line.
+    // HL expansions. When the cap is hit, return false to the caller, which
+    // replans every agent and then falls back to prioritized planning. The
+    // framework default is 10000 (the CENTRAL runs on kiva need at most ~900)
+    // and can be overridden from the command line.
     while (!hl_focal_.empty() && !solution_found) {
         RuntimeDeadline::check_periodic(
             (uint64_t)HL_num_expanded_, "CBS high-level search");

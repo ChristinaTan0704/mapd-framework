@@ -99,7 +99,9 @@ def combinations() -> list[tuple[str, int, str, list[str]]]:
         for agents in (10, 50):
             for mapf, replan, endpoint in PLANNER_SETUPS:
                 for selection in ("ALL", "CHANGED"):
-                    # One CBS over every agent does not finish with 50 agents.
+                    # One CBS over every agent's goal sequence reaches its
+                    # expansion limit at almost every replan with 50 agents
+                    # (then prioritized planning takes over): too slow here.
                     if mapf == "CBS" and selection == "ALL" and agents == 50:
                         continue
                     jobs.append((config, agents, base, [
@@ -114,7 +116,10 @@ def combinations() -> list[tuple[str, int, str, list[str]]]:
             if config not in CENTRAL and mapf != "CBS":
                 continue
             if config in CENTRAL and mapf != "wPBS":
+                # CENTRAL plans an agent to its pickup only, so the delivery
+                # leg needs a GOAL_REACHED replan.
                 endpoint = "NEAREST_AVAILABLE"
+                replan = "AFTER_ASSIGNMENT,GOAL_REACHED"
             setup = ["--mapf", mapf, "--assign_trigger",
                      "ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE", "--replan_on", replan,
                      "--endpoint_strategy", endpoint,
