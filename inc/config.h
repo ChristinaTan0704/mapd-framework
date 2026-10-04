@@ -110,7 +110,9 @@ struct MAPDConfig {
 
     // Algorithm-specific tuning parameters. They are ignored by algorithms
     // that do not use the corresponding planning or assignment component.
-    int task_sequence_limit; // PBS/wPBS only: maximum tasks planned per agent
+    // Tasks per agent that PBS/wPBS plan and repeated Hungarian/LNS keep
+    // (PP keeps one, PP_TASK_SEQUENCE plans the whole sequence).
+    int task_sequence_limit;
     int wpbs_replan_window; // steps between REPLAN_PERIODIC replans; wPBS planning window
     int lns_time_limit;     // LNS only: assignment-improvement budget in seconds
     // LNS only: consecutive rejected moves before early stop; 0 disables it.
