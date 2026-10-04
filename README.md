@@ -129,6 +129,8 @@ set. It checks:
 
 - process success and 500/500 completed tasks;
 - collision-check success;
+- the executable also prints a task-order check (no pickup before release, no
+  completion before pickup), which `scripts/check_combinations.py` requires;
 - exact makespan/SWT agreement for non-LNS methods;
 - informational makespan/SWT agreement for LNS methods.
 
@@ -145,10 +147,10 @@ Representative seed-0 baselines are:
 | TPTS-STA* | 10 / 0.2 | 2516 | 14305 |
 | CENTRAL-CBS | 10 / 0.2 | 2513 | 14019 |
 | HBH+MLA* | 10 / 0.2 | 2532 | 14728 |
-| Hungarian+PBS-MLA* | 10 / 0.2 | 2513 | 13673 |
-| Hungarian+wPBS-MLA* | 10 / 0.2 | 2513 | 13717 |
+| Hungarian+PBS-MLA* | 10 / 0.2 | 2512 | 13684 |
+| Hungarian+wPBS-MLA* | 10 / 0.2 | 2513 | 13762 |
 | LNS(1s)+PBS-MLA* | 10 / 0.2 | 2512 | 13681 |
-| LNS(1s)+wPBS-MLA* | 10 / 0.2 | 2513 | 13620 |
+| LNS(1s)+wPBS-MLA* | 10 / 0.2 | 2513 | 13637 |
 | TA-Prioritized-STA* | 10 / offline | 1052 | 263485 |
 | TA-Hybrid-STA* | 10 / offline | 1050 | 263910 |
 
@@ -412,7 +414,7 @@ method feeds:
 | `DECOUPLED_GREEDY`, `DECOUPLED_GREEDY_SWAPS`, `CENTRALIZED_GREEDY` | `PP` inside the assignment (`--replan_on NONE`, `ON_FREE_WAITS`); as a separate step `PBS`, `PP`, `wPBS`, `CBS` |
 | `REPEATED_HUNGARIAN`, `REPEATED_HUNGARIAN_LNS` | `PBS`, `PP`, `wPBS` |
 | `CENTRAL_HUNGARIAN` | `CBS` |
-| `LKH3_TSP` (offline) | `PP_TASK_SEQUENCE`, `PBS`, `PP`, `wPBS`, `CBS` |
+| `LKH3_TSP` (offline) | `PP_TASK_SEQUENCE`, `wPBS`, `CBS` |
 | `LKH3_TSP_REASSIGN` (offline) | `TA_HYBRID_TWO_GROUP` |
 
 Planner requirements: `wPBS` needs a `PERIODIC` (or `EVERY_TIMESTEP`) refresh
@@ -420,6 +422,8 @@ and `MLA`/`MLSIPP`; `CBS` plans one goal at a time with its own low level
 (`STA`), so it needs `GOAL_REACHED` (or `EVERY_TIMESTEP`) and `CHANGED`.
 Repeated Hungarian rematches every task not yet picked up at each event, which
 makes single-goal CBS segments oscillate, so it is not paired with `CBS`.
+`PBS` and `PP` are not run `OFFLINE`: their searches fail for pickups released
+far in the future.
 
 ## Algorithm setup
 

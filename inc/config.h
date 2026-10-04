@@ -18,7 +18,6 @@ enum AssignMethod {
     AM_DECOUPLED_GREEDY_SWAPS,
     AM_LKH3_TSP,
     AM_LKH3_TSP_REASSIGN,
-    AM_GREEDY_INSERT_LNS,
     AM_REPEATED_HUNGARIAN_LNS
 };
 enum AssignTrigger {

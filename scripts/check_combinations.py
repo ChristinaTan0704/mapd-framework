@@ -12,7 +12,7 @@ deadlocks.
 A run passes when it
 
   * is rejected immediately (exit 1, "is not supported" / "requires"), or
-  * completes every task and passes the collision check.
+  * completes every task and passes the collision and task-order checks.
 
 Anything else (crash, timeout, incomplete run, collision) fails the check.
 
@@ -66,6 +66,7 @@ def combinations() -> list[tuple[str, int, list[str]]]:
                 jobs.append((config, 10, (["--mapf", mapf] if mapf else []) +
                                          (["--single_agent", sa] if sa else [])))
         jobs += [(config, 10, ["--assign_trigger", t]) for t in TRIGGERS]
+        # Releases far in the future (kiva-0.2) exercise the modes.
         jobs += [(config, 10, ["--mode", m]) for m in MODES]
         jobs += [(config, 10, ["--dummy_path", d]) for d in ("0", "1")]
         jobs += [(config, 10, ["--replan_on", r]) for r in REPLANS]
@@ -87,7 +88,8 @@ def run(executable: Path, config: str, agents: int, extra: list[str], timeout: i
         instance = ["-t", str(DATA / "kiva-500.task"),
                     "--tour", str(ROOT / "tour" / f"{agents}-500.tour")]
     else:
-        instance = ["-t", str(DATA / "kiva-1.task")]
+        frequency = "0.2" if "--mode" in extra else "1"
+        instance = ["-t", str(DATA / f"kiva-{frequency}.task")]
     command = [str(executable), "-m", str(DATA / f"kiva-{agents}-500-5.map"), *instance,
                "--config", str(ROOT / "configs" / f"{config}.cfg"), "--seed", "0", "-s", "1",
                "--runtime_limit", str(timeout), "--pathfinding_runtime_limit", str(timeout),
@@ -105,7 +107,8 @@ def run(executable: Path, config: str, agents: int, extra: list[str], timeout: i
     if rejected and code == 1:
         return "rejected"
     done = re.search(r"Tasks completed:\s*(\d+)/(\d+)", output)
-    if done and done[1] == done[2] and "COLLISION CHECK PASSED" in output:
+    if (done and done[1] == done[2] and "COLLISION CHECK PASSED" in output
+            and "TASK ORDER CHECK PASSED" in output):
         return "ok"
     error = re.findall(r"^Error: (.*)$", output, re.M)
     return "FAIL " + (error[-1][:80] if error else f"exit {code}")

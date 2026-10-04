@@ -154,6 +154,7 @@ public:
               const string& tour_file = "");
     void run();
     bool fullCollisionCheck(const string& alg_name) const;
+    bool taskOrderCheck(const string& alg_name) const;
     void showTask() const;
     void saveOutput(const string& filepath, double runtime_ms,
                     const string& algorithm_name) const;
@@ -290,6 +291,10 @@ private:
         const vector<int>& reserved_endpoints, bool fixed_home_only) const;
     int choose_dummy_endpoint(EndpointStrategy strategy,
                               const DummyEndpointRequest& request);
+    int endpoint_wait_or_relocate(const DummyEndpointRequest& request);
+    int endpoint_nearest_available(const DummyEndpointRequest& request) const;
+    int endpoint_pairwise(const DummyEndpointRequest& request) const;
+    int endpoint_strict(const DummyEndpointRequest& request) const;
     vector<vector<pair<int,int>>> split_into_task_groups(
         int agent_id, const vector<pair<int,int>>& goal_seq) const;
 
@@ -308,6 +313,8 @@ private:
     vector<vector<int>> cbs_solve(const vector<int>& agent_ids, const vector<int>& goals);
     void commit_segment(int agent_id, const vector<int>& path);
     vector<int> segment_goal_;     // CBS segments: the goal each path ends at, else -1
+    vector<unsigned int> last_goal_time_;   // when each agent last reached a task goal
+    unsigned int path_end_time(int agent_id) const;
     bool pbs_solve_impl();
 
     // Per-solve context, shared by the pbs_* helpers (set up by pbs_solve).

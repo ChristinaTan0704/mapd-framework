@@ -231,6 +231,7 @@ int main(int argc, char** argv)
     double elapsed = (double)(clock() - t_start) / CLOCKS_PER_SEC * 1000.0;
 
     sim.fullCollisionCheck(algorithm_name);
+    sim.taskOrderCheck(algorithm_name);
 
     if (screen >= 1) {
         cout << endl;

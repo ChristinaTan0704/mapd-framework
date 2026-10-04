@@ -33,6 +33,9 @@ struct Support {
 };
 
 const std::vector<Mode> ALL_MODES = {MODE_ONLINE, MODE_SEMI_ONLINE, MODE_OFFLINE};
+// PBS and PP fail to plan pickups released far in the future (OFFLINE) and
+// then keep colliding waiting paths.
+const std::vector<Mode> NOT_OFFLINE = {MODE_ONLINE, MODE_SEMI_ONLINE};
 // Planning inside assignment relocates an idle agent only when its endpoint is
 // needed; strategies that always pick a new endpoint can deadlock there.
 const std::vector<EndpointStrategy> RELOCATION_ENDPOINTS = {
@@ -100,11 +103,11 @@ std::vector<Support> supported_rows() {
                                 AM_CENTRALIZED_GREEDY}) {
         const std::vector<AssignTrigger> triggers = {ON_EVENT, AT_EVERY_TIMESTEP};
         rows.push_back({method, MAPF_PBS, triggers, ANY_REPLAN, EITHER_SELECTION,
-                        ANY_SEARCH, FLEXIBLE_ENDPOINTS, ALL_MODES, WITH_DUMMY});
+                        ANY_SEARCH, FLEXIBLE_ENDPOINTS, NOT_OFFLINE, WITH_DUMMY});
         rows.push_back({method, MAPF_wPBS, triggers, WITH_REFRESH, ALL, WINDOWED_SEARCH,
                         WINDOWED_ENDPOINTS, ALL_MODES, WITH_DUMMY});
         rows.push_back({method, MAPF_PP_PER_TASK, triggers, ANY_REPLAN, EITHER_SELECTION,
-                        ANY_SEARCH, FLEXIBLE_ENDPOINTS, ALL_MODES, WITH_DUMMY});
+                        ANY_SEARCH, FLEXIBLE_ENDPOINTS, NOT_OFFLINE, WITH_DUMMY});
         // CBS plans one goal at a time for the agents whose next goal changed
         // (one joint CBS over every agent at every event does not scale).
         // Repeated Hungarian rematches every task not yet picked up at each
@@ -115,14 +118,10 @@ std::vector<Support> supported_rows() {
     }
     // The LKH3 task sequences can be planned a few tasks at a time like any
     // other assignment; the plan is refreshed as agents work through them.
+    // (Not by PBS or PP: the tour needs OFFLINE.)
     const std::vector<AssignTrigger> tour_triggers = {AT_ONCE, ON_EVENT};
-    rows.push_back({AM_LKH3_TSP, MAPF_PBS, tour_triggers, WITH_REFRESH, EITHER_SELECTION,
-                    ANY_SEARCH, FLEXIBLE_ENDPOINTS, {MODE_OFFLINE}, WITH_DUMMY});
     rows.push_back({AM_LKH3_TSP, MAPF_wPBS, tour_triggers, WITH_REFRESH, ALL, WINDOWED_SEARCH,
                     WINDOWED_ENDPOINTS, {MODE_OFFLINE}, WITH_DUMMY});
-    rows.push_back({AM_LKH3_TSP, MAPF_PP_PER_TASK, tour_triggers, WITH_REFRESH,
-                    EITHER_SELECTION, ANY_SEARCH, FLEXIBLE_ENDPOINTS, {MODE_OFFLINE},
-                    WITH_DUMMY});
     rows.push_back({AM_LKH3_TSP, MAPF_CBS, tour_triggers, WITH_SEGMENTS, CHANGED,
                     {SA_STA_TASK_EP}, FLEXIBLE_ENDPOINTS, {MODE_OFFLINE}, WITH_DUMMY});
     return rows;

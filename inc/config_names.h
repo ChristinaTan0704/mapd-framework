@@ -36,8 +36,7 @@ inline const NameTable<AssignMethod>& names(AssignMethod) {
         {AM_REPEATED_HUNGARIAN, "REPEATED_HUNGARIAN"},
         {AM_REPEATED_HUNGARIAN_LNS, "REPEATED_HUNGARIAN_LNS"},
         {AM_LKH3_TSP, "LKH3_TSP"},
-        {AM_LKH3_TSP_REASSIGN, "LKH3_TSP_REASSIGN"},
-        {AM_GREEDY_INSERT_LNS, "GREEDY_INSERT_LNS"}};
+        {AM_LKH3_TSP_REASSIGN, "LKH3_TSP_REASSIGN"}};
     return table;
 }
 
