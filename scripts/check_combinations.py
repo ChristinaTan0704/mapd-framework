@@ -44,7 +44,7 @@ ENDPOINTS = ("WAIT_OR_NEAREST_SAFE", "WAIT_OR_NEAREST_FREE_NONTASK",
 TRIGGERS = ("ON_FREE_WAITS", "EVERY_TIMESTEP",
             "ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE", "ONCE")
 MODES = ("ONLINE", "SEMI_ONLINE", "OFFLINE")
-REPLANS = ("NONE", "AFTER_ASSIGNMENT", "EVERY_TIMESTEP", "AFTER_ASSIGNMENT,GOAL_REACHED",
+REPLANS = ("WHEN_ASSIGNED", "AFTER_ASSIGNMENT", "EVERY_TIMESTEP", "AFTER_ASSIGNMENT,GOAL_REACHED",
            "AFTER_ASSIGNMENT,PERIODIC", "AFTER_ASSIGNMENT,GOAL_REACHED,PERIODIC")
 # Each planner with the trigger, replanning events and endpoints it needs, so
 # any assignment method can be paired with it as a separate planning step.
@@ -57,25 +57,28 @@ PLANNER_SETUPS = (
 LOG_CAP = 2_000_000
 
 
-def combinations() -> list[tuple[str, int, list[str]]]:
-    """(configuration, agents, overriding options) of every job."""
+def combinations() -> list[tuple[str, int, str, list[str]]]:
+    """(configuration, agents, task frequency, overriding options) of every job."""
     jobs = []
     for config in CONFIGS:
         for mapf in MAPF:
             for sa in SINGLE_AGENT:
-                jobs.append((config, 10, (["--mapf", mapf] if mapf else []) +
-                                         (["--single_agent", sa] if sa else [])))
-        jobs += [(config, 10, ["--assign_trigger", t]) for t in TRIGGERS]
+                jobs.append((config, 10, "1", (["--mapf", mapf] if mapf else []) +
+                                              (["--single_agent", sa] if sa else [])))
+        jobs += [(config, 10, "1", ["--assign_trigger", t]) for t in TRIGGERS]
         # Releases far in the future (kiva-0.2) exercise the modes.
-        jobs += [(config, 10, ["--mode", m]) for m in MODES]
-        jobs += [(config, 10, ["--dummy_path", d]) for d in ("0", "1")]
-        jobs += [(config, 10, ["--replan_on", r]) for r in REPLANS]
-        jobs += [(config, 10, ["--agent_selection", a]) for a in ("ALL", "CHANGED")]
+        jobs += [(config, 10, "0.2", ["--mode", m]) for m in MODES]
+        jobs += [(config, 10, "1", ["--replan_on", r]) for r in REPLANS]
+        jobs += [(config, 10, "1", ["--agent_selection", a]) for a in ("ALL", "CHANGED")]
+        # Where agents rest matters most when many agents share few free
+        # endpoints (50 agents, every task open at once).
+        for agents, frequency in ((10, "1"), (50, "1"), (50, "500")):
+            jobs += [(config, agents, frequency, ["--endpoint_strategy", e, "--dummy_path", d])
+                     for e in ENDPOINTS for d in ("0", "1")]
         for agents in (10, 50):
-            jobs += [(config, agents, ["--endpoint_strategy", e]) for e in ENDPOINTS]
             for mapf, replan, endpoint in PLANNER_SETUPS:
                 for selection in ("ALL", "CHANGED"):
-                    jobs.append((config, agents, [
+                    jobs.append((config, agents, "1", [
                         "--mapf", mapf, "--assign_trigger",
                         "ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE",
                         "--replan_on", replan, "--endpoint_strategy", endpoint,
@@ -83,12 +86,12 @@ def combinations() -> list[tuple[str, int, list[str]]]:
     return jobs
 
 
-def run(executable: Path, config: str, agents: int, extra: list[str], timeout: int) -> str:
+def run(executable: Path, config: str, agents: int, frequency: str, extra: list[str],
+        timeout: int) -> str:
     if config in OFFLINE_ONLY:
         instance = ["-t", str(DATA / "kiva-500.task"),
                     "--tour", str(ROOT / "tour" / f"{agents}-500.tour")]
     else:
-        frequency = "0.2" if "--mode" in extra else "1"
         instance = ["-t", str(DATA / f"kiva-{frequency}.task")]
     command = [str(executable), "-m", str(DATA / f"kiva-{agents}-500-5.map"), *instance,
                "--config", str(ROOT / "configs" / f"{config}.cfg"), "--seed", "0", "-s", "1",
@@ -126,14 +129,14 @@ def main() -> int:
         results = list(pool.map(
             lambda job: run(args.executable.resolve(), *job, args.timeout), jobs))
 
-    failures = [(c, a, " ".join(e), r)
-                for (c, a, e), r in zip(jobs, results) if r.startswith("FAIL")]
+    failures = [(c, a, f, " ".join(e), r)
+                for (c, a, f, e), r in zip(jobs, results) if r.startswith("FAIL")]
     for config in CONFIGS:
-        rows = [r for (c, _, _), r in zip(jobs, results) if c == config]
+        rows = [r for (c, _, _, _), r in zip(jobs, results) if c == config]
         print(f"{config:24s} ok {rows.count('ok'):3d}  rejected {rows.count('rejected'):3d}  "
               f"failed {sum(r.startswith('FAIL') for r in rows):3d}")
-    for config, agents, extra, result in failures:
-        print(f"  {config} a{agents} {extra}: {result}")
+    for config, agents, frequency, extra, result in failures:
+        print(f"  {config} a{agents} f{frequency} {extra}: {result}")
     print(f"{len(jobs)} combinations, {len(failures)} failures")
     return 1 if failures else 0
 

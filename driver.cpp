@@ -123,7 +123,7 @@ int main(int argc, char** argv)
         // The components; each overrides the preset chosen with --algo.
         ("assign_method",  po::value<string>(), ("task assignment: " + enum_choices<AssignMethod>()).c_str())
         ("assign_trigger", po::value<string>(), ("when to assign: " + enum_choices<AssignTrigger>()).c_str())
-        ("replan_on",      po::value<string>(), ("when to replan, comma-separated: " + enum_choices<ReplanEvent>() + "; NONE = plan inside assignment").c_str())
+        ("replan_on",      po::value<string>(), ("when to replan, comma-separated: " + enum_choices<ReplanEvent>() + "; WHEN_ASSIGNED = plan each agent when it is assigned, inside the assignment").c_str())
         ("agent_selection", po::value<string>(), ("agents a replan plans: " + enum_choices<AgentSelection>()).c_str())
         ("mapf",           po::value<string>(), ("MAPF method: " + enum_choices<MAPFMethod>()).c_str())
         ("single_agent",   po::value<string>(), ("single-agent search: " + enum_choices<SingleAgentMethod>()).c_str())

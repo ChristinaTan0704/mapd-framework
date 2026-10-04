@@ -129,6 +129,7 @@ void Simulation::init(const string& map_file, const string& task_file,
     has_plan_.assign(agents.size(), false);
     segment_goal_.assign(agents.size(), -1);
     last_goal_time_.assign(agents.size(), 0);
+    rested_at_.assign(agents.size(), -1);
 }
 
 // ============================================================================
@@ -472,12 +473,8 @@ bool Simulation::assign_decoupled_greedy(Agent& agent) {
 
     // WAIT_OR_NEAREST_SAFE returns the current location when waiting is safe, another
     // endpoint when relocation is required, and -1 if no safe endpoint exists.
-    int endpoint = choose_dummy_endpoint(config.endpoint_strategy,
-        make_token_endpoint_request(agent.id, agent.loc, false));
-    if (endpoint >= 0 && endpoint != agent.loc &&
-        plan_path2_to_endpoint(agent, endpoint, false, false)) {
+    if (move_to_rest_endpoint(agent, make_token_endpoint_request(agent.id, agent.loc, false)))
         return true;
-    }
 
     agent.finish_time = cur_time_ + 1;
     return true;
@@ -612,16 +609,26 @@ bool Simulation::assign_tpts(Agent& agent, int depth) {
         rollback_candidate();
     }
 
-    int endpoint = choose_dummy_endpoint(config.endpoint_strategy,
-        make_token_endpoint_request(agent.id, agent.loc, true));
+    const DummyEndpointRequest request = make_token_endpoint_request(agent.id, agent.loc, true);
     // Validate a stationary endpoint too. During a TPTS steal the replacement
     // path may hide the displaced agent's old reservation, so installing an
     // unchecked wait at that agent's forced home can create a real collision.
-    if (endpoint >= 0 &&
-        plan_path2_to_endpoint(agent, endpoint, false, false)) {
+    // An unreachable rest endpoint falls back to the safe relocation, or to
+    // waiting where the agent is when it need not move.
+    auto rest_at = [&](int endpoint) {
+        if (endpoint < 0 || !plan_path2_to_endpoint(agent, endpoint, false, false))
+            return false;
         if (endpoint == agent.loc)
             agent.finish_time = cur_time_ + 1;
+        rested_at_[agent.id] = endpoint;
         return true;
+    };
+    const int endpoint = rest_endpoint(request);
+    if (rest_at(endpoint)) return true;
+    if (endpoint != agent.loc) {
+        const int fallback = request.relocation_required ? endpoint_wait_or_relocate(request)
+                                                         : agent.loc;
+        if (fallback != endpoint && rest_at(fallback)) return true;
     }
 
     path_table_ = saved_paths;
@@ -833,6 +840,7 @@ void Simulation::assign_hbh_mla() {
         agent.current_goal_index = 0;
         agent.finish_time = final_goal_time + task.goal_wait_time;
         agent.last_endpoint = task.goals.back();
+        rested_at_[agent.id] = -1;
         open_tasks_.remove(&task);
         assigned_agents.insert(agent.id);
         assigned_tasks.insert(task.id);
@@ -844,14 +852,8 @@ void Simulation::assign_hbh_mla() {
     for (int agent_id : available_agents) {
         if (assigned_agents.count(agent_id)) continue;
         Agent& agent = agents[agent_id];
-        DummyEndpointRequest request =
-            make_hbh_endpoint_request(agent_id, agent.loc);
-        int endpoint = choose_dummy_endpoint(config.endpoint_strategy, request);
-        if (endpoint >= 0 && endpoint != agent.loc &&
-            plan_path2_to_endpoint(agent, endpoint,
-                request.parking_endpoints_only,
-                request.exclude_all_open_goals)) {
-            agent.last_endpoint = endpoint;
+        if (move_to_rest_endpoint(agent, make_hbh_endpoint_request(agent_id, agent.loc))) {
+            agent.last_endpoint = rested_at_[agent_id];
             continue;
         }
 
@@ -2013,15 +2015,6 @@ vector<vector<pair<int,int>>> Simulation::build_goal_sequences(const vector<bool
     for (int i = 0; i < num_ag; i++)
         if (!planned[i]) assigned_dummies[i] = (int)path_table_[i][maxtime - 1];
 
-    if (!config.dummy_path) {
-        // An idle agent still needs a stationary planning target, but active
-        // agents stop at their final planned task goal with no dummy leg.
-        for (int i = 0; i < num_ag; i++)
-            if (goal_seqs[i].empty())
-                goal_seqs[i].push_back({(int)agents[i].loc, 0});
-        return goal_seqs;
-    }
-
     // Dummy endpoints: agents that have work choose first, so idle agents are
     // the ones pushed out to the leftover endpoints. A selected endpoint equal
     // to the last task goal represents a zero-length dummy path.
@@ -2032,15 +2025,13 @@ vector<vector<pair<int,int>>> Simulation::build_goal_sequences(const vector<bool
         else                       free_agents.push_back(i);
     }
     for (int i : busy_agents) {
-        int dummy = choose_dummy_endpoint(config.endpoint_strategy,
-            make_sequence_endpoint_request(
+        int dummy = rest_endpoint(make_sequence_endpoint_request(
             i, goal_seqs[i].back().first, assigned_dummies, true));
         assigned_dummies[i] = dummy;
         goal_seqs[i].push_back({dummy, 0});
     }
     for (int i : free_agents) {
-        int dummy = choose_dummy_endpoint(config.endpoint_strategy,
-            make_sequence_endpoint_request(
+        int dummy = rest_endpoint(make_sequence_endpoint_request(
             i, (int)agents[i].loc, assigned_dummies, true));
         assigned_dummies[i] = dummy;
         goal_seqs[i].push_back({dummy, 0});
@@ -2079,13 +2070,23 @@ vector<bool> Simulation::select_agents(
                 [&](const pair<int,int>& goal) { return goal.first == final_cell; });
             bool blocking = holder != goal_holder.end() && holder->second != i &&
                 (holder->second >= 0 || !own_goal);
-            planned[i] = !unchanged || blocking;
+            // A path that stops short of the next goal (a windowed plan, say)
+            // must be extended.
+            bool stuck = !now.empty() && !path_reaches(i, now.front());
+            planned[i] = !unchanged || blocking || stuck;
         }
         return planned;
     }
     default:
         throw logic_error("select_agents: unsupported agent_selection");
     }
+}
+
+// Whether agent_id's committed path visits goal (location, earliest time).
+bool Simulation::path_reaches(int agent_id, const pair<int,int>& goal) const {
+    for (unsigned int t = max(cur_time_, (unsigned int)max(goal.second, 0)); t < maxtime; t++)
+        if ((int)path_table_[agent_id][t] == goal.first) return true;
+    return false;
 }
 
 void Simulation::remember_plans(const vector<bool>& planned,
@@ -2098,11 +2099,30 @@ void Simulation::remember_plans(const vector<bool>& planned,
     last_planned_ = planned;
 }
 
+// Endpoints an agent must not rest at because another agent needs them: goals
+// of open tasks and of the other agents' tasks, and the cells where the other
+// agents' committed paths end (also as reserved_endpoints, by agent).
+void Simulation::exclude_others_endpoints(DummyEndpointRequest& request) const {
+    for (Task* task : open_tasks_)
+        for (int goal : task->goals)
+            request.forbidden_endpoints.insert(goal);
+    request.reserved_endpoints.assign(agents.size(), -1);
+    for (int other = 0; other < (int)agents.size(); other++) {
+        if (other == request.agent_id) continue;
+        for (int task_id : agents[other].task_sequence)
+            for (int goal : all_tasks[task_id].goals)
+                request.forbidden_endpoints.insert(goal);
+        request.reserved_endpoints[other] = (int)path_table_[other][maxtime - 1];
+        request.forbidden_endpoints.insert(request.reserved_endpoints[other]);
+    }
+}
+
 DummyEndpointRequest Simulation::make_token_endpoint_request(
     int agent_id, int reference_location,
     bool check_committed_crossings) const {
     DummyEndpointRequest request{agent_id, reference_location,
         (int)agents[agent_id].loc, agents[agent_id].initial_loc, {}};
+    exclude_others_endpoints(request);
     request.use_safe_relocation_search = true;
     request.relocation_required = !mapd_map.is_endpoint[reference_location];
     for (Task* task : open_tasks_)
@@ -2126,6 +2146,7 @@ DummyEndpointRequest Simulation::make_hbh_endpoint_request(
     int agent_id, int reference_location) const {
     DummyEndpointRequest request{agent_id, reference_location,
         (int)agents[agent_id].loc, agents[agent_id].initial_loc, {}};
+    exclude_others_endpoints(request);
     request.use_safe_relocation_search = true;
     request.parking_endpoints_only =
         config.endpoint_strategy == WAIT_OR_NEAREST_FREE_NONTASK;
@@ -2162,19 +2183,14 @@ DummyEndpointRequest Simulation::make_sequence_endpoint_request(
     const vector<int>& reserved_endpoints,
     bool leave_previous_endpoint) const {
     DummyEndpointRequest request{agent_id, reference_location,
-        (int)agents[agent_id].loc, agents[agent_id].initial_loc,
-        reserved_endpoints};
-    for (Task* task : open_tasks_)
-        for (int goal : task->goals)
-            request.forbidden_endpoints.insert(goal);
-    for (int other = 0; other < (int)agents.size(); other++) {
-        if (other == agent_id) continue;
-        for (int task_id : agents[other].task_sequence)
-            for (int goal : all_tasks[task_id].goals)
-                request.forbidden_endpoints.insert(goal);
-        request.forbidden_endpoints.insert(
-            (int)path_table_[other][maxtime - 1]);
-    }
+        (int)agents[agent_id].loc, agents[agent_id].initial_loc, {}};
+    exclude_others_endpoints(request);
+    request.reserved_endpoints = reserved_endpoints;
+    request.relocation_required = !mapd_map.is_endpoint[reference_location] ||
+        request.forbidden_endpoints.count(reference_location);
+    for (int other = 0; other < (int)reserved_endpoints.size(); other++)
+        if (other != agent_id && reserved_endpoints[other] == reference_location)
+            request.relocation_required = true;
     for (int task_id : agents[agent_id].task_sequence)
         for (int goal : all_tasks[task_id].goals)
             if (goal != request.current_location)
@@ -2198,6 +2214,44 @@ DummyEndpointRequest Simulation::make_ta_endpoint_request(
     return request;
 }
 
+// Where an agent rests after its last goal (the request's reference
+// location): with --dummy_path 1 the strategy's endpoint, with 0 the reference
+// location itself unless another agent or task needs that cell.
+int Simulation::rest_endpoint(const DummyEndpointRequest& request) {
+    // An idle token-passing agent that already moved to its rest endpoint
+    // after its last task does not move again unless it must.
+    const bool rested = !config.dummy_path ||
+        (request.use_safe_relocation_search &&
+         rested_at_[request.agent_id] == request.reference_location);
+    if (rested && !request.relocation_required) return request.reference_location;
+    int endpoint = choose_dummy_endpoint(config.endpoint_strategy, request);
+    // Planning in assignment only waits where no committed path passes.
+    if (endpoint == request.reference_location && request.relocation_required &&
+        request.use_safe_relocation_search)
+        endpoint = endpoint_wait_or_relocate(request);
+    return endpoint;
+}
+
+// Move an idle token-passing agent to its rest endpoint. If that endpoint
+// cannot be reached while the agent must vacate its cell, it moves to the
+// nearest endpoint the safe relocation search reaches. Whether it moved.
+bool Simulation::move_to_rest_endpoint(Agent& agent, const DummyEndpointRequest& request) {
+    int endpoint = rest_endpoint(request);
+    auto move_to = [&](int target) {
+        if (target < 0 || target == agent.loc ||
+            !plan_path2_to_endpoint(agent, target, request.parking_endpoints_only,
+                                    request.exclude_all_open_goals))
+            return false;
+        rested_at_[agent.id] = target;
+        return true;
+    };
+    if (move_to(endpoint)) return true;
+    if (endpoint == agent.loc) rested_at_[agent.id] = endpoint;
+    if (!request.relocation_required) return false;
+    int safe = endpoint_wait_or_relocate(request);
+    return safe != endpoint && move_to(safe);
+}
+
 // --- ChooseEndpoint() : switch on endpoint_strategy -------------------------
 // Task endpoints have Endpoint::is_task_endpoint=true, parking/home endpoints
 // false. The request (built by the caller's family) supplies the exclusions;
@@ -2207,7 +2261,16 @@ int Simulation::choose_dummy_endpoint(
     switch (strategy) {
     case WAIT_OR_NEAREST_SAFE:          // TP/TPTS Path2
     case WAIT_OR_NEAREST_FREE_NONTASK:  // HBH Algorithm 2 (parking endpoints only)
-        return endpoint_wait_or_relocate(request);
+        if (request.use_safe_relocation_search) return endpoint_wait_or_relocate(request);
+        // Planners that plan the agents jointly: wait unless the cell is
+        // needed, else the nearest available (parking) endpoint.
+        if (!request.relocation_required) return request.reference_location;
+        {
+            DummyEndpointRequest relocation = request;
+            relocation.parking_endpoints_only = strategy == WAIT_OR_NEAREST_FREE_NONTASK;
+            relocation.forbidden_endpoints.insert(request.reference_location);
+            return endpoint_nearest_available(relocation);
+        }
     case NEAREST_AVAILABLE:
         // Planning inside assignment relocates only when waiting is unsafe.
         return request.use_safe_relocation_search ? endpoint_wait_or_relocate(request)
@@ -2238,7 +2301,8 @@ int Simulation::endpoint_wait_or_relocate(const DummyEndpointRequest& request) {
 }
 
 // CENTRAL: the reference location if it is still available, else the nearest
-// endpoint not reserved in this batch or forbidden by the caller.
+// endpoint not reserved in this batch or forbidden by the caller (the home
+// endpoint if there is none).
 int Simulation::endpoint_nearest_available(const DummyEndpointRequest& request) const {
     const int last_goal_loc = request.reference_location;
     set<int> forbidden = request.forbidden_endpoints;
@@ -2255,6 +2319,7 @@ int Simulation::endpoint_nearest_available(const DummyEndpointRequest& request) 
                  endpoint.loc) == request.candidate_endpoints.end())
             continue;
         if (forbidden.count(endpoint.loc)) continue;
+        if (request.parking_endpoints_only && endpoint.is_task_endpoint) continue;
         int distance = endpoint.h_val[last_goal_loc];
         // The later endpoint wins equal-distance ties, as in the PBS selector.
         if (distance <= best_distance) {
@@ -2262,7 +2327,8 @@ int Simulation::endpoint_nearest_available(const DummyEndpointRequest& request) 
             best_location = endpoint.loc;
         }
     }
-    return best_location;
+    // Every endpoint taken: the agent's own home, as the strict policy does.
+    return best_location >= 0 ? best_location : request.home_location;
 }
 
 // wPBS: the nearest task endpoint not chosen by another agent (skipping the
@@ -2658,8 +2724,11 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
     const int now = (int)cur_time_;
     const int horizon = (int)maxtime;
 
+    // Every other agent's path ends at its parking endpoint, which stays taken.
     auto parking_of = [&](int agent_id, int location) {
         vector<int> reserved(agent_count, -1);
+        for (int other = 0; other < agent_count; other++)
+            if (other != agent_id) reserved[other] = (int)agents[other].path[horizon - 1];
         return choose_dummy_endpoint(config.endpoint_strategy,
             make_ta_endpoint_request(agent_id, location, reserved, true));
     };
@@ -3870,15 +3939,10 @@ void Simulation::path_planning_pp_per_task() {
         vector<pair<int,int>> goals = task_goals[agent_id];
 
         int last_goal = goals.empty() ? (int)agent.loc : goals.back().first;
-        if (config.dummy_path) {
-            int dummy = choose_dummy_endpoint(config.endpoint_strategy,
-                make_sequence_endpoint_request(
-                agent_id, last_goal, assigned_dummies, true));
-            assigned_dummies[agent_id] = dummy;
-            goals.push_back({dummy, 0});
-        } else if (goals.empty()) {
-            goals.push_back({(int)agent.loc, 0});
-        }
+        int dummy = rest_endpoint(make_sequence_endpoint_request(
+            agent_id, last_goal, assigned_dummies, true));
+        assigned_dummies[agent_id] = dummy;
+        goals.push_back({dummy, 0});
 
         const vector<vector<pair<int,int>>> task_groups =
             split_into_task_groups(agent_id, goals);
@@ -4511,6 +4575,7 @@ void Simulation::sta_update_path(Agent& agent, const SearchNode& goal_node) {
 pair<int,int> Simulation::plan_token_task(Agent& agent, Task& task,
                                           int hidden_agent) {
     const int hidden = hidden_agent >= 0 ? hidden_agent : agent.id;
+    rested_at_[agent.id] = -1;
 
     vector<vector<int>> constraints;
     constraints.reserve(path_table_.size() - 1);

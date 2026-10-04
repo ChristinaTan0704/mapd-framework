@@ -267,6 +267,7 @@ private:
     // Component 4: which agents a replan plans (switch on agent_selection),
     // and the task goals each committed path was planned for.
     vector<bool> select_agents(const vector<vector<pair<int,int>>>& task_goals) const;
+    bool path_reaches(int agent_id, const pair<int,int>& goal) const;
     void remember_plans(const vector<bool>& planned,
                         const vector<vector<pair<int,int>>>& task_goals);
     vector<vector<pair<int,int>>> planned_goals_;
@@ -291,6 +292,10 @@ private:
         const vector<int>& reserved_endpoints, bool fixed_home_only) const;
     int choose_dummy_endpoint(EndpointStrategy strategy,
                               const DummyEndpointRequest& request);
+    int rest_endpoint(const DummyEndpointRequest& request);
+    bool move_to_rest_endpoint(Agent& agent, const DummyEndpointRequest& request);
+    vector<int> rested_at_;   // where an idle token-passing agent rests, else -1
+    void exclude_others_endpoints(DummyEndpointRequest& request) const;
     int endpoint_wait_or_relocate(const DummyEndpointRequest& request);
     int endpoint_nearest_available(const DummyEndpointRequest& request) const;
     int endpoint_pairwise(const DummyEndpointRequest& request) const;

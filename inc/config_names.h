@@ -103,6 +103,10 @@ inline const NameTable<ReplanEvent>& names(ReplanEvent) {
     return table;
 }
 
+// The empty set of replan events: each agent's path is planned when it is
+// assigned a task, inside the assignment (TP, TPTS, HBH as published).
+inline const char* no_flags_name(ReplanEvent) { return "WHEN_ASSIGNED"; }
+
 inline const NameTable<AgentSelection>& names(AgentSelection) {
     static const NameTable<AgentSelection> table = {
         {SELECT_ALL, "ALL"}, {SELECT_CHANGED, "CHANGED"}};
@@ -136,13 +140,14 @@ std::string enum_choices() {
     return choices;
 }
 
-// A set of flags of enum E, written "A,B"; "NONE" is the empty set.
+// A set of flags of enum E, written "A,B"; the empty set has its own name
+// (no_flags_name), and "NONE" is accepted for it too.
 template <typename E>
 std::string flags_name(int flags) {
     std::string text;
     for (const auto& entry : names(E()))
         if (flags & entry.first) text += (text.empty() ? "" : ",") + std::string(entry.second);
-    return text.empty() ? "NONE" : text;
+    return text.empty() ? no_flags_name(E()) : text;
 }
 
 template <typename E>
@@ -150,7 +155,7 @@ E parse_enum(const std::string& option, const std::string& text);
 
 template <typename E>
 int parse_flags(const std::string& option, const std::string& text) {
-    if (text == "NONE") return 0;
+    if (text == no_flags_name(E()) || text == "NONE") return 0;
     int flags = 0;
     std::string::size_type start = 0;
     while (start <= text.size()) {

@@ -36,15 +36,14 @@ const std::vector<Mode> ALL_MODES = {MODE_ONLINE, MODE_SEMI_ONLINE, MODE_OFFLINE
 // PBS and PP fail to plan pickups released far in the future (OFFLINE) and
 // then keep colliding waiting paths.
 const std::vector<Mode> NOT_OFFLINE = {MODE_ONLINE, MODE_SEMI_ONLINE};
-// Planning inside assignment relocates an idle agent only when its endpoint is
-// needed; strategies that always pick a new endpoint can deadlock there.
-const std::vector<EndpointStrategy> RELOCATION_ENDPOINTS = {
-    WAIT_OR_NEAREST_SAFE, WAIT_OR_NEAREST_FREE_NONTASK, NEAREST_AVAILABLE, RETURN_TO_HOME};
-const std::vector<EndpointStrategy> FLEXIBLE_ENDPOINTS = {
-    NEAREST_WITH_STRICT_EXCLUSIONS, NEAREST_AVAILABLE, RETURN_TO_HOME};
-const std::vector<EndpointStrategy> WINDOWED_ENDPOINTS = {
-    PAIRWISE_TASK_THEN_HOME, NEAREST_WITH_STRICT_EXCLUSIONS, NEAREST_AVAILABLE,
-    RETURN_TO_HOME};
+const std::vector<EndpointStrategy> ALL_ENDPOINTS = {
+    WAIT_OR_NEAREST_SAFE, WAIT_OR_NEAREST_FREE_NONTASK, NEAREST_AVAILABLE,
+    NEAREST_WITH_STRICT_EXCLUSIONS, PAIRWISE_TASK_THEN_HOME, RETURN_TO_HOME};
+// PBS and PP give up on conflicts they cannot resolve when agents rest at
+// their last goal or a pairwise endpoint (50 agents, every task open), so they
+// keep a fresh, needed-cell-free endpoint after the last task.
+const std::vector<EndpointStrategy> PBS_PP_ENDPOINTS = {
+    NEAREST_AVAILABLE, NEAREST_WITH_STRICT_EXCLUSIONS, RETURN_TO_HOME};
 const std::vector<SingleAgentMethod> ANY_SEARCH = {
     SA_STA_TASK_EP, SA_MLA_SEQUENCE, SA_MLSIPP_SEQUENCE, SA_SIPP_SEGMENTS};
 // wPBS stops every search at the end of its window; SIPP2 cannot.
@@ -57,7 +56,7 @@ const std::vector<bool> WITH_DUMMY = {true};
 const std::vector<bool> EITHER = {true, false};
 const AssignTrigger ON_EVENT = AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE;
 
-const int IN_ASSIGNMENT = 0;   // the assignment method plans while assigning
+const int WHEN_ASSIGNED = 0;   // each agent is planned when assigned, inside the assignment
 const int AFTER = REPLAN_AFTER_ASSIGNMENT;
 const int SEGMENTS = REPLAN_AFTER_ASSIGNMENT | REPLAN_GOAL_REACHED;
 const int WINDOWED = REPLAN_AFTER_ASSIGNMENT | REPLAN_PERIODIC;
@@ -73,13 +72,13 @@ std::vector<Support> supported_rows() {
     std::vector<Support> rows = {
         // TP, TPTS and HBH as published plan inside task assignment, one agent
         // at a time against the others' committed paths (per-task prioritized
-        // planning); the WAIT_* strategies exist only for their relocation step.
-        {AM_DECOUPLED_GREEDY, MAPF_PP_PER_TASK, {AT_ON_FREE_WAITS}, {IN_ASSIGNMENT},
-         CHANGED, ANY_SEARCH, RELOCATION_ENDPOINTS, ALL_MODES, WITH_DUMMY},
-        {AM_DECOUPLED_GREEDY_SWAPS, MAPF_PP_PER_TASK, {AT_ON_FREE_WAITS}, {IN_ASSIGNMENT},
-         CHANGED, ANY_SEARCH, RELOCATION_ENDPOINTS, ALL_MODES, WITH_DUMMY},
-        {AM_CENTRALIZED_GREEDY, MAPF_PP_PER_TASK, {AT_ON_FREE_WAITS}, {IN_ASSIGNMENT},
-         CHANGED, ANY_SEARCH, RELOCATION_ENDPOINTS, ALL_MODES, WITH_DUMMY},
+        // planning).
+        {AM_DECOUPLED_GREEDY, MAPF_PP_PER_TASK, {AT_ON_FREE_WAITS}, {WHEN_ASSIGNED},
+         CHANGED, ANY_SEARCH, ALL_ENDPOINTS, ALL_MODES, EITHER},
+        {AM_DECOUPLED_GREEDY_SWAPS, MAPF_PP_PER_TASK, {AT_ON_FREE_WAITS}, {WHEN_ASSIGNED},
+         CHANGED, ANY_SEARCH, ALL_ENDPOINTS, ALL_MODES, EITHER},
+        {AM_CENTRALIZED_GREEDY, MAPF_PP_PER_TASK, {AT_ON_FREE_WAITS}, {WHEN_ASSIGNED},
+         CHANGED, ANY_SEARCH, ALL_ENDPOINTS, ALL_MODES, EITHER},
         // CBS (src/cbs.cpp, with its own low-level search) plans one goal at a
         // time; CENTRAL routes free agents to parking endpoints itself. The
         // strict policy parks only on task endpoints, where CENTRAL's idle
@@ -90,6 +89,9 @@ std::vector<Support> supported_rows() {
         // The LKH3 tour covers the complete task set, so it must be known upfront.
         {AM_LKH3_TSP, MAPF_PP_TASK_SEQUENCE, {AT_ONCE}, {AFTER}, ALL, {SA_SEQ_STA},
          {RETURN_TO_HOME, NEAREST_AVAILABLE}, {MODE_OFFLINE}, WITH_DUMMY},
+        // TA-Hybrid parks free agents at their home or where they are. Parking
+        // on task endpoints (the other strategies) stalls its two-group
+        // planning with 50 agents.
         {AM_LKH3_TSP_REASSIGN, MAPF_TA_HYBRID_TWO_GROUP,
          {AT_EVERY_TIMESTEP, ON_EVENT}, {SEGMENTS},
          CHANGED, {SA_STA_TASK_EP}, {RETURN_TO_HOME, NEAREST_AVAILABLE}, {MODE_OFFLINE},
@@ -103,27 +105,28 @@ std::vector<Support> supported_rows() {
                                 AM_CENTRALIZED_GREEDY}) {
         const std::vector<AssignTrigger> triggers = {ON_EVENT, AT_EVERY_TIMESTEP};
         rows.push_back({method, MAPF_PBS, triggers, ANY_REPLAN, EITHER_SELECTION,
-                        ANY_SEARCH, FLEXIBLE_ENDPOINTS, NOT_OFFLINE, WITH_DUMMY});
-        rows.push_back({method, MAPF_wPBS, triggers, WITH_REFRESH, ALL, WINDOWED_SEARCH,
-                        WINDOWED_ENDPOINTS, ALL_MODES, WITH_DUMMY});
+                        ANY_SEARCH, PBS_PP_ENDPOINTS, NOT_OFFLINE, WITH_DUMMY});
+        rows.push_back({method, MAPF_wPBS, triggers, WITH_REFRESH, EITHER_SELECTION, WINDOWED_SEARCH,
+                        ALL_ENDPOINTS, ALL_MODES, EITHER});
         rows.push_back({method, MAPF_PP_PER_TASK, triggers, ANY_REPLAN, EITHER_SELECTION,
-                        ANY_SEARCH, FLEXIBLE_ENDPOINTS, NOT_OFFLINE, WITH_DUMMY});
+                        ANY_SEARCH, PBS_PP_ENDPOINTS, NOT_OFFLINE, WITH_DUMMY});
         // CBS plans one goal at a time for the agents whose next goal changed
         // (one joint CBS over every agent at every event does not scale).
         // Repeated Hungarian rematches every task not yet picked up at each
         // event, and with single-goal segments the agents then oscillate.
         if (method != AM_REPEATED_HUNGARIAN && method != AM_REPEATED_HUNGARIAN_LNS)
             rows.push_back({method, MAPF_CBS, triggers, WITH_SEGMENTS, CHANGED,
-                            {SA_STA_TASK_EP}, FLEXIBLE_ENDPOINTS, ALL_MODES, WITH_DUMMY});
+                            {SA_STA_TASK_EP}, ALL_ENDPOINTS, ALL_MODES, EITHER});
     }
     // The LKH3 task sequences can be planned a few tasks at a time like any
     // other assignment; the plan is refreshed as agents work through them.
     // (Not by PBS or PP: the tour needs OFFLINE.)
     const std::vector<AssignTrigger> tour_triggers = {AT_ONCE, ON_EVENT};
-    rows.push_back({AM_LKH3_TSP, MAPF_wPBS, tour_triggers, WITH_REFRESH, ALL, WINDOWED_SEARCH,
-                    WINDOWED_ENDPOINTS, {MODE_OFFLINE}, WITH_DUMMY});
+    rows.push_back({AM_LKH3_TSP, MAPF_wPBS, tour_triggers, WITH_REFRESH, EITHER_SELECTION,
+                    WINDOWED_SEARCH,
+                    ALL_ENDPOINTS, {MODE_OFFLINE}, EITHER});
     rows.push_back({AM_LKH3_TSP, MAPF_CBS, tour_triggers, WITH_SEGMENTS, CHANGED,
-                    {SA_STA_TASK_EP}, FLEXIBLE_ENDPOINTS, {MODE_OFFLINE}, WITH_DUMMY});
+                    {SA_STA_TASK_EP}, ALL_ENDPOINTS, {MODE_OFFLINE}, EITHER});
     return rows;
 }
 
