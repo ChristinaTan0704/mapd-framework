@@ -141,16 +141,16 @@ Representative seed-0 baselines are:
 
 | Method | Setup | Makespan | SWT |
 |---|---:|---:|---:|
-| TP-STA* | 10 / 0.2 | 2541 | 19680 |
-| TPTS-STA* | 10 / 0.2 | 2530 | 14454 |
-| CENTRAL-CBS | 10 / 0.2 | 2514 | 14056 |
-| HBH+MLA* | 10 / 0.2 | 2532 | 14611 |
-| Hungarian+PBS-MLA* | 10 / 0.2 | 2514 | 13814 |
-| Hungarian+wPBS-MLA* | 10 / 0.2 | 2512 | 13743 |
-| LNS(1s)+PBS-MLA* | 10 / 0.2 | 2514 | 13738 |
-| LNS(1s)+wPBS-MLA* | 10 / 0.2 | 2513 | 13622 |
-| TA-Prioritized-STA* | 10 / offline | 1049 | 263420 |
-| TA-Hybrid-STA* | 10 / offline | 1055 | 263846 |
+| TP-STA* | 10 / 0.2 | 2541 | 18884 |
+| TPTS-STA* | 10 / 0.2 | 2516 | 14305 |
+| CENTRAL-CBS | 10 / 0.2 | 2513 | 14019 |
+| HBH+MLA* | 10 / 0.2 | 2532 | 14728 |
+| Hungarian+PBS-MLA* | 10 / 0.2 | 2513 | 13673 |
+| Hungarian+wPBS-MLA* | 10 / 0.2 | 2513 | 13717 |
+| LNS(1s)+PBS-MLA* | 10 / 0.2 | 2512 | 13681 |
+| LNS(1s)+wPBS-MLA* | 10 / 0.2 | 2513 | 13620 |
+| TA-Prioritized-STA* | 10 / offline | 1052 | 263485 |
+| TA-Hybrid-STA* | 10 / offline | 1050 | 263910 |
 
 The runner contains the complete 29-method smoke baseline, including the eight
 `task_sequence_limit=1` variants.
