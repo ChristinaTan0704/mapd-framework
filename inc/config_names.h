@@ -57,7 +57,7 @@ inline const NameTable<MAPFMethod>& names(MAPFMethod) {
 
 inline const NameTable<SingleAgentMethod>& names(SingleAgentMethod) {
     static const NameTable<SingleAgentMethod> table = {
-        {SA_STA_TASK_EP, "STA"}, {SA_STA_NONTASK_EP, "STA_NONTASK_EP"},
+        {SA_STA_TASK_EP, "STA"},
         {SA_MLA_SEQUENCE, "MLA"},
         {SA_MLSIPP_SEQUENCE, "MLSIPP"}, {SA_MLSIPP_SEQUENCE, "SIPP"},
         {SA_SIPP_SEGMENTS, "SIPP2"}, {SA_SIPP_SEGMENTS, "2SEG_SIPP"},

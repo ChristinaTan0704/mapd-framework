@@ -377,9 +377,8 @@ file in the selected output directory before accepting an experiment matrix.
 
 All rows below also receive `--seed 0`. Preset defaults are
 `task_sequence_limit=2`, `wpbs_replan_window=10`, `lns_time=1`,
-`lns_no_improvement_limit=2000`, CBS focal weight 1.0, both CBS high- and
-low-level expansion limits `INT_MAX`, and the TP/TPTS STA* expansion limit
-`INT_MAX` (`--sta_expansion_limit`; the reference search is uncapped). CBS uses ICBS conflict prioritization
+`lns_no_improvement_limit=2000`, CBS focal weight 1.0, and both CBS high- and
+low-level expansion limits `INT_MAX`. CBS uses ICBS conflict prioritization
 (MDD-based cardinal, then semi-cardinal, then non-cardinal conflicts), bypass,
 target reasoning (a conflict with an agent parked at its goal branches on
 "arrive later" versus "the other agent never enters that goal from then on"),

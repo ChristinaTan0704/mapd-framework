@@ -683,30 +683,8 @@ void Simulation::assign_hbh_mla() {
                 constraints.emplace_back(
                     path_table_[other].begin(), path_table_[other].end());
 
-        vector<int> path;
-        switch (config.single_agent) {
-        case SA_MLA_SEQUENCE: {
-            MLAStarPlanner planner(*this);
-            path = planner.solve(MLAStarRequest(
-                agent.id, agent.loc, (int)cur_time_, task_groups,
-                constraints, no_old_paths, false));
-            break;
-        }
-        case SA_MLSIPP_SEQUENCE: {
-            SIPPPlanner planner(*this);
-            path = planner.solve(SIPPRequest(
-                agent.id, agent.loc, (int)cur_time_, ordered_goals,
-                constraints, no_old_paths, false));
-            break;
-        }
-        case SA_SIPP_SEGMENTS:
-            path = plan_sipp_segments(
-                agent.id, agent.loc, (int)cur_time_, ordered_goals,
-                constraints, no_old_paths, false);
-            break;
-        default:
-            throw logic_error("assign_hbh_mla: unsupported single_agent");
-        }
+        vector<int> path = plan_single_agent({agent.id, (int)agent.loc, (int)cur_time_,
+                                              task_groups, constraints, no_old_paths, false});
         if (path.empty()) continue;
 
         int first_goal_time = -1;
@@ -3544,8 +3522,6 @@ int Simulation::astar_with_dummy(
 void Simulation::path_planning_pp_per_task() {
     const int num_agents = (int)agents.size();
     const int max_time = (int)maxtime;
-    SIPPPlanner sipp(*this);
-    MLAStarPlanner mla_star(*this);
     const vector<vector<int>> no_old_paths;
 
     vector<vector<int>> old_paths(num_agents, vector<int>(max_time));
@@ -3598,34 +3574,16 @@ void Simulation::path_planning_pp_per_task() {
             goals.push_back({(int)agent.loc, 0});
         }
 
-        vector<int> path;
-        switch (config.single_agent) {
-        case SA_MLSIPP_SEQUENCE:
-            path = sipp.solve(SIPPRequest(
-                agent_id, (int)agent.loc, (int)cur_time_, goals,
-                constraints, no_old_paths, false));
-            break;
-        case SA_MLA_SEQUENCE: {
-            vector<vector<pair<int,int>>> task_groups =
-                split_into_task_groups(agent_id, goals);
-            path = mla_star.solve(MLAStarRequest(
-                agent_id, (int)agent.loc, (int)cur_time_, task_groups,
-                constraints, no_old_paths, false));
-            break;
-        }
-        default:
-            throw logic_error("path_planning_pp_per_task: unsupported single_agent");
-        }
+        const vector<vector<pair<int,int>>> task_groups =
+            split_into_task_groups(agent_id, goals);
+        vector<int> path = plan_single_agent({agent_id, (int)agent.loc, (int)cur_time_,
+                                              task_groups, constraints, no_old_paths, false});
 
         // Preserve the archived PP behavior: if SIPP cannot find a path within
         // its search bound, retry with MLA* before falling back to waiting.
-        if (path.empty() && config.single_agent == SA_MLSIPP_SEQUENCE) {
-            vector<vector<pair<int,int>>> task_groups =
-                split_into_task_groups(agent_id, goals);
-            path = mla_star.solve(MLAStarRequest(
-                agent_id, (int)agent.loc, (int)cur_time_, task_groups,
-                constraints, no_old_paths, false));
-        }
+        if (path.empty() && config.single_agent == SA_MLSIPP_SEQUENCE)
+            path = mla_star_taskwise_impl(agent_id, (int)agent.loc, (int)cur_time_,
+                                          task_groups, constraints, no_old_paths, false);
 
         new_paths[agent_id].resize(max_time);
         if (!path.empty()) {
@@ -3750,25 +3708,11 @@ void Simulation::pbs_build_shared_old_table() {
     shared_old_valid_ = true;
 }
 
-// One low-level call, honouring config.single_agent.
+// One low-level call for agent_id under the given constraints.
 vector<int> Simulation::pbs_plan_agent(int agent_id, const vector<vector<int>>& cons_paths,
                                        const vector<vector<int>>& old_paths, bool use_old) {
-    switch (config.single_agent) {
-    case SA_MLA_SEQUENCE: {
-        MLAStarPlanner mla_star(*this);
-        return mla_star.solve(MLAStarRequest(
-            agent_id, (int)agents[agent_id].loc, (int)cur_time_,
-            pbs_.task_groups[agent_id], cons_paths, old_paths, use_old));
-    }
-    case SA_MLSIPP_SEQUENCE: {
-        SIPPPlanner sipp(*this);
-        return sipp.solve(SIPPRequest(
-            agent_id, (int)agents[agent_id].loc, (int)cur_time_,
-            pbs_.goal_seqs[agent_id], cons_paths, old_paths, use_old));
-    }
-    default:
-        throw logic_error("pbs_plan_agent: unsupported single_agent");
-    }
+    return plan_single_agent({agent_id, (int)agents[agent_id].loc, (int)cur_time_,
+                              pbs_.task_groups[agent_id], cons_paths, old_paths, use_old});
 }
 
 // --- root node --------------------------------------------------------------
@@ -4182,83 +4126,6 @@ bool Simulation::sta_is_constrained(int agent_id, int current_loc, int next_loc,
     return false;
 }
 
-int Simulation::sta_search(Agent& agent, int start_loc, int begin_time,
-                           const Endpoint& goal, int hidden_agent) {
-    heap_open_t open;
-    map<unsigned int, SearchNode*> nodes;
-
-    SearchNode* start = new SearchNode(
-        start_loc, 0, goal.h_val[start_loc], nullptr, begin_time);
-    open.push(start);
-    nodes.emplace((unsigned int)start_loc, start);
-
-    int expanded = 0;
-    while (!open.empty()) {
-        RuntimeDeadline::check_periodic(
-            (uint64_t)expanded, "STA* low-level search");
-        SearchNode* current = open.top();
-        open.pop();
-        current->in_openlist = false;
-
-        if (expanded++ >= config.sta_expansion_limit) {
-            release_search_nodes(nodes);
-            // TP/TPTS expect this search to find the guaranteed path on a
-            // well-formed instance, so an explicit limit is an error rather
-            // than an ordinary candidate failure.
-            throw runtime_error(
-                "STA* exceeded " + to_string(config.sta_expansion_limit) +
-                " expansions without finding a path for agent " +
-                to_string(agent.id) + " from location " +
-                to_string(start_loc) + " to location " +
-                to_string(goal.loc) + " at time " + to_string(begin_time));
-        }
-
-        if (current->loc == goal.loc) {
-            bool can_hold = true;
-            for (unsigned int t = current->timestep + 1; t < maxtime && can_hold; t++)
-                for (int other = 0; other < (int)path_table_.size(); other++)
-                    if (other != agent.id && other != hidden_agent &&
-                        path_table_[other][t] == (unsigned int)current->loc) {
-                        can_hold = false;
-                        break;
-                    }
-
-            if (can_hold) {
-                sta_update_path(agent, *current);
-                int arrival_time = current->timestep;
-                release_search_nodes(nodes);
-                return arrival_time;
-            }
-        }
-
-        if ((unsigned int)current->timestep >= maxtime - 1) continue;
-
-        // Reference action order: wait, east, west, south, north.
-        const int actions[5] = {0, 1, -1, mapd_map.col, -mapd_map.col};
-        for (int action : actions) {
-            int next_loc = current->loc + action;
-            int next_time = current->timestep + 1;
-            if (sta_is_constrained(agent.id, current->loc, next_loc,
-                                   next_time, hidden_agent))
-                continue;
-
-            int next_g = current->g_val + 1;
-            SearchNode* next = new SearchNode(
-                next_loc, next_g, goal.h_val[next_loc], current, next_time);
-            unsigned int key = next->loc + next->g_val * mapd_map.row * mapd_map.col;
-            if (nodes.find(key) == nodes.end()) {
-                nodes.emplace(key, next);
-                open.push(next);
-            } else {
-                delete next;
-            }
-        }
-    }
-
-    release_search_nodes(nodes);
-    return -1;
-}
-
 void Simulation::sta_update_path(Agent& agent, const SearchNode& goal_node) {
     for (unsigned int t = goal_node.timestep + 1; t < agent.path.size(); t++)
         agent.path[t] = goal_node.loc;
@@ -4270,72 +4137,59 @@ void Simulation::sta_update_path(Agent& agent, const SearchNode& goal_node) {
     }
 }
 
+// TP/TPTS plan one task with the configured single-agent search against every
+// other agent's committed path; a TPTS steal hides the displaced agent. The path
+// is committed only if it is collision-free and its final goal can be held
+// forever, the token-passing invariant. Returns (first-goal arrival, final-goal
+// arrival), or (-1, -1).
 pair<int,int> Simulation::plan_token_task(Agent& agent, Task& task,
                                           int hidden_agent) {
-    // Shared TP/TPTS low-level switch. Recursive TPTS steals pass the displaced
-    // agent as hidden_agent so the replacement path may take over its
-    // reservation. The returned pair is (first-goal arrival, final-goal
-    // arrival), preserving the timestamps TPTS needs for task stealing.
-    switch (config.single_agent) {
-    case SA_STA_TASK_EP: {
-        STAStarPlanner sta(*this);
-        return sta.solveTask(STAStarRequest(agent, task, hidden_agent));
-    }
-    case SA_MLSIPP_SEQUENCE:
-        return plan_task_sipp(agent, task, hidden_agent);
-    default:
-        throw logic_error("plan_token_task: unsupported single_agent");
-    }
-}
+    const int hidden = hidden_agent >= 0 ? hidden_agent : agent.id;
 
-pair<int,int> Simulation::plan_task_sta_impl(Agent& agent, Task& task,
-                                             int hidden_agent) {
-    int hidden = hidden_agent >= 0 ? hidden_agent : agent.id;
-    vector<unsigned int> saved_path(agent.path.begin(), agent.path.end());
+    vector<vector<int>> constraints;
+    constraints.reserve(path_table_.size() - 1);
+    for (int other = 0; other < (int)path_table_.size(); other++) {
+        if (other == agent.id || other == hidden) continue;
+        constraints.emplace_back(path_table_[other].begin(), path_table_[other].end());
+    }
 
-    // TP/TPTS still plan one complete task per token operation, but a task may
-    // now contain any number of ordered goals. The first goal keeps the
-    // original pickup semantics (including start_wait_time); completion is
-    // recorded at the final goal.
-    vector<int> goal_locations = task.goals;
-    if (goal_locations.empty())
-        goal_locations = {task.pickup_loc, task.delivery_loc};
+    vector<pair<int,int>> goals;
+    for (int goal_index = 0; goal_index < (int)task.goals.size(); goal_index++)
+        goals.push_back({task.goals[goal_index],
+                         goal_index == 0 ? task.release_time : 0});
+    const vector<vector<pair<int,int>>> task_group(1, goals);
+    const vector<vector<int>> no_old_paths;
+    vector<int> path = plan_single_agent({agent.id, (int)agent.loc, (int)cur_time_,
+                                          task_group, constraints, no_old_paths, false});
+    if (path.empty()) return {-1, -1};
 
     int first_goal_time = -1;
     int final_goal_time = -1;
-    int start_loc = agent.loc;
-    int begin_time = (int)cur_time_;
-
-    for (int goal_index = 0;
-         goal_index < (int)goal_locations.size(); goal_index++) {
-        int endpoint_index;
-        if (goal_index == 0)
-            endpoint_index = task.pickup;
-        else if (goal_index == (int)goal_locations.size() - 1)
-            endpoint_index = task.delivery;
-        else
-            endpoint_index = mapd_map.ep_index(goal_locations[goal_index]);
-
-        if (endpoint_index < 0) {
-            agent.path.assign(saved_path.begin(), saved_path.end());
-            return {-1, -1};
+    int goal_index = 0;
+    for (int t = (int)cur_time_;
+         t < (int)path.size() && goal_index < (int)goals.size(); t++) {
+        if (path[t] == goals[goal_index].first && t >= goals[goal_index].second) {
+            if (goal_index == 0) first_goal_time = t;
+            if (goal_index == (int)goals.size() - 1) final_goal_time = t;
+            goal_index++;
         }
-
-        int arrival_time = sta_search(
-            agent, start_loc, begin_time,
-            mapd_map.endpoints[endpoint_index], hidden);
-        if (arrival_time < 0) {
-            agent.path.assign(saved_path.begin(), saved_path.end());
-            return {-1, -1};
-        }
-
-        if (goal_index == 0) first_goal_time = arrival_time;
-        final_goal_time = arrival_time;
-        start_loc = goal_locations[goal_index];
-        begin_time = arrival_time;
-        if (goal_index == 0) begin_time += task.start_wait_time;
     }
+    if (first_goal_time < 0 || final_goal_time < 0) return {-1, -1};
 
+    for (int t = (int)cur_time_ + 1;
+         t <= final_goal_time && t < (int)maxtime; t++)
+        if (sta_is_constrained(agent.id, path[t - 1], path[t], t, hidden))
+            return {-1, -1};
+
+    for (unsigned int t = final_goal_time + 1; t < maxtime; t++)
+        for (int other = 0; other < (int)path_table_.size(); other++) {
+            if (other == agent.id || other == hidden) continue;
+            if (path_table_[other][t] == (unsigned int)goals.back().first)
+                return {-1, -1};
+        }
+
+    for (int t = 0; t < (int)path.size() && t < (int)maxtime; t++)
+        agent.path[t] = path[t];
     return {first_goal_time, final_goal_time};
 }
 
@@ -4349,14 +4203,13 @@ vector<int> Simulation::plan_sipp_segments(
     vector<int> combined(maxtime, start_loc);
     int segment_start = start_time;
     int segment_location = start_loc;
-    SIPPPlanner planner(*this);
 
     for (int goal_index = 0; goal_index < (int)goals.size(); goal_index++) {
         vector<pair<int,int>> segment_goal = {goals[goal_index]};
         bool intermediate = goal_index + 1 < (int)goals.size();
-        vector<int> segment = planner.solve(SIPPRequest(
+        vector<int> segment = sipp_search_impl(
             agent_id, segment_location, segment_start, segment_goal,
-            constraint_paths, old_paths, use_old_paths, intermediate));
+            constraint_paths, old_paths, use_old_paths, intermediate);
         if (segment.empty()) return {};
 
         int arrival = -1;
@@ -4376,68 +4229,6 @@ vector<int> Simulation::plan_sipp_segments(
         segment_location = goals[goal_index].first;
     }
     return combined;
-}
-
-pair<int,int> Simulation::plan_task_sipp(Agent& agent, Task& task,
-                                         int hidden_agent) {
-    const int hidden = hidden_agent >= 0 ? hidden_agent : agent.id;
-
-    vector<vector<int>> constraints;
-    constraints.reserve(path_table_.size() - 1);
-    for (int other = 0; other < (int)path_table_.size(); other++) {
-        if (other == agent.id || other == hidden) continue;
-        constraints.emplace_back(path_table_[other].begin(), path_table_[other].end());
-    }
-
-    const vector<vector<int>> no_old_paths;
-    vector<int> goal_locations = task.goals;
-    if (goal_locations.empty())
-        goal_locations = {task.pickup_loc, task.delivery_loc};
-
-    vector<pair<int,int>> goals;
-    goals.reserve(goal_locations.size());
-    for (int goal_index = 0;
-         goal_index < (int)goal_locations.size(); goal_index++)
-        goals.push_back({
-            goal_locations[goal_index],
-            goal_index == 0 ? task.release_time : 0});
-    SIPPPlanner sipp(*this);
-    vector<int> path = sipp.solve(SIPPRequest(
-        agent.id, agent.loc, (int)cur_time_, goals,
-        constraints, no_old_paths, false));
-    if (path.empty()) return {-1, -1};
-
-    int first_goal_time = -1;
-    int final_goal_time = -1;
-    int goal_index = 0;
-    for (int t = (int)cur_time_;
-         t < (int)path.size() && goal_index < (int)goals.size(); t++) {
-        if (path[t] == goals[goal_index].first && t >= goals[goal_index].second) {
-            if (goal_index == 0) first_goal_time = t;
-            if (goal_index == (int)goals.size() - 1) final_goal_time = t;
-            goal_index++;
-        }
-    }
-    if (first_goal_time < 0 || final_goal_time < 0) return {-1, -1};
-
-    // Validate the returned SIPP path against TP's token table, including edge
-    // swaps, and ensure its final goal can be held permanently.
-    for (int t = (int)cur_time_ + 1;
-         t <= final_goal_time && t < (int)maxtime; t++)
-        if (sta_is_constrained(agent.id, path[t - 1], path[t], t, hidden))
-            return {-1, -1};
-
-    for (unsigned int t = final_goal_time + 1; t < maxtime; t++)
-        for (int other = 0; other < (int)path_table_.size(); other++) {
-            if (other == agent.id || other == hidden) continue;
-            if (path_table_[other][t] ==
-                (unsigned int)goal_locations.back())
-                return {-1, -1};
-        }
-
-    for (int t = 0; t < (int)path.size() && t < (int)maxtime; t++)
-        agent.path[t] = path[t];
-    return {first_goal_time, final_goal_time};
 }
 
 int Simulation::search_path2_endpoint(
@@ -4625,6 +4416,42 @@ struct MLAPoolAllocator {
 };
 
 }  // namespace
+
+// --- Single_Agent_Search() : switch on single_agent -------------------------
+// The goal groups fix how the search is segmented: STA* searches goal by goal,
+// MLA* task by task, MLSIPP the whole sequence at once, and SIPP2 goal by goal
+// over safe intervals.
+vector<int> Simulation::plan_single_agent(const SingleAgentRequest& request) {
+    vector<pair<int,int>> all_goals;
+    for (const auto& group : request.goal_groups)
+        all_goals.insert(all_goals.end(), group.begin(), group.end());
+
+    switch (config.single_agent) {
+    case SA_STA_TASK_EP: {
+        vector<vector<pair<int,int>>> one_per_group;
+        for (const auto& goal : all_goals) one_per_group.push_back({goal});
+        return mla_star_taskwise_impl(request.agent_id, request.start_loc,
+                                      request.start_time, one_per_group,
+                                      request.constraint_paths, request.old_paths,
+                                      request.use_old_paths);
+    }
+    case SA_MLA_SEQUENCE:
+        return mla_star_taskwise_impl(request.agent_id, request.start_loc,
+                                      request.start_time, request.goal_groups,
+                                      request.constraint_paths, request.old_paths,
+                                      request.use_old_paths);
+    case SA_MLSIPP_SEQUENCE:
+        return sipp_search_impl(request.agent_id, request.start_loc, request.start_time,
+                                all_goals, request.constraint_paths, request.old_paths,
+                                request.use_old_paths);
+    case SA_SIPP_SEGMENTS:
+        return plan_sipp_segments(request.agent_id, request.start_loc, request.start_time,
+                                  all_goals, request.constraint_paths, request.old_paths,
+                                  request.use_old_paths);
+    default:
+        throw logic_error("plan_single_agent: unsupported single_agent");
+    }
+}
 
 // --- task-by-task driver ----------------------------------------------------
 // Plan one task group at a time and concatenate: the agent commits to reaching

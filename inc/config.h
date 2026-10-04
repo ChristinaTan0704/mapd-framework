@@ -35,7 +35,6 @@ enum MAPFMethod {
 };
 enum SingleAgentMethod {
     SA_STA_TASK_EP,
-    SA_STA_NONTASK_EP,
     SA_MLA_SEQUENCE,
     SA_MLSIPP_SEQUENCE,
     SA_SIPP_SEGMENTS,
@@ -102,10 +101,6 @@ struct MAPDConfig {
     int cbs_high_level_expansion_limit;
     // CBS/ECBS only: maximum nodes expanded by each low-level ECBS search.
     int cbs_low_level_expansion_limit;
-    // STA* only: maximum expansions per TP/TPTS search. INT_MAX matches the
-    // uncapped reference search; a reachable goal may first have to wait
-    // until other agents stop passing through it.
-    int sta_expansion_limit;
     // CBS/ECBS only: high-level conflict selection.
     CBSConflictSelection cbs_conflict_selection;
     // CBS/ECBS only: ICBS bypass. A child with the same cost and fewer
@@ -132,7 +127,6 @@ struct MAPDConfig {
         lns_no_improvement_limit(2000), ecbs_focal_weight(1.0),
         cbs_high_level_expansion_limit(INT_MAX),
         cbs_low_level_expansion_limit(INT_MAX),
-        sta_expansion_limit(INT_MAX),
         cbs_conflict_selection(CBS_CONFLICT_CARDINAL), cbs_bypass(true),
         cbs_target_reasoning(true), cbs_rectangle_reasoning(true),
         semi_online_lookahead_batches(1), tie_breaking(TIE_BREAK_REFERENCE) {}

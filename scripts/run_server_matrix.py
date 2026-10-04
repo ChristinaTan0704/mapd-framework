@@ -84,8 +84,8 @@ BASE_METHOD_COUNT = 21
 # exact-gated: their one-second CPU budget can perform a different number of
 # iterations on another processor/compiler.
 SMOKE_BASELINE = {
-    "TP-STA*": (2532, 19417),
-    "TPTS-STA*": (2532, 14666),
+    "TP-STA*": (2541, 18884),
+    "TPTS-STA*": (2516, 14305),
     "CENTRAL-CBS": (2513, 14019),
     "CENTRAL-fixed-CBS": (2514, 14177),
     "HBH+MLA*": (2532, 14728),
@@ -116,7 +116,7 @@ SMOKE_BASELINE = {
 }
 
 MULTIGOAL_BASELINE = {
-    "TP-STA*": (161, 1062),
+    "TP-STA*": (161, 1045),
     "TPTS-STA*": (161, 1014),
     "CENTRAL-CBS": (159, 1033),
     "CENTRAL-fixed-CBS": (154, 1031),

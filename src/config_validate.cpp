@@ -33,6 +33,9 @@ const std::vector<EndpointStrategy> ALL_ENDPOINTS = {
     NEAREST_WITH_STRICT_EXCLUSIONS, PAIRWISE_TASK_THEN_HOME, RETURN_TO_HOME};
 const std::vector<EndpointStrategy> FLEXIBLE_ENDPOINTS = {
     NEAREST_WITH_STRICT_EXCLUSIONS, NEAREST_AVAILABLE, RETURN_TO_HOME};
+const std::vector<SingleAgentMethod> ANY_SEARCH = {
+    SA_STA_TASK_EP, SA_MLA_SEQUENCE, SA_MLSIPP_SEQUENCE, SA_SIPP_SEGMENTS};
+// wPBS runs its own windowed solver (native_wpbs_solve) with MLA* or MLSIPP.
 const std::vector<SingleAgentMethod> MLA_OR_MLSIPP = {SA_MLA_SEQUENCE, SA_MLSIPP_SEQUENCE};
 const std::vector<bool> WITH_DUMMY = {true};
 const std::vector<bool> EITHER = {true, false};
@@ -44,14 +47,12 @@ std::vector<Support> supported_pairs() {
         // against the others' committed paths (per-task prioritized planning);
         // the WAIT_* strategies exist only for their relocation step.
         {AM_DECOUPLED_GREEDY, MAPF_PP_PER_TASK, {AT_ON_FREE_WAITS},
-         {SA_STA_TASK_EP, SA_MLSIPP_SEQUENCE}, ALL_ENDPOINTS, ALL_MODES, WITH_DUMMY},
-        {AM_DECOUPLED_GREEDY_SWAPS, MAPF_PP_PER_TASK, {AT_ON_FREE_WAITS},
-         {SA_STA_TASK_EP, SA_MLSIPP_SEQUENCE},
+         ANY_SEARCH, ALL_ENDPOINTS, ALL_MODES, WITH_DUMMY},
+        {AM_DECOUPLED_GREEDY_SWAPS, MAPF_PP_PER_TASK, {AT_ON_FREE_WAITS}, ANY_SEARCH,
          {WAIT_OR_NEAREST_SAFE, WAIT_OR_NEAREST_FREE_NONTASK, NEAREST_AVAILABLE,
           NEAREST_WITH_STRICT_EXCLUSIONS, RETURN_TO_HOME}, ALL_MODES, WITH_DUMMY},
         {AM_CENTRALIZED_GREEDY, MAPF_PP_PER_TASK, {AT_ON_FREE_WAITS},
-         {SA_MLA_SEQUENCE, SA_MLSIPP_SEQUENCE, SA_SIPP_SEGMENTS}, ALL_ENDPOINTS,
-         ALL_MODES, WITH_DUMMY},
+         ANY_SEARCH, ALL_ENDPOINTS, ALL_MODES, WITH_DUMMY},
         // CENTRAL runs CBS with its own low-level search (src/cbs.cpp) and
         // routes free agents to parking endpoints during assignment.
         {AM_CENTRAL_HUNGARIAN, MAPF_CBS,
@@ -66,12 +67,12 @@ std::vector<Support> supported_pairs() {
     };
     // Repeated Hungarian, with or without LNS, feeds the same planners.
     for (AssignMethod hungarian : {AM_REPEATED_HUNGARIAN, AM_REPEATED_HUNGARIAN_LNS}) {
-        rows.push_back({hungarian, MAPF_PBS, {ON_EVENT}, MLA_OR_MLSIPP,
+        rows.push_back({hungarian, MAPF_PBS, {ON_EVENT}, ANY_SEARCH,
                         FLEXIBLE_ENDPOINTS, ALL_MODES, WITH_DUMMY});
         rows.push_back({hungarian, MAPF_wPBS, {ON_EVENT}, MLA_OR_MLSIPP,
                         {PAIRWISE_TASK_THEN_HOME, NEAREST_WITH_STRICT_EXCLUSIONS,
                          NEAREST_AVAILABLE, RETURN_TO_HOME}, ALL_MODES, WITH_DUMMY});
-        rows.push_back({hungarian, MAPF_PP_PER_TASK, {ON_EVENT}, MLA_OR_MLSIPP,
+        rows.push_back({hungarian, MAPF_PP_PER_TASK, {ON_EVENT}, ANY_SEARCH,
                         FLEXIBLE_ENDPOINTS, ALL_MODES, WITH_DUMMY});
     }
     return rows;

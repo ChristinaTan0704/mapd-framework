@@ -192,9 +192,6 @@ public:
 private:
     friend class PBSPlanner;
     friend class wPBSPlanner;
-    friend class SIPPPlanner;
-    friend class MLAStarPlanner;
-    friend class STAStarPlanner;
 
     // ======================================================================
     //  Instance + system state
@@ -308,9 +305,8 @@ private:
     //  Section 5 — MAPF: PP / PBS / wPBS
     // ======================================================================
     // Public algorithm boundaries live in path_planners.h. Simulation calls
-    // PBSPlanner/wPBSPlanner, which in turn select SIPPPlanner/MLAStarPlanner
-    // using explicit per-search request objects. The *_impl methods below are
-    // private kernels and are callable only by those friend strategy classes.
+    // PBSPlanner/wPBSPlanner; every planner reaches the low level through
+    // plan_single_agent() with an explicit SingleAgentRequest.
     void path_planning_pp_per_task();
     void path_planning_pp_task_sequence();
     void path_planning_ta_hybrid(bool assignment_triggered);
@@ -370,6 +366,9 @@ private:
     // ======================================================================
     //  Section 6 — Single-agent search: MLA* / MLSIPP
     // ======================================================================
+    // The configured single-agent search (config.single_agent); every planner
+    // reaches the low level through here.
+    vector<int> plan_single_agent(const SingleAgentRequest& request);
     vector<int> mla_star_taskwise_impl(int agent_id, int start_loc, int start_time,
                                       const vector<vector<pair<int,int>>>& task_groups,
                                       const vector<vector<int>>& cons_paths,
@@ -390,16 +389,12 @@ private:
                                 bool skip_holding = false);
 
     // TP/TPTS ordered-goal low-level planning and endpoint-vacating fallback.
-    pair<int,int> plan_task_sta_impl(Agent& agent, Task& task, int hidden_agent = -1);
-    pair<int,int> plan_task_sipp(Agent& agent, Task& task, int hidden_agent = -1);
     vector<int> plan_sipp_segments(
         int agent_id, int start_loc, int start_time,
         const vector<pair<int,int>>& goals,
         const vector<vector<int>>& constraint_paths,
         const vector<vector<int>>& old_paths, bool use_old_paths);
     pair<int,int> plan_token_task(Agent& agent, Task& task, int hidden_agent = -1);
-    int sta_search(Agent& agent, int start_loc, int begin_time,
-                   const Endpoint& goal, int hidden_agent);
     bool sta_is_constrained(int agent_id, int current_loc, int next_loc,
                             int next_time, int hidden_agent) const;
     void sta_update_path(Agent& agent, const SearchNode& goal_node);
