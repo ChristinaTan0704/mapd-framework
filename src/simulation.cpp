@@ -79,6 +79,7 @@
 void Simulation::init(const string& map_file, const string& task_file,
                       const MAPDConfig& cfg, const string& tour_file) {
     config = cfg;
+    validate_config(config, !tour_file.empty());
     RandomTieBreaker::seed(config.seed);
     TieBreakPolicy::set_reference(config.tie_breaking == TIE_BREAK_REFERENCE);
     tour_file_ = tour_file;
@@ -274,8 +275,7 @@ bool Simulation::should_assign() {
         return assignment_event;
     }
     default:
-        cerr << "should_assign: assign_trigger not implemented in this build" << endl;
-        return false;
+        throw logic_error("should_assign: unsupported assign_trigger");
     }
 }
 
@@ -309,8 +309,7 @@ void Simulation::task_assignment() {
         assign_ta_hybrid();
         break;
     default:
-        cerr << "task_assignment: assign_method not implemented in this build" << endl;
-        break;
+        throw logic_error("task_assignment: unsupported assign_method");
     }
 }
 
@@ -362,8 +361,7 @@ bool Simulation::should_replan(bool assignment_triggered) const {
                    config.wpbs_replan_window;
         return false;
     default:
-        cerr << "should_replan: assign_trigger not implemented in this build" << endl;
-        return false;
+        throw logic_error("should_replan: unsupported assign_trigger");
     }
 }
 
@@ -389,8 +387,7 @@ void Simulation::path_planning(bool assignment_triggered) {
         path_planning_ta_hybrid(assignment_triggered);
         break;
     default:
-        cerr << "path_planning: mapf not implemented in this build" << endl;
-        break;
+        throw logic_error("path_planning: unsupported mapf");
     }
 }
 
@@ -708,8 +705,7 @@ void Simulation::assign_hbh_mla() {
                 constraints, no_old_paths, false);
             break;
         default:
-            throw invalid_argument(
-                "HBH requires MLA, MLSIPP, or SIPP2 low-level search");
+            throw logic_error("assign_hbh_mla: unsupported single_agent");
         }
         if (path.empty()) continue;
 
@@ -1139,10 +1135,6 @@ struct TATourAssignment {
 
 TATourAssignment read_ta_tour(const string& tour_file, int agent_count,
                               int task_count) {
-    if (tour_file.empty()) {
-        throw runtime_error("TA_PRIORITIZED requires --tour <file>");
-    }
-
     ifstream input(tour_file);
     if (!input.is_open()) {
         throw runtime_error("Tour file not found: " + tour_file);
@@ -3635,8 +3627,7 @@ void Simulation::path_planning_pp_per_task() {
             break;
         }
         default:
-            cerr << "path_planning_pp_per_task: single_agent not implemented in this build" << endl;
-            break;
+            throw logic_error("path_planning_pp_per_task: unsupported single_agent");
         }
 
         // Preserve the archived PP behavior: if SIPP cannot find a path within
@@ -3789,8 +3780,7 @@ vector<int> Simulation::pbs_plan_agent(int agent_id, const vector<vector<int>>& 
             pbs_.goal_seqs[agent_id], cons_paths, old_paths, use_old));
     }
     default:
-        cerr << "pbs_plan_agent: single_agent not implemented in this build" << endl;
-        return {};
+        throw logic_error("pbs_plan_agent: unsupported single_agent");
     }
 }
 
@@ -4307,8 +4297,7 @@ pair<int,int> Simulation::plan_token_task(Agent& agent, Task& task,
     case SA_MLSIPP_SEQUENCE:
         return plan_task_sipp(agent, task, hidden_agent);
     default:
-        cerr << "plan_token_task: single_agent not implemented" << endl;
-        return {-1, -1};
+        throw logic_error("plan_token_task: unsupported single_agent");
     }
 }
 
@@ -7310,6 +7299,6 @@ void Simulation::saveOutput(const string& filepath, double runtime_ms,
 // ============================================================================
 int Simulation::realpath_lns_imp(int num_rounds, int /*group_size*/) {
     if (num_rounds > 0)
-        cerr << "realpath_lns_imp: anytime improvement not implemented in this build" << endl;
+        throw logic_error("realpath_lns_imp: anytime improvement is not implemented");
     return 0;
 }

@@ -265,3 +265,7 @@ inline MAPDConfig get_preset(const string& name) {
 
     return c;
 }
+
+// Rejects any combination of components the framework does not implement
+// (src/config_validate.cpp). Throws invalid_argument naming the supported values.
+void validate_config(const MAPDConfig& config, bool has_tour);

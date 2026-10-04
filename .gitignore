@@ -25,6 +25,7 @@
 !/src/
 /src/*
 !/src/cbs.cpp
+!/src/config_validate.cpp
 !/src/map_loader.cpp
 !/src/path_planners.cpp
 !/src/simulation.cpp
@@ -34,6 +35,7 @@
 /scripts/*
 !/scripts/run_server_matrix.py
 !/scripts/check_repository_manifest.py
+!/scripts/check_combinations.py
 
 # Per-map experiment matrices and the task files they add.
 !/scripts/experiment_matrix_lib.py

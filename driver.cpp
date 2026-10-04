@@ -22,15 +22,6 @@ void set_parameters(MAPDConfig& config, const po::variables_map& vm)
                 "mode must be ONLINE, OFFLINE, or SEMI_ONLINE");
     }
 
-    // Both LKH3-based TA algorithms are defined for the offline setting: the
-    // complete task set must be known when the tour is read. TA-Hybrid may
-    // reassign that fixed task set later, but it does not reveal new tasks.
-    if ((config.assign_method == AM_LKH3_TSP ||
-         config.assign_method == AM_LKH3_TSP_REASSIGN) &&
-        config.mode != MODE_OFFLINE) {
-        throw invalid_argument(
-            "TA-Prioritized and TA-Hybrid support OFFLINE mode only");
-    }
 
     string sa = vm["single_agent"].as<string>();
     if (sa == "MLA") config.single_agent = SA_MLA_SEQUENCE;
@@ -287,7 +278,7 @@ int main(int argc, char** argv)
     try {
         sim.init(map_file, task_file, config, tour_file);
         sim.run();
-    } catch (const runtime_error& e) {
+    } catch (const exception& e) {
         cerr << "Error: " << e.what() << endl;
         return 1;
     }

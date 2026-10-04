@@ -178,6 +178,17 @@ GitHub Actions runs the same repository-manifest, Linux build, and 29-method
 smoke checks on every push and pull request. Its smoke logs are uploaded as the
 `mapd-validation-results` workflow artifact.
 
+Component combinations are validated before a run starts: `validate_config()`
+(`src/config_validate.cpp`) lists every supported pairing of assignment and
+MAPF method with its triggers, single-agent searches, endpoint strategies and
+modes, and rejects anything else with the supported values. The combination
+check runs every preset against every override and fails if a combination is
+neither rejected nor completed collision-free:
+
+```bash
+python3 scripts/check_combinations.py --max-parallel 20
+```
+
 It also runs every method on ten committed tasks containing five ordered goals
 each:
 

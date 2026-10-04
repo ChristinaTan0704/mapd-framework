@@ -29,6 +29,9 @@ jobs:
       - name: Build
         run: make -j"$(nproc)"
 
+      - name: Check that every component combination runs or is rejected
+        run: python3 scripts/check_combinations.py --max-parallel 5
+
       - name: Run seed-0 smoke matrix
         run: |
           python3 scripts/run_server_matrix.py \
