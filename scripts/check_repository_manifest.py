@@ -122,6 +122,14 @@ for agents in (10, 20, 30, 40, 50):
             "benchmark_instances/tasks/"
             f"benchmark_structured_small_mg_a{agents}_f{frequency}.task")
 
+# Component configurations of the Table 1 algorithms and their variants.
+for name in ("TP", "TPTS", "CENTRAL", "CENTRAL-fixed", "HBH", "TA-Prioritized",
+             "TA-Hybrid", "LNS-PBS", "LNS-wPBS"):
+    REQUIRED.add(f"configs/table1/{name}.cfg")
+for name in ("TPTS-MLSIPP", "Hungarian-PBS", "Hungarian-wPBS", "Hungarian-PBS-MLSIPP",
+             "Hungarian-wPBS-MLSIPP", "LNS-PBS-MLSIPP", "LNS-wPBS-MLSIPP"):
+    REQUIRED.add(f"configs/variants/{name}.cfg")
+
 for agents in (10, 20, 30, 40, 50):
     REQUIRED.add(f"data/Instances/small/kiva-{agents}-500-5.map")
     REQUIRED.add(f"tour/{agents}-500.tour")

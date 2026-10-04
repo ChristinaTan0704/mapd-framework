@@ -375,26 +375,40 @@ file in the selected output directory before accepting an experiment matrix.
 
 ## Component switches
 
-`--algo` selects a preset; each component can then be overridden on its own:
+An algorithm is a choice of its nine components. Each is one option; a
+`--config` file sets them as `option = value` lines, and command-line options
+take precedence. `configs/table1/` holds the Table 1 algorithms (all except
+RMCA) and `configs/variants/` the extra combinations, every component written
+out:
 
-| Component | Option | Values |
-|---|---|---|
-| when to assign | `--assign_trigger` | `ON_FREE_WAITS`, `EVERY_TIMESTEP`, `ON_NEW_TASK_OR_AGENT_BECOMES_FREE`, `ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE`, `ONCE` |
-| task assignment | `--assign_method` | `DECOUPLED_GREEDY` (TP), `DECOUPLED_GREEDY_SWAPS` (TPTS), `CENTRALIZED_GREEDY` (HBH), `CENTRAL_HUNGARIAN`, `REPEATED_HUNGARIAN`, `REPEATED_HUNGARIAN_LNS`, `LKH3_TSP`, `LKH3_TSP_REASSIGN` |
-| when to replan | `--replan_on` | comma-separated `AFTER_ASSIGNMENT`, `EVERY_TIMESTEP`, `GOAL_REACHED`, `PERIODIC`; `NONE` = the assignment plans while assigning |
-| MAPF method | `--mapf` | `PP`, `PP_TASK_SEQUENCE`, `CBS`, `PBS`, `wPBS`, `TA_HYBRID_TWO_GROUP` |
-| periodic window | `--wpbs_replan_window` | steps between `PERIODIC` replans; also the wPBS planning window |
-| single-agent search | `--single_agent` | `STA`, `MLA`, `MLSIPP`, `SIPP2` |
-| task endpoint | `--endpoint_strategy`, `--dummy_path` | see [Parking endpoint support](#parking-endpoint-support) |
-| task setup | `--mode` | `ONLINE`, `SEMI_ONLINE`, `OFFLINE` |
-| ties | `--tie_breaking` | `reference` (default), `random` |
+```bash
+./mapd -m data/Instances/small/kiva-10-500-5.map -t data/Instances/small/kiva-1.task \
+    --config configs/table1/TPTS.cfg --single_agent MLSIPP
+```
+
+`--algo` names a preset instead; its components are the defaults that the
+options override. The experiment scripts run the configuration files.
+
+| # | Component | Option | Values |
+|---|---|---|---|
+| 1 | when to call task assignment | `--assign_trigger` | `ON_FREE_WAITS`, `EVERY_TIMESTEP`, `ON_NEW_TASK_OR_AGENT_BECOMES_FREE`, `ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE`, `ONCE` |
+| 2 | task assignment | `--assign_method` | `DECOUPLED_GREEDY` (TP), `DECOUPLED_GREEDY_SWAPS` (TPTS), `CENTRALIZED_GREEDY` (HBH), `CENTRAL_HUNGARIAN`, `REPEATED_HUNGARIAN`, `REPEATED_HUNGARIAN_LNS`, `LKH3_TSP`, `LKH3_TSP_REASSIGN` |
+| 3 | when to plan paths | `--replan_on` | comma-separated `AFTER_ASSIGNMENT`, `EVERY_TIMESTEP`, `GOAL_REACHED`, `PERIODIC`; `NONE` = the assignment plans while assigning |
+| 4 | which agents to plan | `--agent_selection` | `ALL`, `CHANGED` (agents whose task goals changed; the others keep their paths) |
+| 5 | high-level planner | `--mapf` | `PP`, `PP_TASK_SEQUENCE`, `CBS`, `PBS`, `wPBS`, `TA_HYBRID_TWO_GROUP` |
+| 5.1 | planning window | `--wpbs_replan_window` | steps between `PERIODIC` replans; also the wPBS planning window |
+| 6 | low-level planner | `--single_agent` | `STA`, `MLA`, `MLSIPP`, `SIPP2` |
+| 7 | task endpoint | `--endpoint_strategy`, `--dummy_path` | see [Parking endpoint support](#parking-endpoint-support) |
+| 8 | task setup | `--mode` | `ONLINE`, `SEMI_ONLINE`, `OFFLINE` |
+| 9 | task type | `--task_type` | `MAPD` (pickup and delivery), `MG_MAPD` (ordered multi-goal tasks; default); checked against the task file |
+| | ties | `--tie_breaking` | `reference` (default), `random` |
 
 Unsupported combinations are rejected before the run starts, with the
 supported values (`src/config_validate.cpp`).
 
 ## Algorithm setup
 
-All rows below also receive `--seed 0`. Preset defaults are
+All rows below also receive `--seed 0`. Defaults are
 `task_sequence_limit=2`, `wpbs_replan_window=10`, `lns_time=1`,
 `lns_no_improvement_limit=2000`, CBS focal weight 1.0, and both CBS high- and
 low-level expansion limits `INT_MAX`. CBS uses ICBS conflict prioritization
@@ -412,27 +426,27 @@ to 600 seconds. Use `--runtime_limit 0` or
 
 | Displayed method | Required command options | Mode |
 |---|---|---|
-| TP-STA* | `-a TP` | Online |
-| TP-MLSIPP | `-a TP --single_agent MLSIPP` | Online extension |
-| TPTS-STA* | `-a TPTS` | Online |
-| TPTS-MLSIPP | `-a TPTS --single_agent MLSIPP` | Online extension |
-| CENTRAL-CBS | `-a CENTRAL-CBS` | Online, every timestep |
-| CENTRAL-fixed-CBS | `-a CENTRAL-fixed` | Online, event-triggered |
-| HBH+MLA* | `-a HBH_MLA` | Online |
-| HBH+MLSIPP | `-a HBH_MLA --single_agent MLSIPP` | Online extension |
-| HBH+2-segment SIPP | `-a HBH_MLA --single_agent SIPP2` | Online extension |
-| TA-Prioritized-STA* | `-a TA_PRIORITIZED --tour tour/<agents>-500.tour` | Offline only |
-| TA-Hybrid-STA* | `-a TA_HYBRID --tour tour/<agents>-500.tour` | Offline only |
-| Hungarian+PBS-MLA* | `-a HUNGARIAN_PBS` | Online |
-| Hungarian+wPBS-MLA* | `-a HUNGARIAN_wPBS` | Online |
-| Hungarian+PBS-MLSIPP | `-a HUNGARIAN_PBS --single_agent MLSIPP` | Online |
-| Hungarian+wPBS-MLSIPP | `-a HUNGARIAN_wPBS --single_agent MLSIPP` | Online |
-| Hungarian+PP-SIPP | `-a HUNGARIAN_PBS --mapf PP --single_agent MLSIPP` | Online extension |
-| LNS(1s)+PBS-MLA* | `-a LNS_PBS --lns_time 1` | Online |
-| LNS(1s)+wPBS-MLA* | `-a LNS_wPBS --lns_time 1` | Online |
-| LNS(1s)+PBS-MLSIPP | `-a LNS_PBS --lns_time 1 --single_agent MLSIPP` | Online extension |
-| LNS(1s)+wPBS-MLSIPP | `-a LNS_wPBS --lns_time 1 --single_agent MLSIPP` | Online extension |
-| LNS(1s)+PP-SIPP | `-a LNS_PBS --lns_time 1 --mapf PP --single_agent MLSIPP` | Online extension |
+| TP-STA* | `--config configs/table1/TP.cfg` | Online |
+| TP-MLSIPP | `--config configs/table1/TP.cfg --single_agent MLSIPP` | Online extension |
+| TPTS-STA* | `--config configs/table1/TPTS.cfg` | Online |
+| TPTS-MLSIPP | `--config configs/variants/TPTS-MLSIPP.cfg` | Online extension |
+| CENTRAL-CBS | `--config configs/table1/CENTRAL.cfg` | Online, every timestep |
+| CENTRAL-fixed-CBS | `--config configs/table1/CENTRAL-fixed.cfg` | Online, event-triggered |
+| HBH+MLA* | `--config configs/table1/HBH.cfg` | Online |
+| HBH+MLSIPP | `--config configs/table1/HBH.cfg --single_agent MLSIPP` | Online extension |
+| HBH+2-segment SIPP | `--config configs/table1/HBH.cfg --single_agent SIPP2` | Online extension |
+| TA-Prioritized-STA* | `--config configs/table1/TA-Prioritized.cfg --tour tour/<agents>-500.tour` | Offline only |
+| TA-Hybrid-STA* | `--config configs/table1/TA-Hybrid.cfg --tour tour/<agents>-500.tour` | Offline only |
+| Hungarian+PBS-MLA* | `--config configs/variants/Hungarian-PBS.cfg` | Online |
+| Hungarian+wPBS-MLA* | `--config configs/variants/Hungarian-wPBS.cfg` | Online |
+| Hungarian+PBS-MLSIPP | `--config configs/variants/Hungarian-PBS-MLSIPP.cfg` | Online |
+| Hungarian+wPBS-MLSIPP | `--config configs/variants/Hungarian-wPBS-MLSIPP.cfg` | Online |
+| Hungarian+PP-SIPP | `--config configs/variants/Hungarian-PBS-MLSIPP.cfg --mapf PP` | Online extension |
+| LNS(1s)+PBS-MLA* | `--config configs/table1/LNS-PBS.cfg` | Online |
+| LNS(1s)+wPBS-MLA* | `--config configs/table1/LNS-wPBS.cfg` | Online |
+| LNS(1s)+PBS-MLSIPP | `--config configs/variants/LNS-PBS-MLSIPP.cfg` | Online extension |
+| LNS(1s)+wPBS-MLSIPP | `--config configs/variants/LNS-wPBS-MLSIPP.cfg` | Online extension |
+| LNS(1s)+PP-SIPP | `--config configs/variants/LNS-PBS-MLSIPP.cfg --mapf PP` | Online extension |
 
 Append `--task_sequence_limit 1` to the eight Hungarian/LNS PBS or wPBS
 MLA*/MLSIPP rows to produce their `(ts 1)` variants. Do not apply that option
@@ -444,7 +458,7 @@ sequence limit.
 Map character `r` denotes a parking/home endpoint and `e` denotes a task
 endpoint. All algorithm families can use parking endpoints, but they do so at
 the point prescribed by their algorithm. Endpoint selection is dispatched by
-the preset's `endpoint_strategy` and implemented centrally by
+the configured `endpoint_strategy` and implemented centrally by
 `Simulation::choose_dummy_endpoint()`.
 
 | Methods | Strategy | How parking locations are used |

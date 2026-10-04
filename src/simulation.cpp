@@ -88,6 +88,12 @@ void Simulation::init(const string& map_file, const string& task_file,
     mapd_map.load(map_file);
     maxtime = mapd_map.maxtime;
     all_tasks = load_tasks(task_file, mapd_map.endpoints);
+    if (config.task_type == TASK_MAPD)
+        for (const Task& task : all_tasks)
+            if (task.goals.size() != 2)
+                throw invalid_argument("task_type MAPD needs a pickup and a delivery goal "
+                                       "per task; task " + to_string(task.id) + " has " +
+                                       to_string(task.goals.size()) + " goals (use MG_MAPD)");
 
     // Index tasks by release time so release_tasks() is O(#released).
     task_indices_by_time.resize(maxtime);

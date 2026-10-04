@@ -23,58 +23,50 @@ DEFAULT_FREQUENCIES = ("0.2", "0.5", "1", "2", "5", "10", "500")
 
 @dataclass(frozen=True)
 class Method:
+    """A matrix row: a component configuration (configs/<config>.cfg, every
+    component set explicitly) plus optional component overrides."""
     label: str
-    preset: str
+    config: str
     extra: tuple[str, ...] = ()
     offline_only: bool = False
 
+    @property
+    def options(self) -> tuple[str, ...]:
+        return ("--config", str(ROOT / "configs" / f"{self.config}.cfg")) + self.extra
 
+
+MLSIPP = ("--single_agent", "MLSIPP")
+TS1 = ("--task_sequence_limit", "1")
 METHODS = (
-    Method("TP-STA*", "TP"),
-    Method("TPTS-STA*", "TPTS"),
-    Method("CENTRAL-CBS", "CENTRAL-CBS"),
-    Method("CENTRAL-fixed-CBS", "CENTRAL-fixed"),
-    Method("HBH+MLA*", "HBH_MLA"),
-    Method("HBH+MLSIPP", "HBH_MLA", ("--single_agent", "MLSIPP")),
-    Method("HBH+2-segment SIPP", "HBH_MLA", ("--single_agent", "SIPP2")),
-    Method("TA-Hybrid-STA*", "TA_HYBRID", ("--tour", "{tour}"), True),
-    Method("TA-Prioritized-STA*", "TA_PRIORITIZED", ("--tour", "{tour}"), True),
-    Method("Hungarian+PBS-MLA*", "HUNGARIAN_PBS"),
-    Method("Hungarian+wPBS-MLA*", "HUNGARIAN_wPBS"),
-    Method("LNS(1s)+PBS-MLA*", "LNS_PBS", ("--lns_time", "1")),
-    Method("LNS(1s)+wPBS-MLA*", "LNS_wPBS", ("--lns_time", "1")),
-    Method("Hungarian+PBS-MLSIPP", "HUNGARIAN_PBS",
-           ("--single_agent", "MLSIPP")),
-    Method("Hungarian+wPBS-MLSIPP", "HUNGARIAN_wPBS",
-           ("--single_agent", "MLSIPP")),
-    Method("LNS(1s)+PBS-MLSIPP", "LNS_PBS",
-           ("--lns_time", "1", "--single_agent", "MLSIPP")),
-    Method("LNS(1s)+wPBS-MLSIPP", "LNS_wPBS",
-           ("--lns_time", "1", "--single_agent", "MLSIPP")),
-    Method("TP-MLSIPP", "TP", ("--single_agent", "MLSIPP")),
-    Method("TPTS-MLSIPP", "TPTS", ("--single_agent", "MLSIPP")),
-    Method("Hungarian+PP-SIPP", "HUNGARIAN_PBS",
-           ("--mapf", "PP", "--single_agent", "MLSIPP")),
-    Method("LNS(1s)+PP-SIPP", "LNS_PBS",
-           ("--mapf", "PP", "--single_agent", "MLSIPP", "--lns_time", "1")),
-    Method("Hungarian+PBS-MLA* (ts 1)", "HUNGARIAN_PBS",
-           ("--task_sequence_limit", "1")),
-    Method("Hungarian+wPBS-MLA* (ts 1)", "HUNGARIAN_wPBS",
-           ("--task_sequence_limit", "1")),
-    Method("LNS(1s)+PBS-MLA* (ts 1)", "LNS_PBS",
-           ("--lns_time", "1", "--task_sequence_limit", "1")),
-    Method("LNS(1s)+wPBS-MLA* (ts 1)", "LNS_wPBS",
-           ("--lns_time", "1", "--task_sequence_limit", "1")),
-    Method("Hungarian+PBS-MLSIPP (ts 1)", "HUNGARIAN_PBS",
-           ("--single_agent", "MLSIPP", "--task_sequence_limit", "1")),
-    Method("Hungarian+wPBS-MLSIPP (ts 1)", "HUNGARIAN_wPBS",
-           ("--single_agent", "MLSIPP", "--task_sequence_limit", "1")),
-    Method("LNS(1s)+PBS-MLSIPP (ts 1)", "LNS_PBS",
-           ("--lns_time", "1", "--single_agent", "MLSIPP",
-            "--task_sequence_limit", "1")),
-    Method("LNS(1s)+wPBS-MLSIPP (ts 1)", "LNS_wPBS",
-           ("--lns_time", "1", "--single_agent", "MLSIPP",
-            "--task_sequence_limit", "1")),
+    Method("TP-STA*", "table1/TP"),
+    Method("TPTS-STA*", "table1/TPTS"),
+    Method("CENTRAL-CBS", "table1/CENTRAL"),
+    Method("CENTRAL-fixed-CBS", "table1/CENTRAL-fixed"),
+    Method("HBH+MLA*", "table1/HBH"),
+    Method("HBH+MLSIPP", "table1/HBH", MLSIPP),
+    Method("HBH+2-segment SIPP", "table1/HBH", ("--single_agent", "SIPP2")),
+    Method("TA-Hybrid-STA*", "table1/TA-Hybrid", ("--tour", "{tour}"), True),
+    Method("TA-Prioritized-STA*", "table1/TA-Prioritized", ("--tour", "{tour}"), True),
+    Method("Hungarian+PBS-MLA*", "variants/Hungarian-PBS"),
+    Method("Hungarian+wPBS-MLA*", "variants/Hungarian-wPBS"),
+    Method("LNS(1s)+PBS-MLA*", "table1/LNS-PBS"),
+    Method("LNS(1s)+wPBS-MLA*", "table1/LNS-wPBS"),
+    Method("Hungarian+PBS-MLSIPP", "variants/Hungarian-PBS-MLSIPP"),
+    Method("Hungarian+wPBS-MLSIPP", "variants/Hungarian-wPBS-MLSIPP"),
+    Method("LNS(1s)+PBS-MLSIPP", "variants/LNS-PBS-MLSIPP"),
+    Method("LNS(1s)+wPBS-MLSIPP", "variants/LNS-wPBS-MLSIPP"),
+    Method("TP-MLSIPP", "table1/TP", MLSIPP),
+    Method("TPTS-MLSIPP", "variants/TPTS-MLSIPP"),
+    Method("Hungarian+PP-SIPP", "variants/Hungarian-PBS-MLSIPP", ("--mapf", "PP")),
+    Method("LNS(1s)+PP-SIPP", "variants/LNS-PBS-MLSIPP", ("--mapf", "PP")),
+    Method("Hungarian+PBS-MLA* (ts 1)", "variants/Hungarian-PBS", TS1),
+    Method("Hungarian+wPBS-MLA* (ts 1)", "variants/Hungarian-wPBS", TS1),
+    Method("LNS(1s)+PBS-MLA* (ts 1)", "table1/LNS-PBS", TS1),
+    Method("LNS(1s)+wPBS-MLA* (ts 1)", "table1/LNS-wPBS", TS1),
+    Method("Hungarian+PBS-MLSIPP (ts 1)", "variants/Hungarian-PBS-MLSIPP", TS1),
+    Method("Hungarian+wPBS-MLSIPP (ts 1)", "variants/Hungarian-wPBS-MLSIPP", TS1),
+    Method("LNS(1s)+PBS-MLSIPP (ts 1)", "variants/LNS-PBS-MLSIPP", TS1),
+    Method("LNS(1s)+wPBS-MLSIPP (ts 1)", "variants/LNS-wPBS-MLSIPP", TS1),
 )
 BASE_METHOD_COUNT = 21
 
@@ -214,12 +206,14 @@ def run_one(args, output_dir: Path, job):
                      args.tour_template,
                      args.tour_dir / f"{agents}-500.tour",
                      agents, frequency))
-    extra = [value.format(tour=str(tour_path)) for value in method.extra]
+    options = [value.format(tour=str(tour_path)) for value in method.options]
+    if args.multigoal_smoke:
+        options += ["--task_type", "MG_MAPD"]
     command = [str(args.executable), "-m", str(map_path), "-t", str(task_path),
-               "-a", method.preset, "--seed", str(args.seed),
+               *options, "--seed", str(args.seed),
                "--runtime_limit", str(args.runtime_limit),
                "--pathfinding_runtime_limit",
-               str(args.pathfinding_runtime_limit), "-s", "1"] + extra
+               str(args.pathfinding_runtime_limit), "-s", "1"]
     if args.endpoint_strategy:
         command.extend(("--endpoint_strategy", args.endpoint_strategy))
 
@@ -268,7 +262,7 @@ def run_one(args, output_dir: Path, job):
 
     result = {
         "method": method.label,
-        "preset": method.preset,
+        "config": method.config,
         "agents": agents,
         "frequency": frequency,
         "seed": args.seed,
@@ -301,7 +295,7 @@ def write_summary(output_dir: Path, results):
         row["agents"], frequency_order(row["frequency"]),
         row["method"].lower()))
     (output_dir / "results.json").write_text(json.dumps(ordered, indent=2) + "\n")
-    columns = ("method", "preset", "agents", "frequency", "seed",
+    columns = ("method", "config", "agents", "frequency", "seed",
                "runtime_limit_s", "pathfinding_runtime_limit_s",
                "makespan", "swt", "runtime_s", "wall_runtime_s",
                "tasks_completed", "tasks_total", "status", "log")
@@ -396,7 +390,7 @@ def main():
                  "NEAREST_WITH_STRICT_EXCLUSIONS",
                  "PAIRWISE_TASK_THEN_HOME",
                  "WAIT_OR_NEAREST_FREE_NONTASK", "NEAREST_AVAILABLE"),
-        help="override the preset endpoint strategy for every selected method")
+        help="override the configured endpoint strategy for every selected method")
     parser.add_argument("--timeout", type=int, default=1000,
                         help="wall-clock timeout per simulator process (seconds)")
     parser.add_argument(

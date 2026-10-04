@@ -67,6 +67,7 @@ class MapFamily:
     map_name: str = ""  # benchmark_<map_name>_a<agents>.map; defaults to name
     task_name: str = ""  # benchmark_<task_name>_a<agents>_f<freq>.task/.tour; defaults to name
     frequencies: tuple[str, ...] = ()  # defaults to DEFAULT_FREQUENCIES if empty
+    task_type: str = "MAPD"  # component 9, checked against the task files
 
     def __post_init__(self):
         if not self.map_name:
@@ -105,11 +106,12 @@ FAMILIES = (
     MapFamily("sparse_small_to_medium", (10, 20, 30, 40, 50), 1000,
               endpoint_ablation=True),
     MapFamily("structured_small_mg", (10, 20, 30, 40, 50), 1000,
-              map_name="structured_small", task_name="structured_small_mg"),
+              map_name="structured_small", task_name="structured_small_mg",
+              task_type="MG_MAPD"),
 )
 FAMILY_BY_NAME = {family.name: family for family in FAMILIES}
 
-# None = each method's own preset default endpoint strategy (the base set).
+# None = each method's configured endpoint strategy (the base set).
 ENDPOINT_STRATEGY_ABLATION = (None, "RETURN_TO_HOME", "NEAREST_AVAILABLE")
 
 ONLINE_METHODS = tuple(m for m in METHODS if not m.offline_only)   # 27 rows
@@ -146,7 +148,8 @@ def mode_extra_args(mode: str, lookahead: int) -> tuple[str, ...]:
 
 
 def build_jobs(family: MapFamily, args) -> list[dict]:
-    endpoint_strategies = (ENDPOINT_STRATEGY_ABLATION if family.endpoint_ablation
+    endpoint_strategies = (ENDPOINT_STRATEGY_ABLATION
+                           if family.endpoint_ablation and args.endpoint_ablation
                            else (None,))
     jobs: list[dict] = []
     for agents in family.agents:
@@ -158,7 +161,7 @@ def build_jobs(family: MapFamily, args) -> list[dict]:
             for method in ONLINE_METHODS:
                 if args.methods and method.label not in args.methods:
                     continue
-                for mode in MODES:
+                for mode in args.modes:
                     for endpoint_strategy in endpoint_strategies:
                         jobs.append(dict(
                             family=family.name, agents=agents,
@@ -206,24 +209,24 @@ def run_one(args, output_dir: Path, job: dict) -> dict:
             print(f"[CACHED] {stem}: {result['status']}", flush=True)
             return result
 
-    system_timeout = FAMILY_BY_NAME[family].timeout_s
+    system_timeout = args.timeout or FAMILY_BY_NAME[family].timeout_s
     internal_runtime_limit = max(1, system_timeout - 5)
 
     map_path = family_map_path(family, agents)
     task_path = family_task_path(family, agents, frequency)
-    extra = list(method.extra)
+    options = list(method.options) + ["--task_type", FAMILY_BY_NAME[family].task_type]
     if method.offline_only:
         tour_path = family_tour_path(family, agents)
-        extra = [value.format(tour=str(tour_path)) for value in extra]
+        options = [value.format(tour=str(tour_path)) for value in options]
     else:
-        extra = list(extra) + list(mode_extra_args(mode, args.semi_online_lookahead))
+        options += mode_extra_args(mode, args.semi_online_lookahead)
 
     paths_dir.mkdir(parents=True, exist_ok=True)
     command = [str(args.executable), "-m", str(map_path), "-t", str(task_path),
-               "-a", method.preset, "--seed", str(args.seed), "-s", "1",
+               *options, "--seed", str(args.seed), "-s", "1",
                "--runtime_limit", str(internal_runtime_limit),
                "--pathfinding_runtime_limit", str(args.pathfinding_runtime_limit),
-               "--save_output", "--output_dir", str(paths_dir)] + extra
+               "--save_output", "--output_dir", str(paths_dir)]
     if job.get("endpoint_strategy"):
         command.extend(("--endpoint_strategy", job["endpoint_strategy"]))
 
@@ -278,7 +281,7 @@ def run_one(args, output_dir: Path, job: dict) -> dict:
         "agents": agents,
         "frequency": frequency,
         "method": method.label,
-        "preset": method.preset,
+        "config": method.config,
         "mode": mode,
         "endpoint_strategy": job.get("endpoint_strategy"),
         "seed": args.seed,
@@ -312,7 +315,7 @@ def write_summary(output_dir: Path, results: list[dict]) -> None:
         row["method"].lower(), row["mode"],
         row.get("endpoint_strategy") or ""))
     (output_dir / "results.json").write_text(json.dumps(ordered, indent=2) + "\n")
-    columns = ("family", "agents", "frequency", "method", "preset", "mode",
+    columns = ("family", "agents", "frequency", "method", "config", "mode",
                "endpoint_strategy", "seed", "makespan", "sum_of_cost",
                "runtime_s", "wall_runtime_s", "tasks_completed", "tasks_total",
                "status", "log")
@@ -333,6 +336,18 @@ def make_arg_parser(family: MapFamily) -> argparse.ArgumentParser:
                         default=(), help="subset of frequency labels")
     parser.add_argument("--methods", type=lambda v: tuple(v.split(",")),
                         default=(), help="subset of method labels")
+    parser.add_argument("--modes", type=lambda v: tuple(v.split(",")), default=MODES,
+                        help="subset of task-information modes for online methods "
+                             f"(default {','.join(MODES)})")
+    parser.add_argument("--no-endpoint-ablation", dest="endpoint_ablation",
+                        action="store_false",
+                        help="run only each method's configured endpoint strategy")
+    parser.add_argument("--skip-after-timeout", action="store_true",
+                        help="skip a (method, mode, frequency, endpoint) row at more "
+                             "agents once it timed out with fewer")
+    parser.add_argument("--timeout", type=int, default=0,
+                        help="per-job system timeout in seconds "
+                             f"(default {family.timeout_s})")
     parser.add_argument("--semi-online-lookahead", type=int, default=1,
                         dest="semi_online_lookahead")
     parser.add_argument("--executable", type=Path, default=ROOT / "mapd")
@@ -371,6 +386,8 @@ def run_matrix(family: MapFamily, argv: list[str] | None = None) -> int:
         parser.error("--max-parallel must be between 1 and 20")
     if args.seed < 0:
         parser.error("use a non-negative seed for reproducible server runs")
+    if not set(args.modes) <= set(MODES):
+        parser.error(f"--modes must be a subset of {','.join(MODES)}")
     if not args.dry_run and not args.executable.is_file():
         parser.error(f"executable not found: {args.executable}; run make first")
     args.memory_limit_bytes = int(args.memory_limit_gb * (1024 ** 3))
@@ -407,14 +424,35 @@ def run_matrix(family: MapFamily, argv: list[str] | None = None) -> int:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     print(f"Running {len(jobs)} {family.name} jobs with seed={args.seed}, "
           f"max_parallel={args.max_parallel}, "
-          f"system_timeout={family.timeout_s}s, "
+          f"system_timeout={args.timeout or family.timeout_s}s, "
           f"pathfinding_runtime_limit={args.pathfinding_runtime_limit}s, "
           f"memory_limit={args.memory_limit_gb}GiB", flush=True)
+    # Jobs are queued by increasing agent count, so with --skip-after-timeout a
+    # row that timed out is not retried at larger scales (not cached: a later
+    # run without the flag still runs it).
+    timed_out: dict[tuple, int] = {}
+
+    def run_or_skip(job: dict) -> dict:
+        row = (job["method"].label, job["mode"], job["frequency"],
+               job.get("endpoint_strategy"))
+        if args.skip_after_timeout and job["agents"] > timed_out.get(row, 10**9):
+            print(f"[SKIP] {job_stem(job)}: timed out with {timed_out[row]} agents",
+                  flush=True)
+            return dict(family=job["family"], agents=job["agents"],
+                        frequency=job["frequency"], method=job["method"].label,
+                        config=job["method"].config, mode=job["mode"],
+                        endpoint_strategy=job.get("endpoint_strategy"),
+                        status=f"skipped(timeout at {timed_out[row]} agents)")
+        result = run_one(args, args.output_dir, job)
+        if result["status"] == "timeout":
+            timed_out[row] = min(job["agents"], timed_out.get(row, 10**9))
+        return result
+
+    jobs.sort(key=lambda job: job["agents"])
     results = []
     with concurrent.futures.ThreadPoolExecutor(
             max_workers=args.max_parallel) as executor:
-        futures = [executor.submit(run_one, args, args.output_dir, job)
-                   for job in jobs]
+        futures = [executor.submit(run_or_skip, job) for job in jobs]
         for future in concurrent.futures.as_completed(futures):
             results.append(future.result())
 

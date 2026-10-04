@@ -31,6 +31,12 @@
 !/src/path_planners.cpp
 !/src/simulation.cpp
 
+# Component configurations (one file per algorithm).
+!/configs/
+/configs/*
+!/configs/table1/
+!/configs/variants/
+
 # Reproduction and repository checks.
 !/scripts/
 /scripts/*

@@ -7,6 +7,9 @@ using namespace std;
 // ============ Enums matching pseudocode Section 0 ============
 
 enum Mode { MODE_ONLINE, MODE_OFFLINE, MODE_SEMI_ONLINE };
+// MAPD tasks have a pickup and a delivery goal; MG-MAPD tasks have any ordered
+// list of goals (MAPD is its two-goal case). The task file supplies the goals.
+enum TaskType { TASK_MAPD, TASK_MG_MAPD };
 enum AssignMethod {
     AM_DECOUPLED_GREEDY,
     AM_CENTRALIZED_GREEDY,
@@ -85,6 +88,7 @@ enum EndpointStrategy {
 
 struct MAPDConfig {
     Mode mode;
+    TaskType task_type;
     AssignMethod assign_method;
     AssignTrigger assign_trigger;
     int replan_on;               // set of ReplanEvent flags
@@ -133,7 +137,7 @@ struct MAPDConfig {
     // Semi-online only: number of future release batches known in advance.
     int semi_online_lookahead_batches;
 
-    MAPDConfig() : mode(MODE_ONLINE),
+    MAPDConfig() : mode(MODE_ONLINE), task_type(TASK_MG_MAPD),
         assign_method(AM_DECOUPLED_GREEDY), assign_trigger(AT_ON_FREE_WAITS), replan_on(0),
         agent_selection(SELECT_ALL),
         mapf(MAPF_PP_PER_TASK), single_agent(SA_STA_TASK_EP),

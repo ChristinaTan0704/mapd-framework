@@ -1,6 +1,7 @@
 #include <string>
 #include <iostream>
 #include <ctime>
+#include <fstream>
 #include <sys/stat.h>
 #include <boost/program_options.hpp>
 #include "simulation.h"
@@ -11,9 +12,11 @@ using namespace std;
 
 void set_parameters(MAPDConfig& config, const po::variables_map& vm)
 {
-    config = get_preset(vm["algo"].as<string>());
+    // A preset only supplies default components; without one every component
+    // comes from the options (or the MAPDConfig defaults).
+    config = vm.count("algo") ? get_preset(vm["algo"].as<string>()) : MAPDConfig();
 
-    // Component overrides; an option that is not given keeps the preset value.
+    // Component options; an option that is not given keeps the preset value.
     auto override_enum = [&](const char* option, auto& field) {
         if (vm.count(option))
             field = parse_enum<decay_t<decltype(field)>>(option, vm[option].as<string>());
@@ -27,6 +30,7 @@ void set_parameters(MAPDConfig& config, const po::variables_map& vm)
     override_enum("single_agent", config.single_agent);
     override_enum("endpoint_strategy", config.endpoint_strategy);
     override_enum("mode", config.mode);
+    override_enum("task_type", config.task_type);
     override_enum("tie_breaking", config.tie_breaking);
     override_enum("cbs_conflict_selection", config.cbs_conflict_selection);
     if (vm.count("dummy_path"))
@@ -114,8 +118,9 @@ int main(int argc, char** argv)
         ("help,h", "produce help message")
         ("map,m",          po::value<string>()->required(),            "input map file")
         ("task,t",         po::value<string>()->required(),            "input task file")
-        ("algo,a",         po::value<string>()->default_value("TP"),   "algorithm")
-        // Component overrides of the preset chosen with --algo.
+        ("algo,a",         po::value<string>(),                        "algorithm preset supplying default components (optional)")
+        ("config,c",       po::value<string>(),                        "file of option = value lines (e.g. configs/table1/TP.cfg); command-line options take precedence")
+        // The components; each overrides the preset chosen with --algo.
         ("assign_method",  po::value<string>(), ("task assignment: " + enum_choices<AssignMethod>()).c_str())
         ("assign_trigger", po::value<string>(), ("when to assign: " + enum_choices<AssignTrigger>()).c_str())
         ("replan_on",      po::value<string>(), ("when to replan, comma-separated: " + enum_choices<ReplanEvent>() + "; NONE = plan inside assignment").c_str())
@@ -125,6 +130,7 @@ int main(int argc, char** argv)
         ("endpoint_strategy", po::value<string>(), ("endpoint strategy: " + enum_choices<EndpointStrategy>()).c_str())
         ("dummy_path",     po::value<int>(),    "1 = append a path to the chosen endpoint after the last task, 0 = stop at the last goal")
         ("mode",           po::value<string>(), ("task-information mode: " + enum_choices<Mode>()).c_str())
+        ("task_type",      po::value<string>(), ("task type, checked against the task file: " + enum_choices<TaskType>()).c_str())
         ("seed",           po::value<int>()->default_value(0),         "general RNG seed (>=0 deterministic, <0 = time(NULL))")
         ("tie_breaking",   po::value<string>(),                        "search-node ties: reference (original implementations) or random (--seed) (default reference)")
         ("runtime_limit",  po::value<int>()->default_value(1000),      "whole-run wall-clock limit in seconds; 0 disables")
@@ -154,6 +160,13 @@ int main(int argc, char** argv)
     po::variables_map vm;
     try {
         po::store(po::parse_command_line(argc, argv, desc), vm);
+        if (vm.count("config")) {
+            // Stored after the command line, so command-line options win.
+            const string config_file = vm["config"].as<string>();
+            ifstream input(config_file);
+            if (!input) throw po::error("cannot open config file " + config_file);
+            po::store(po::parse_config_file(input, desc), vm);
+        }
 
         if (vm.count("help")) {
             cout << "Unified MAPD Framework" << endl;
@@ -163,6 +176,7 @@ int main(int argc, char** argv)
             cout << "  ./mapd -m kiva.map -t kiva.task -a CENTRAL-CBS" << endl;
             cout << "  ./mapd -m kiva.map -t kiva.task -a HBH_MLA --save_output" << endl;
             cout << "  ./mapd -m kiva.map -t kiva.task -a HUNGARIAN_PBS --mapf PP --single_agent MLSIPP" << endl;
+            cout << "  ./mapd -m kiva.map -t kiva.task --config configs/table1/TP.cfg" << endl;
             return 0;
         }
 
@@ -176,7 +190,9 @@ int main(int argc, char** argv)
     string map_file  = vm["map"].as<string>();
     string task_file = vm["task"].as<string>();
     string tour_file = vm["tour"].as<string>();
-    string algorithm_name = vm["algo"].as<string>();
+    string algorithm_name = vm.count("algo") ? vm["algo"].as<string>()
+                          : vm.count("config") ? basename_no_ext(vm["config"].as<string>())
+                          : "custom";
     int screen       = vm["screen"].as<int>();
     int lns_imp_rounds = vm["lns_imp"].as<int>();
     int lns_imp_group  = vm["lns_imp_group"].as<int>();

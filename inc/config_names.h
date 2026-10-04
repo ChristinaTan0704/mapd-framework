@@ -21,6 +21,12 @@ inline const NameTable<Mode>& names(Mode) {
     return table;
 }
 
+inline const NameTable<TaskType>& names(TaskType) {
+    static const NameTable<TaskType> table = {
+        {TASK_MAPD, "MAPD"}, {TASK_MG_MAPD, "MG_MAPD"}};
+    return table;
+}
+
 inline const NameTable<AssignMethod>& names(AssignMethod) {
     static const NameTable<AssignMethod> table = {
         {AM_DECOUPLED_GREEDY, "DECOUPLED_GREEDY"},
