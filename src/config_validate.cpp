@@ -45,6 +45,10 @@ const std::vector<EndpointStrategy> ALL_ENDPOINTS = {
 // keep a fresh, needed-cell-free endpoint after the last task.
 const std::vector<EndpointStrategy> PBS_PP_ENDPOINTS = {
     NEAREST_AVAILABLE, NEAREST_WITH_STRICT_EXCLUSIONS, RETURN_TO_HOME};
+// CBS over goal sequences finds no conflict-free paths when agents rest at
+// their last goal or at a fixed home, so it needs a free endpoint.
+const std::vector<EndpointStrategy> CBS_ENDPOINTS = {
+    NEAREST_AVAILABLE, NEAREST_WITH_STRICT_EXCLUSIONS};
 const std::vector<SingleAgentMethod> ANY_SEARCH = {
     SA_STA_TASK_EP, SA_MLA_SEQUENCE, SA_MLSIPP_SEQUENCE, SA_SIPP_SEGMENTS};
 // wPBS stops every search at the end of its window; SIPP2 cannot.
@@ -108,8 +112,8 @@ std::vector<Support> supported_rows() {
                         ALL_ENDPOINTS, ALL_MODES, EITHER});
         rows.push_back({method, MAPF_PP_PER_TASK, triggers, ANY_REPLAN, EITHER_SELECTION,
                         ANY_SEARCH, PBS_PP_ENDPOINTS, NOT_OFFLINE, WITH_DUMMY});
-        rows.push_back({method, MAPF_CBS, triggers, ANY_REPLAN, CHANGED, ANY_SEARCH,
-                        PBS_PP_ENDPOINTS, NOT_OFFLINE, WITH_DUMMY});
+        rows.push_back({method, MAPF_CBS, triggers, ANY_REPLAN, EITHER_SELECTION, ANY_SEARCH,
+                        CBS_ENDPOINTS, NOT_OFFLINE, WITH_DUMMY});
     }
     // CENTRAL matches released tasks only, so no search waits for a pickup
     // far in the future, and it parks idle agents itself, so they need no

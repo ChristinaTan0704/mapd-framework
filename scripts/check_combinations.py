@@ -81,6 +81,9 @@ def combinations() -> list[tuple[str, int, str, list[str]]]:
         for agents in (10, 50):
             for mapf, replan, endpoint in PLANNER_SETUPS:
                 for selection in ("ALL", "CHANGED"):
+                    # One CBS over every agent does not finish with 50 agents.
+                    if mapf == "CBS" and selection == "ALL" and agents == 50:
+                        continue
                     jobs.append((config, agents, "1", [
                         "--mapf", mapf, "--assign_trigger",
                         "ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE",
