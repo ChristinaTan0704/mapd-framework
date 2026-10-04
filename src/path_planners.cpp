@@ -1,27 +1,50 @@
 #include "path_planners.h"
 #include "simulation.h"
 #include "cbs.h"
+#include <climits>
 
 bool PBSPlanner::solve() {
     return simulation_.pbs_solve_impl();
 }
 
-ECBSResult ECBSPlanner::solve(const ECBSRequest& request) const {
-    CBSSearch search(
-        request.grid, request.start_locations, request.goal_locations,
-        request.goal_endpoint_indices, request.constraint_paths,
-        request.current_time, request.columns, request.focal_weight,
-        request.high_level_expansion_limit,
-        request.low_level_expansion_limit,
-        request.endpoints, request.max_time,
-        request.conflict_selection, request.bypass,
-        request.target_reasoning, request.rectangle_reasoning);
+CBSConstraintTable::CBSConstraintTable(
+        const std::vector<std::tuple<int,int,int>>& constraints,
+        const std::vector<std::vector<int>>& others, int start) : start_(start) {
+    for (const std::vector<int>& path : others)
+        if (!path.empty()) others_.push_back(&path);
+    for (const auto& constraint : constraints) {
+        int loc = std::get<0>(constraint), to = std::get<1>(constraint);
+        int time = std::get<2>(constraint);
+        if (to == -2) {
+            ranges_.emplace_back(loc, time);
+            continue;
+        }
+        // A vertex constraint applies on arrival at t, an edge constraint on
+        // the move that arrives at t + 1.
+        int arrival = to == -1 ? time : time + 1;
+        if (arrival >= (int)by_time_.size()) by_time_.resize(arrival + 1);
+        by_time_[arrival].emplace_back(loc, to);
+    }
+}
 
-    ECBSResult result;
-    result.solution_found = search.run();
-    result.solution_cost = search.solution_cost;
-    result.paths = search.paths;
-    return result;
+bool CBSConstraintTable::blocks(int curr, int next, int t) const {
+    for (const auto& range : ranges_)
+        if (range.first == next && t >= range.second) return true;
+    if (t < 0 || t >= (int)by_time_.size()) return false;
+    for (const auto& constraint : by_time_[t])
+        if (constraint.second == -1 ? constraint.first == next
+                                    : constraint.first == curr && constraint.second == next)
+            return true;
+    return false;
+}
+
+int CBSConstraintTable::holdable_from(int loc) const {
+    for (const auto& range : ranges_)
+        if (range.first == loc) return INT_MAX;
+    for (int t = (int)by_time_.size() - 1; t >= 0; t--)
+        for (const auto& constraint : by_time_[t])
+            if (constraint.second == -1 && constraint.first == loc) return t + 1;
+    return 0;
 }
 
 std::vector<int> plan_ta_dummy_path(
@@ -32,6 +55,6 @@ std::vector<int> plan_ta_dummy_path(
     SingleAgentECBS search(constraint_paths, heuristic, grid, -1,
                            start_location, goal_location, columns,
                            current_time, max_time, INT_MAX, true);
-    if (!search.findPath(1.0, nullptr, nullptr, 0)) return {};
+    if (!search.findPath()) return {};
     return search.path;
 }

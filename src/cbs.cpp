@@ -6,16 +6,15 @@
 // LLNode constructor
 // ============================================================
 
-LLNode::LLNode(int l, double g, double h, LLNode* p, int t, int c, bool io)
-    : loc(l), timestep(t), g_val(g), h_val(h), num_internal_conf(c),
+LLNode::LLNode(int l, double g, double h, LLNode* p, int t, bool io)
+    : loc(l), timestep(t), g_val(g), h_val(h),
       tie_breaker(RandomTieBreaker::next()), parent(p), in_openlist(io) {}
 
 // ============================================================
 // HLNode constructor
 // ============================================================
 
-HLNode::HLNode() : agent_id(-1), g_val(0), h_val(0), sum_min_f_vals(0),
-                   ll_min_f_val(0), path_cost(0),
+HLNode::HLNode() : agent_id(-1), g_val(0), h_val(0), path_cost(0),
                    tie_breaker(RandomTieBreaker::next()), parent(nullptr),
                    time_generated(0), time_expanded(0) {}
 
@@ -40,8 +39,7 @@ SingleAgentECBS::SingleAgentECBS(const vector<vector<int>>& cons_paths,
     for (int d = 0; d < 5; d++) actions_[d] = moves[wait_last ? (d + 1) % 5 : d];
 }
 
-bool SingleAgentECBS::isConstrained(int curr, int next, int next_t,
-                                     const vector<list<pair<int,int>>>* cons) {
+bool SingleAgentECBS::isConstrained(int curr, int next, int next_t) {
     if (next < 0 || next >= map_size_ || !grid_[next]) return true;
 
     for (const auto& cp : cons_paths_) {
@@ -54,53 +52,13 @@ bool SingleAgentECBS::isConstrained(int curr, int next, int next_t,
             if (last == next) return true;
         }
     }
-
-    for (const auto& ban : range_bans_)
-        if (ban.first == next && next_t >= ban.second) return true;
-
-    if (cons == nullptr) return false;
-
-    if (next_t < (int)cons->size()) {
-        for (const auto& c : cons->at(next_t)) {
-            if (c.second == -1 && c.first == next) return true;
-        }
-    }
-
-    if (next_t > 0 && next_t - 1 < (int)cons->size()) {
-        for (const auto& c : cons->at(next_t - 1)) {
-            if (c.first == curr && c.second == next) return true;
-        }
-    }
-
     return false;
-}
-
-int SingleAgentECBS::numConflicts(int curr, int next, int next_t, bool* res, int mpl) {
-    int r = 0;
-    if (mpl == 0) return 0;
-    if (next_t >= mpl) {
-        if (res[next + (mpl - 1) * map_size_]) r++;
-    } else {
-        if (res[next + next_t * map_size_]) r++;
-        if (next_t > 0 && res[curr + next_t * map_size_] && res[next + (next_t - 1) * map_size_]) r++;
-    }
-    return r;
-}
-
-void SingleAgentECBS::loadRangeBans(const vector<list<pair<int,int>>>* cons) {
-    range_bans_.clear();
-    if (cons == nullptr) return;
-    for (int t = 0; t < (int)cons->size(); t++)
-        for (const auto& c : cons->at(t))
-            if (c.second == -2) range_bans_.push_back(make_pair(c.first, t));
 }
 
 bool SingleAgentECBS::canHoldGoal(int timestep) const {
     for (const auto& cp : cons_paths_)
         for (int t = curr_time_ + timestep + 1; t < (int)cp.size(); t++)
             if (cp[t] == goal_loc_) return false;
-    for (const auto& ban : range_bans_)
-        if (ban.first == goal_loc_) return false;
     return true;
 }
 
@@ -116,26 +74,13 @@ void SingleAgentECBS::updatePath(LLNode* goal) {
     path_cost = goal->g_val;
 }
 
-int SingleAgentECBS::extractLastGoalTimestep(int goal_loc,
-        const vector<list<pair<int,int>>>* cons) {
-    if (cons != nullptr) {
-        for (int t = (int)cons->size() - 1; t > 0; t--) {
-            for (const auto& c : cons->at(t)) {
-                if (c.first == goal_loc || c.second == goal_loc) return t;
-            }
-        }
-    }
-    return -1;
-}
-
 void SingleAgentECBS::releaseNodes(map<unsigned int, LLNode*>& table) {
     for (auto& p : table) delete p.second;
     table.clear();
 }
 
-bool SingleAgentECBS::findPath(double f_weight,
-                                const vector<list<pair<int,int>>>* constraints,
-                                bool* res_table, size_t max_plan_len) {
+bool SingleAgentECBS::findPath() {
+    const double f_weight = 1.0;
     typedef boost::heap::fibonacci_heap<LLNode*, boost::heap::compare<LLNode::CompareOpen>> open_heap_t;
     typedef boost::heap::fibonacci_heap<LLNode*, boost::heap::compare<LLNode::CompareFocal>> focal_heap_t;
 
@@ -144,9 +89,8 @@ bool SingleAgentECBS::findPath(double f_weight,
     map<unsigned int, LLNode*> allNodes;
     num_expanded = 0;
     num_generated = 0;
-    loadRangeBans(constraints);
 
-    LLNode* start = new LLNode(start_loc_, 0, heuristic_[start_loc_], nullptr, 0, 0, true);
+    LLNode* start = new LLNode(start_loc_, 0, heuristic_[start_loc_], nullptr, 0, true);
     num_generated++;
     start->open_handle = open_list.push(start);
     start->focal_handle = focal_list.push(start);
@@ -154,8 +98,6 @@ bool SingleAgentECBS::findPath(double f_weight,
     allNodes.insert(make_pair((unsigned int)start_loc_, start));
     min_f_val = start->getFVal();
     double lower_bound = f_weight * min_f_val;
-
-    int lastGoalConsTime = extractLastGoalTimestep(goal_loc_, constraints);
 
     // The default INT_MAX leaves the low-level search effectively uncapped.
     // A smaller positive limit may be supplied explicitly for experiments.
@@ -173,7 +115,7 @@ bool SingleAgentECBS::findPath(double f_weight,
         curr->in_openlist = false;
         num_expanded++;
 
-        if (curr->loc == goal_loc_ && curr->timestep > lastGoalConsTime) {
+        if (curr->loc == goal_loc_) {
             if (canHoldGoal(curr->timestep)) {
                 updatePath(curr);
                 releaseNodes(allNodes);
@@ -185,19 +127,15 @@ bool SingleAgentECBS::findPath(double f_weight,
             int next_loc = curr->loc + actions_[d];
             int next_t = curr->timestep + 1;
 
-            if (!isConstrained(curr->loc, next_loc, next_t, constraints)) {
+            if (!isConstrained(curr->loc, next_loc, next_t)) {
                 double next_g = curr->g_val + 1;
                 double next_h = heuristic_[next_loc];
-                int next_conf = 0;
-                if (max_plan_len > 0)
-                    next_conf = curr->num_internal_conf +
-                        numConflicts(curr->loc, next_loc, next_t, res_table, max_plan_len);
 
                 unsigned int key = next_loc + (unsigned int)next_g * map_size_;
                 auto it = allNodes.find(key);
 
                 if (it == allNodes.end() && next_g < max_time_ - curr_time_) {
-                    LLNode* next = new LLNode(next_loc, next_g, next_h, curr, next_t, next_conf, true);
+                    LLNode* next = new LLNode(next_loc, next_g, next_h, curr, next_t, true);
                     num_generated++;
                     next->open_handle = open_list.push(next);
                     next->in_openlist = true;
@@ -207,9 +145,7 @@ bool SingleAgentECBS::findPath(double f_weight,
                 } else if (it != allNodes.end() && next_g < max_time_ - curr_time_) {
                     LLNode* existing = it->second;
                     if (existing->in_openlist) {
-                        if (existing->getFVal() > next_g + next_h ||
-                            (existing->getFVal() == next_g + next_h &&
-                             existing->num_internal_conf > next_conf)) {
+                        if (existing->getFVal() > next_g + next_h) {
                             bool add_to_focal = false;
                             bool update_in_focal = false;
                             bool update_open = false;
@@ -224,19 +160,15 @@ bool SingleAgentECBS::findPath(double f_weight,
                             existing->g_val = next_g;
                             existing->h_val = next_h;
                             existing->parent = curr;
-                            existing->num_internal_conf = next_conf;
                             if (update_open) open_list.increase(existing->open_handle);
                             if (add_to_focal) existing->focal_handle = focal_list.push(existing);
                             if (update_in_focal) focal_list.update(existing->focal_handle);
                         }
                     } else {
-                        if (existing->getFVal() > next_g + next_h ||
-                            (existing->getFVal() == next_g + next_h &&
-                             existing->num_internal_conf > next_conf)) {
+                        if (existing->getFVal() > next_g + next_h) {
                             existing->g_val = next_g;
                             existing->h_val = next_h;
                             existing->parent = curr;
-                            existing->num_internal_conf = next_conf;
                             existing->open_handle = open_list.push(existing);
                             existing->in_openlist = true;
                             if (existing->getFVal() <= lower_bound)
@@ -266,140 +198,41 @@ bool SingleAgentECBS::findPath(double f_weight,
     return false;
 }
 
-// Builds the MDD of all valid paths with exactly path_cost steps and reports
-// which layers contain a single location. A forward pass keeps states that
-// can still reach the goal in time; a backward pass keeps states on a path
-// that ends at a holdable goal at path_cost.
-vector<bool> SingleAgentECBS::buildMDDSingletons(
-        const vector<list<pair<int,int>>>* constraints, int path_cost) {
-    loadRangeBans(constraints);
-    if (path_cost < 0 || heuristic_[start_loc_] > path_cost) return {};
-    if (path_cost <= extractLastGoalTimestep(goal_loc_, constraints) ||
-        !canHoldGoal(path_cost))
-        return {};
-
-    vector<vector<int>> layers(path_cost + 1);
-    vector<int> reached(map_size_, -1);
-    layers[0].push_back(start_loc_);
-    uint64_t work = 0;
-    for (int t = 0; t < path_cost; t++) {
-        if (t + 1 >= max_time_ - curr_time_) return {};
-        for (int loc : layers[t]) {
-            RuntimeDeadline::check_periodic(work++, "CBS MDD construction");
-            for (int d = 0; d < 5; d++) {
-                int next = loc + actions_[d];
-                if (isConstrained(loc, next, t + 1, constraints)) continue;
-                if (heuristic_[next] > path_cost - (t + 1)) continue;
-                if (reached[next] == t + 1) continue;
-                reached[next] = t + 1;
-                layers[t + 1].push_back(next);
-            }
-        }
-    }
-    if (reached[goal_loc_] != path_cost && path_cost > 0) return {};
-    if (path_cost == 0 && start_loc_ != goal_loc_) return {};
-
-    vector<bool> singletons(path_cost + 1, false);
-    singletons[path_cost] = true;
-    vector<char> kept_next(map_size_, 0), kept_curr(map_size_, 0);
-    kept_next[goal_loc_] = 1;
-    for (int t = path_cost - 1; t >= 0; t--) {
-        int count = 0;
-        for (int loc : layers[t]) {
-            RuntimeDeadline::check_periodic(work++, "CBS MDD construction");
-            for (int d = 0; d < 5 && !kept_curr[loc]; d++) {
-                int next = loc + actions_[d];
-                if (next < 0 || next >= map_size_ || !kept_next[next]) continue;
-                if (!isConstrained(loc, next, t + 1, constraints))
-                    kept_curr[loc] = 1;
-            }
-            if (kept_curr[loc]) count++;
-        }
-        if (count == 0) return {};
-        singletons[t] = count == 1;
-        for (int loc : layers[t + 1]) kept_next[loc] = 0;
-        kept_next[goal_loc_] = 0;
-        swap(kept_next, kept_curr);
-    }
-    return singletons;
-}
-
 // ============================================================
 // Section 2: CBSSearch — High-Level CBS/ECBS Search
 // ============================================================
 
-CBSSearch::CBSSearch(const vector<bool>& grid,
-    const vector<int>& start_locs, const vector<int>& goal_locs,
-    const vector<int>& goal_ep_indices, const vector<vector<int>>& cons_paths,
-    int curr_time, int col, double focal_w,
-    int high_level_expansion_limit,
-    int low_level_expansion_limit,
-    const vector<Endpoint>& endpoints, int max_time,
-    CBSConflictSelection conflict_selection, bool bypass,
-    bool target_reasoning, bool rectangle_reasoning)
-    : curr_time_(curr_time), focal_w_(focal_w),
+CBSSearch::CBSSearch(int num_agents, const CBSLowLevel& low_level, int col,
+                     double focal_w, int high_level_expansion_limit,
+                     CBSConflictSelection conflict_selection, bool bypass,
+                     bool target_reasoning, bool rectangle_reasoning)
+    : solution_found(false), solution_cost(-1),
+      num_agents_(num_agents), low_level_(low_level), focal_w_(focal_w),
       high_level_expansion_limit_(high_level_expansion_limit),
-      low_level_expansion_limit_(low_level_expansion_limit),
       conflict_selection_(conflict_selection), bypass_(bypass),
       target_reasoning_(target_reasoning),
       rectangle_reasoning_(rectangle_reasoning), col_(col),
-      cons_paths_(cons_paths),
-      solution_found(false), solution_cost(-1),
       HL_num_expanded_(0), HL_num_generated_(0)
 {
-    num_agents_ = start_locs.size();
-    map_size_ = grid.size();
-
-    search_engines_.resize(num_agents_);
     paths.resize(num_agents_);
     paths_found_initially_.resize(num_agents_);
-    ll_min_f_vals_.resize(num_agents_);
-    ll_min_f_vals_found_initially_.resize(num_agents_);
-    paths_costs_.resize(num_agents_);
     paths_costs_found_initially_.resize(num_agents_);
     root_mdd_singletons_.resize(num_agents_);
 
-    for (int i = 0; i < num_agents_; i++) {
-        search_engines_[i] = new SingleAgentECBS(
-            cons_paths_, endpoints[goal_ep_indices[i]].h_val, grid,
-            i, start_locs[i], goal_locs[i], col, curr_time, max_time,
-            low_level_expansion_limit_);
-    }
-
-    bool all_initial_found = true;
-    for (int i = 0; i < num_agents_; i++) {
-        paths = paths_found_initially_;
-        size_t max_plan_len = getPathsMaxLength();
-        bool* res_table = nullptr;
-        if (max_plan_len > 0) {
-            res_table = new bool[map_size_ * max_plan_len]();
-            updateReservationTable(res_table, max_plan_len, i);
-        }
-
-        if (!search_engines_[i]->findPath(focal_w_, nullptr, res_table, max_plan_len)) {
-            all_initial_found = false;
-        }
-
-        paths_found_initially_[i] = search_engines_[i]->path;
-        ll_min_f_vals_found_initially_[i] = search_engines_[i]->min_f_val;
-        paths_costs_found_initially_[i] = search_engines_[i]->path_cost;
-
-        if (res_table) delete[] res_table;
-    }
-
-    paths = paths_found_initially_;
-    ll_min_f_vals_ = ll_min_f_vals_found_initially_;
-    paths_costs_ = paths_costs_found_initially_;
-
     dummy_start_ = nullptr;
-    if (!all_initial_found) return;
+    for (int i = 0; i < num_agents_; i++) {
+        if (!low_level_.find_path(i, {}, paths_found_initially_, paths_found_initially_[i]))
+            return;
+        paths_costs_found_initially_[i] = paths_found_initially_[i].size() - 1;
+    }
+    paths = paths_found_initially_;
+    paths_costs_ = paths_costs_found_initially_;
 
     dummy_start_ = new HLNode();
     dummy_start_->agent_id = -1;
     dummy_start_->g_val = 0;
     for (int i = 0; i < num_agents_; i++)
         dummy_start_->g_val += paths_costs_[i];
-    dummy_start_->sum_min_f_vals = computeHLLowerBound();
     dummy_start_->h_val = computeNumOfCollidingPairs();
     dummy_start_->open_handle = hl_open_.push(dummy_start_);
     dummy_start_->focal_handle = hl_focal_.push(dummy_start_);
@@ -407,15 +240,8 @@ CBSSearch::CBSSearch(const vector<bool>& grid,
     dummy_start_->time_generated = HL_num_generated_;
     all_nodes_.push_back(dummy_start_);
 
-    min_sum_f_vals_ = dummy_start_->sum_min_f_vals;
+    min_sum_f_vals_ = dummy_start_->g_val;
     focal_list_threshold_ = focal_w_ * min_sum_f_vals_;
-}
-
-double CBSSearch::computeHLLowerBound() {
-    double sum = 0;
-    for (int i = 0; i < num_agents_; i++)
-        sum += ll_min_f_vals_[i];
-    return sum;
 }
 
 int CBSSearch::getAgentLocation(int agent_id, size_t timestep) {
@@ -432,34 +258,13 @@ bool CBSSearch::switchedLocations(int a1, int a2, size_t timestep) {
            getAgentLocation(a1, timestep + 1) == getAgentLocation(a2, timestep);
 }
 
-size_t CBSSearch::getPathsMaxLength() {
-    size_t maxLen = 0;
-    for (int i = 0; i < num_agents_; i++)
-        if (!paths[i].empty() && paths[i].size() > maxLen)
-            maxLen = paths[i].size();
-    return maxLen;
-}
-
-void CBSSearch::updateReservationTable(bool* res_table, size_t max_plan_len, int exclude_agent) {
-    for (int ag = 0; ag < num_agents_; ag++) {
-        if (ag != exclude_agent && !paths[ag].empty()) {
-            for (size_t t = 0; t < max_plan_len; t++) {
-                int loc = getAgentLocation(ag, t);
-                res_table[loc + t * map_size_] = true;
-            }
-        }
-    }
-}
-
 void CBSSearch::updatePaths(HLNode* curr, HLNode* root) {
     paths = paths_found_initially_;
-    ll_min_f_vals_ = ll_min_f_vals_found_initially_;
     paths_costs_ = paths_costs_found_initially_;
     vector<bool> updated(num_agents_, false);
     while (curr != root) {
         if (!updated[curr->agent_id]) {
             paths[curr->agent_id] = curr->path;
-            ll_min_f_vals_[curr->agent_id] = curr->ll_min_f_val;
             paths_costs_[curr->agent_id] = curr->path_cost;
             updated[curr->agent_id] = true;
         }
@@ -467,49 +272,22 @@ void CBSSearch::updatePaths(HLNode* curr, HLNode* root) {
     }
 }
 
-// Collects agent_id's constraints from node up to the root, indexed by
-// timestep. Returns nullptr when the agent is unconstrained.
-vector<list<pair<int,int>>>* CBSSearch::buildConstraintTable(HLNode* node, int agent_id) {
-    list<tuple<int,int,int>> constraints;
+// agent_id's constraints from node up to the root.
+vector<tuple<int,int,int>> CBSSearch::collectConstraints(HLNode* node, int agent_id) {
+    vector<tuple<int,int,int>> constraints;
     for (HLNode* curr = node; curr != dummy_start_; curr = curr->parent)
         if (curr->agent_id == agent_id)
-            for (const auto& c : curr->constraints)
-                constraints.push_front(c);
-
-    int max_timestep = -1;
-    for (auto& c : constraints)
-        if (get<2>(c) > max_timestep)
-            max_timestep = get<2>(c);
-    if (max_timestep < 0) return nullptr;
-
-    auto* cons_vec = new vector<list<pair<int,int>>>(max_timestep + 1);
-    for (auto& c : constraints)
-        cons_vec->at(get<2>(c)).push_back(make_pair(get<0>(c), get<1>(c)));
-    return cons_vec;
+            constraints.insert(constraints.end(), curr->constraints.begin(),
+                               curr->constraints.end());
+    return constraints;
 }
 
-bool CBSSearch::updateCBSNode(HLNode* leaf, HLNode* root) {
-    int agent_id = leaf->agent_id;
-    vector<list<pair<int,int>>>* cons_vec = buildConstraintTable(leaf, agent_id);
-
-    size_t max_plan_len = getPathsMaxLength();
-    bool* res_table = nullptr;
-    if (max_plan_len > 0) {
-        res_table = new bool[map_size_ * max_plan_len]();
-        updateReservationTable(res_table, max_plan_len, agent_id);
-    }
-
-    bool found = search_engines_[agent_id]->findPath(focal_w_, cons_vec, res_table, max_plan_len);
-
-    if (found) {
-        leaf->path = search_engines_[agent_id]->path;
-        leaf->ll_min_f_val = search_engines_[agent_id]->min_f_val;
-        leaf->path_cost = search_engines_[agent_id]->path_cost;
-    }
-
-    if (cons_vec) delete cons_vec;
-    if (res_table) delete[] res_table;
-    return found;
+bool CBSSearch::updateCBSNode(HLNode* leaf, HLNode* /*root*/) {
+    if (!low_level_.find_path(leaf->agent_id, collectConstraints(leaf, leaf->agent_id),
+                              paths, leaf->path))
+        return false;
+    leaf->path_cost = leaf->path.size() - 1;
+    return true;
 }
 
 vector<tuple<int,int,int,int,int>>* CBSSearch::extractCollisions() {
@@ -564,13 +342,9 @@ const vector<bool>& CBSSearch::getMDDSingletons(HLNode* node, int agent_id) {
         owner = owner->parent;
     std::shared_ptr<const vector<bool>>& cached = owner == dummy_start_
         ? root_mdd_singletons_[agent_id] : owner->mdd_singletons;
-    if (!cached) {
-        vector<list<pair<int,int>>>* cons = buildConstraintTable(owner, agent_id);
-        cached = std::make_shared<const vector<bool>>(
-            search_engines_[agent_id]->buildMDDSingletons(
-                cons, (int)paths[agent_id].size() - 1));
-        delete cons;
-    }
+    if (!cached)
+        cached = std::make_shared<const vector<bool>>(low_level_.mdd_singletons(
+            agent_id, collectConstraints(owner, agent_id), (int)paths[agent_id].size() - 1));
     return *cached;
 }
 
@@ -614,8 +388,6 @@ bool CBSSearch::generateChild(HLNode* child, HLNode* parent) {
     paths[agent_id] = child->path;
     child->h_val = computeNumOfCollidingPairs();
     paths[agent_id] = old_path;
-    child->sum_min_f_vals = parent->sum_min_f_vals
-        - ll_min_f_vals_[agent_id] + child->ll_min_f_val;
     return true;
 }
 
@@ -701,7 +473,7 @@ bool CBSSearch::addRectangleBarriers(int a1, int a2, int loc, int timestep,
 
 void CBSSearch::updateFocalList(double old_lb, double new_lb) {
     for (HLNode* n : hl_open_) {
-        if (n->sum_min_f_vals > old_lb && n->sum_min_f_vals <= new_lb)
+        if (n->g_val > old_lb && n->g_val <= new_lb)
             n->focal_handle = hl_focal_.push(n);
     }
 }
@@ -795,10 +567,8 @@ bool CBSSearch::run() {
                 bypass_node->agent_id = bypass_child->agent_id;
                 bypass_node->path = bypass_child->path;
                 bypass_node->path_cost = bypass_child->path_cost;
-                bypass_node->ll_min_f_val = ll_min_f_vals_[bypass_node->agent_id];
                 bypass_node->g_val = bypass_child->g_val;
                 bypass_node->h_val = bypass_child->h_val;
-                bypass_node->sum_min_f_vals = curr->sum_min_f_vals;
                 bypass_node->parent = curr;
                 for (HLNode* child : children) delete child;
                 children.assign(1, bypass_node);
@@ -808,7 +578,7 @@ bool CBSSearch::run() {
                 child->open_handle = hl_open_.push(child);
                 HL_num_generated_++;
                 child->time_generated = HL_num_generated_;
-                if (child->sum_min_f_vals <= focal_list_threshold_)
+                if (child->g_val <= focal_list_threshold_)
                     child->focal_handle = hl_focal_.push(child);
                 all_nodes_.push_back(child);
             }
@@ -818,10 +588,10 @@ bool CBSSearch::run() {
                 break;
             }
             HLNode* open_head = hl_open_.top();
-            if (open_head->sum_min_f_vals > min_sum_f_vals_) {
-                double new_threshold = open_head->sum_min_f_vals * focal_w_;
+            if (open_head->g_val > min_sum_f_vals_) {
+                double new_threshold = open_head->g_val * focal_w_;
                 updateFocalList(focal_list_threshold_, new_threshold);
-                min_sum_f_vals_ = open_head->sum_min_f_vals;
+                min_sum_f_vals_ = open_head->g_val;
                 focal_list_threshold_ = new_threshold;
             }
         }
@@ -833,6 +603,5 @@ bool CBSSearch::run() {
 }
 
 CBSSearch::~CBSSearch() {
-    for (auto* e : search_engines_) delete e;
     for (auto* n : all_nodes_) delete n;
 }

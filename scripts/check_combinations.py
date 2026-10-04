@@ -8,7 +8,9 @@ Each algorithm configuration (configs/) is crossed with every --mapf and
 and with each planner set up the way it is used on its own (assignment
 trigger, replan events, endpoints), on the kiva map with 10 agents; the
 endpoint and planner axes also run with 50 agents, where crowding exposes
-deadlocks.
+deadlocks. CENTRAL is crossed with every planner, single-agent search,
+dummy-path setting and mode, and every configuration with CBS and every
+single-agent search, at 10 and 50 agents.
 A run passes when it
 
   * is rejected immediately (exit 1, "is not supported" / "requires"), or
@@ -49,11 +51,12 @@ REPLANS = ("WHEN_ASSIGNED", "AFTER_ASSIGNMENT", "EVERY_TIMESTEP", "AFTER_ASSIGNM
 # Each planner with the trigger, replanning events and endpoints it needs, so
 # any assignment method can be paired with it as a separate planning step.
 PLANNER_SETUPS = (
-    ("PBS", "AFTER_ASSIGNMENT", "NEAREST_WITH_STRICT_EXCLUSIONS"),
-    ("PP", "AFTER_ASSIGNMENT", "NEAREST_WITH_STRICT_EXCLUSIONS"),
+    ("PBS", "AFTER_ASSIGNMENT,GOAL_REACHED", "NEAREST_WITH_STRICT_EXCLUSIONS"),
+    ("PP", "AFTER_ASSIGNMENT,GOAL_REACHED", "NEAREST_WITH_STRICT_EXCLUSIONS"),
     ("wPBS", "AFTER_ASSIGNMENT,PERIODIC", "PAIRWISE_TASK_THEN_HOME"),
     ("CBS", "AFTER_ASSIGNMENT,GOAL_REACHED", "NEAREST_WITH_STRICT_EXCLUSIONS"),
 )
+CENTRAL = ("table1/CENTRAL", "table1/CENTRAL-fixed")
 LOG_CAP = 2_000_000
 
 
@@ -83,6 +86,26 @@ def combinations() -> list[tuple[str, int, str, list[str]]]:
                         "ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE",
                         "--replan_on", replan, "--endpoint_strategy", endpoint,
                         "--agent_selection", selection]))
+        # CENTRAL with every planner, and every assignment with CBS, in each
+        # planner's own setup (wPBS plans every agent; CENTRAL parks agents
+        # at the nearest available endpoints).
+        for mapf, replan, endpoint in PLANNER_SETUPS:
+            if config not in CENTRAL and mapf != "CBS":
+                continue
+            if config in CENTRAL and mapf != "wPBS":
+                endpoint = "NEAREST_AVAILABLE"
+            setup = ["--mapf", mapf, "--assign_trigger",
+                     "ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE", "--replan_on", replan,
+                     "--endpoint_strategy", endpoint,
+                     "--agent_selection", "ALL" if mapf == "wPBS" else "CHANGED"]
+            for agents in (10, 50):
+                jobs += [(config, agents, setup + ["--single_agent", sa])
+                         for sa in SINGLE_AGENT[1:]]
+                if config in CENTRAL:
+                    jobs += [(config, agents, setup + ["--dummy_path", d]) for d in ("0", "1")]
+            if config in CENTRAL:
+                jobs += [(config, 10, setup + ["--dummy_path", "1", "--mode", m])
+                         for m in MODES]
     return jobs
 
 

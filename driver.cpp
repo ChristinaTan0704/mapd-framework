@@ -80,13 +80,6 @@ void set_parameters(MAPDConfig& config, const po::variables_map& vm)
             throw invalid_argument(
                 "cbs_high_level_expansion_limit must be positive");
     }
-    if (vm.count("cbs_low_level_expansion_limit")) {
-        config.cbs_low_level_expansion_limit =
-            vm["cbs_low_level_expansion_limit"].as<int>();
-        if (config.cbs_low_level_expansion_limit <= 0)
-            throw invalid_argument(
-                "cbs_low_level_expansion_limit must be positive");
-    }
     if (vm.count("cbs_bypass"))
         config.cbs_bypass = vm["cbs_bypass"].as<int>() != 0;
     if (vm.count("cbs_target_reasoning"))
@@ -147,7 +140,6 @@ int main(int argc, char** argv)
         ("lns_no_improvement_limit", po::value<int>(),                 "LNS only: rejected moves before early stop; 0 disables (default 2000)")
         ("ecbs_focal_weight", po::value<double>(),                     "CBS/ECBS only: focal bound; 1.0=optimal CBS, >1.0=ECBS (default 1.0)")
         ("cbs_high_level_expansion_limit", po::value<int>(),           "CBS/ECBS only: maximum high-level expansions per batch (default INT_MAX)")
-        ("cbs_low_level_expansion_limit", po::value<int>(),            "CBS/ECBS only: maximum expansions per low-level search (default INT_MAX)")
         ("cbs_conflict_selection", po::value<string>(),                "CBS/ECBS only: earliest or cardinal (ICBS MDD prioritization) (default cardinal)")
         ("cbs_bypass",     po::value<int>(),                           "CBS/ECBS only: 1=ICBS bypass, 0=always branch (default 1)")
         ("cbs_target_reasoning", po::value<int>(),                     "CBS/ECBS only: 1=target-conflict reasoning, 0=vertex constraints (default 1)")
