@@ -6994,7 +6994,11 @@ void Simulation::advance_time() {
         new_or_deferred_task_event_)
         next_ts = min(next_ts, cur_time_ + 1);
     if (config.mapf == MAPF_wPBS) {
-        unsigned int window_end = cur_time_ + config.wpbs_replan_window;
+        // The next periodic replan is due one window after the last plan, not
+        // after the current event; jumping past it would leave agents parked at
+        // the end of their windowed paths.
+        unsigned int window_end =
+            (unsigned int)last_path_planning_time_ + config.wpbs_replan_window;
         if (window_end < next_ts) next_ts = window_end;
     }
 
