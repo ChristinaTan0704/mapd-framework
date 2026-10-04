@@ -207,6 +207,7 @@ private:
     void task_assignment();          // assign_method
     bool should_replan(bool assignment_triggered) const;
     void path_planning(bool assignment_triggered); // mapf
+    bool replan_pending_ = false;    // a planner failed: plan again next timestep
 
     // Assignment-trigger state is separate from open_tasks_: that pool may
     // contain truncated suffixes that should not cause reassignment by
@@ -274,7 +275,7 @@ private:
     vector<bool> last_planned_;    // agents planned by the current replan
     bool select_all_ = false;      // fall back to replanning every agent
     bool kept_paths_conflict() const;
-    void plan_paths(bool assignment_triggered);
+    bool plan_paths(bool assignment_triggered);
 
     DummyEndpointRequest make_token_endpoint_request(
         int agent_id, int reference_location, bool check_committed_crossings) const;
@@ -297,6 +298,9 @@ private:
     int endpoint_strict(const DummyEndpointRequest& request) const;
     vector<vector<pair<int,int>>> split_into_task_groups(
         int agent_id, const vector<pair<int,int>>& goal_seq) const;
+    int planned_task_count() const;
+    void append_endpoint(int agent_id, vector<pair<int,int>>& goals, vector<int>& reserved);
+    bool cell_needed_by_others(int agent_id, int cell, const vector<int>& reserved) const;
 
     // ======================================================================
     //  Section 5 — MAPF: PP / PBS / wPBS
@@ -304,10 +308,9 @@ private:
     // Public algorithm boundaries live in path_planners.h. Simulation calls
     // PBSPlanner (wPBS is PBS with a planning window); every planner reaches
     // the low level through plan_single_agent() with a SingleAgentRequest.
-    void path_planning_pp_per_task();
-    void path_planning_pp_task_sequence();
+    bool path_planning_pp();
     void path_planning_ta_hybrid(bool assignment_triggered);
-    void path_planning_pbs();
+    bool path_planning_pbs();
     void path_planning_ecbs(bool assignment_triggered);
     void path_planning_cbs_segments();
     vector<vector<int>> cbs_solve(const vector<int>& agent_ids, const vector<int>& goals);
@@ -321,6 +324,7 @@ private:
     struct PBSContext {
         int num_ag = 0;
         int max_t = 0;
+        int last_release = 0;    // the later of now and the latest goal release
         int work_len = 0;        // length of the per-node path tables
         int path_horizon = 0;    // how much of the committed path is copied as "old"
         vector<vector<pair<int,int>>> goal_seqs;
@@ -352,7 +356,6 @@ private:
     void pbs_set_path(PBSNode* node, int agent_id, const vector<int>& path);
     int  pbs_settle_time(const vector<vector<int>>& paths) const;
     int  pbs_conflict_horizon(const vector<vector<int>>& paths) const;
-    void pbs_final_deconflict(PBSNode* node);
     void pbs_commit(const PBSNode* node);
 
     // --- Shared old-path constraint table -------------------------------
@@ -378,6 +381,10 @@ private:
     // The configured single-agent search (config.single_agent); every planner
     // reaches the low level through here.
     vector<int> plan_single_agent(const SingleAgentRequest& request);
+    vector<int> plan_sequential_sta(const SingleAgentRequest& request,
+                                    const vector<pair<int,int>>& goals);
+    const vector<int>& distances_to(int location);
+    unordered_map<int, vector<int>> distance_tables_;   // non-endpoint cells
     vector<int> mla_star_taskwise_impl(int agent_id, int start_loc, int start_time,
                                       const vector<vector<pair<int,int>>>& task_groups,
                                       const vector<vector<int>>& cons_paths,
@@ -402,7 +409,8 @@ private:
         int agent_id, int start_loc, int start_time,
         const vector<pair<int,int>>& goals,
         const vector<vector<int>>& constraint_paths,
-        const vector<vector<int>>& old_paths, bool use_old_paths);
+        const vector<vector<int>>& old_paths, bool use_old_paths,
+        int stop_time = INT_MAX);
     pair<int,int> plan_token_task(Agent& agent, Task& task, int hidden_agent = -1);
     bool sta_is_constrained(int agent_id, int current_loc, int next_loc,
                             int next_time, int hidden_agent) const;
@@ -410,7 +418,8 @@ private:
     // TP/TPTS WAIT_OR_NEAREST_SAFE is split into endpoint selection and path construction.
     int search_path2_endpoint(Agent& agent, int target_endpoint_loc,
                               bool parking_endpoints_only,
-                              bool exclude_all_open_goals);
+                              bool exclude_all_open_goals,
+                              const vector<int>& reserved_endpoints = {});
     bool plan_path2_to_endpoint(Agent& agent, int endpoint_loc,
                                 bool parking_endpoints_only,
                                 bool exclude_all_open_goals);
@@ -421,7 +430,8 @@ private:
                          const vector<int>& h_endpoint,
                          const vector<vector<int>>& constraint_paths,
                          int release_time, bool goal_optimal = true,
-                         const vector<tuple<int,int,int>>& cbs_constraints = {});
+                         const vector<tuple<int,int,int>>& cbs_constraints = {},
+                         int stop_time = INT_MAX);
 
     // Reused safe-interval buffers; only cells touched by the previous search
     // are reset, avoiding an O(map size) allocation for every PBS low-level call.
