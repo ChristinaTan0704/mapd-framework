@@ -147,8 +147,8 @@ Representative seed-0 baselines are:
 | TPTS-STA* | 10 / 0.2 | 2532 | 14666 |
 | CENTRAL-CBS | 10 / 0.2 | 2513 | 14122 |
 | HBH+MLA* | 10 / 0.2 | 2532 | 14728 |
-| Hungarian+PBS-MLA* | 10 / 0.2 | 2512 | 13684 |
-| Hungarian+wPBS-MLA* | 10 / 0.2 | 2513 | 13762 |
+| Hungarian+PBS-MLA* | 10 / 0.2 | 2514 | 13781 |
+| Hungarian+wPBS-MLA* | 10 / 0.2 | 2513 | 13781 |
 | LNS(1s)+PBS-MLA* | 10 / 0.2 | 2512 | 13681 |
 | LNS(1s)+wPBS-MLA* | 10 / 0.2 | 2513 | 13637 |
 | TA-Prioritized-STA* | 10 / offline | 1052 | 263485 |
@@ -405,7 +405,7 @@ options override. The experiment scripts run the configuration files.
 | 2 | Task assignment | `--assign_method` | `DECOUPLED_GREEDY` (TP)<br>`DECOUPLED_GREEDY_SWAPS` (TPTS)<br>`CENTRALIZED_GREEDY` (HBH)<br>`CENTRAL_HUNGARIAN`<br>`REPEATED_HUNGARIAN`<br>`REPEATED_HUNGARIAN_LNS`<br>`LKH3_TSP`<br>`LKH3_TSP_REASSIGN` | Every method feeds every planner `PP`, `PP_TASK_SEQUENCE`, `PBS`, `wPBS`, `CBS`; `TA_HYBRID_TWO_GROUP` takes only `LKH3_TSP_REASSIGN`.<br>`LKH3_*` need `--tour <file>` and `OFFLINE`.<br>LNS budget is `--lns_time` (wall-clock seconds), so its results vary slightly between runs. |
 | 3 | When to plan paths | `--replan_on` | `WHEN_ASSIGNED` (alias `NONE`), or a comma-separated set of `AFTER_ASSIGNMENT`, `EVERY_TIMESTEP`, `GOAL_REACHED`, `PERIODIC` (e.g. `AFTER_ASSIGNMENT,PERIODIC`) | `WHEN_ASSIGNED` = each agent is planned when it is assigned a task, inside the assignment; only TP/TPTS/HBH with `ON_FREE_WAITS`.<br>`PERIODIC` alone plans new assignments at the next period; a set with `EVERY_TIMESTEP` is `EVERY_TIMESTEP`; `GOAL_REACHED` alone is rejected (new assignments would never be planned).<br>`wPBS` needs `PERIODIC` or `EVERY_TIMESTEP`; so does every planner fed by `LKH3_*` (it plans the next tasks of a tour) except `PP_TASK_SEQUENCE`, which plans whole tours: `AFTER_ASSIGNMENT` only.<br>After `CENTRAL_HUNGARIAN` (an agent is planned to its pickup) a `GOAL_REACHED`, `PERIODIC` or `EVERY_TIMESTEP` replan plans the next leg; TA-Hybrid needs `GOAL_REACHED` or `EVERY_TIMESTEP`.<br>A planner that fails also replans at the next timestep. |
 | 4 | Which agents to plan | `--agent_selection` | `ALL`<br>`CHANGED` | Either, for every planner and assignment, except TP/TPTS/HBH as published (`WHEN_ASSIGNED`): `CHANGED`, since their assignment plans one agent at a time against the others' committed paths (for `ALL`, plan after the assignment: `--replan_on AFTER_ASSIGNMENT`).<br>Kept paths can block the changed agents; when `CHANGED` has reached no goal for 2 (rows + cols) steps while work remains, every agent is planned.<br>`CBS` with `ALL` (one CBS over every agent's goal sequence) is slow with 50 agents. |
-| 5 | High-level planner | `--mapf` | `PP` (alias `PP_PER_TASK`)<br>`PP_TASK_SEQUENCE`<br>`CBS`<br>`PBS`<br>`wPBS`<br>`TA_HYBRID_TWO_GROUP` | `PBS`/`wPBS`/`CBS` plan the first `--task_sequence_limit` tasks (default 2; the Excel originals used 1); `PP` plans one task.<br>`PP_TASK_SEQUENCE` plans every agent's whole sequence and tentatively plans every remaining agent at each priority level (n(n+1)/2 searches per plan).<br>Every planner runs in every mode the assignment allows.<br>`TA_HYBRID_TWO_GROUP` only with `LKH3_TSP_REASSIGN` (its Group 2 routes free agents under the LKH3 tour's makespan bound and may swap their sequences). |
+| 5 | High-level planner | `--mapf` | `PP` (alias `PP_PER_TASK`)<br>`PP_TASK_SEQUENCE`<br>`CBS`<br>`PBS`<br>`wPBS`<br>`TA_HYBRID_TWO_GROUP` | `PBS`/`wPBS`/`CBS` plan the first `--task_sequence_limit` tasks (built-in default 2; the eight Hungarian/LNS PBS/wPBS configurations set 1, as the original code does); `PP` plans one task.<br>`PP_TASK_SEQUENCE` plans every agent's whole sequence and tentatively plans every remaining agent at each priority level (n(n+1)/2 searches per plan).<br>Every planner runs in every mode the assignment allows.<br>`TA_HYBRID_TWO_GROUP` only with `LKH3_TSP_REASSIGN` (its Group 2 routes free agents under the LKH3 tour's makespan bound and may swap their sequences). |
 | 5.1 | wPBS window | `--wpbs_replan_window` | integer, default 10 | At least 2 for `wPBS`.<br>Also the `PERIODIC` replan interval for any planner. |
 | 6 | Low-level planner | `--single_agent` | `STA`<br>`MLA`<br>`MLSIPP` (alias `SIPP`)<br>`SIPP2` (alias `2SEG_SIPP`)<br>`SEQ_STA` | Every planner takes any of the five; under `CBS` the search obeys the high-level constraints.<br>TA-Hybrid plans its carriers (Group 1) and its free agents' fallback paths with it; `SEQ_STA` is its original search. |
 | 7 | Task endpoint | `--endpoint_strategy`<br>`--dummy_path 0/1` | `WAIT_OR_NEAREST_SAFE`<br>`WAIT_OR_NEAREST_FREE_NONTASK`<br>`NEAREST_AVAILABLE`<br>`NEAREST_WITH_STRICT_EXCLUSIONS`<br>`PAIRWISE_TASK_THEN_HOME`<br>`RETURN_TO_HOME` | Every strategy, with either `--dummy_path`, for every planner; the Table 1 configurations keep their original value.<br>`--dummy_path 0`: an agent stops at its last goal (or stays where it is) unless another task or agent needs that cell.<br>`PAIRWISE` skips endpoints others need unless the planner is `wPBS` (a windowed plan does not hold them).<br>`CENTRAL` parks idle agents at the strategy's endpoint. |
@@ -479,7 +479,7 @@ components, and the Table 1 configurations (`configs/table1/`) that use them:
 | `PP` (alias `PP_PER_TASK`) | prioritized planning, one task at a time | TP, TPTS, HBH |
 | `PP_TASK_SEQUENCE` | prioritized planning of each agent's whole task sequence; at each priority level the agent that finishes last goes first | TA-Prioritized |
 | `CBS` | conflict-based search (ICBS) over the selected agents' goal sequences, first `--task_sequence_limit` tasks | CENTRAL, CENTRAL-fixed |
-| `PBS` | PBS over each agent's first `--task_sequence_limit` tasks (default 2) | LNS-PBS |
+| `PBS` | PBS over each agent's first `--task_sequence_limit` tasks (1 in the LNS/Hungarian configurations) | LNS-PBS |
 | `wPBS` | PBS with a planning window (5.1) | LNS-wPBS |
 | `TA_HYBRID_TWO_GROUP` | TA-Hybrid's two-group planning | TA-Hybrid |
 
@@ -586,8 +586,9 @@ frequency 0.2; and LNS with every task known upfront (`OFFLINE`).
 
 ## Algorithm setup
 
-All rows below also receive `--seed 0`. Defaults are
-`task_sequence_limit=2`, `wpbs_replan_window=10`, `lns_time=1`,
+All rows below also receive `--seed 0`. Built-in defaults are
+`task_sequence_limit=2` (the eight Hungarian/LNS PBS/wPBS configurations set
+1, the original code's `task_truncated_size`), `wpbs_replan_window=10`, `lns_time=1`,
 `lns_no_improvement_limit=2000`, CBS focal weight 1.0, and the CBS high-level
 expansion limit 10000 (`--cbs_high_level_expansion_limit`; a CBS search that
 reaches it fails, so every agent is replanned and then prioritized planning
@@ -630,8 +631,10 @@ to 600 seconds. Use `--runtime_limit 0` or
 | LNS(1s)+wPBS-MLSIPP | `--config configs/variants/LNS-wPBS-MLSIPP.cfg` | Online extension |
 | LNS(1s)+PP-SIPP | `--config configs/variants/LNS-PBS-MLSIPP.cfg --mapf PP` | Online extension |
 
-Append `--task_sequence_limit 1` to the eight Hungarian/LNS PBS or wPBS
-MLA*/MLSIPP rows to produce their `(ts 1)` variants. The limit is the number of
+The eight Hungarian/LNS PBS or wPBS MLA*/MLSIPP configurations plan one task
+per agent (`task_sequence_limit = 1`, as the original code); their `(ts 1)`
+rows are therefore the same runs, and `--task_sequence_limit 2` gives the
+two-task variants. The limit is the number of
 tasks PBS, wPBS and CBS plan per agent, and repeated Hungarian/LNS keep that
 many tasks per agent (one for PP, all for PP_TASK_SEQUENCE); TP, TPTS, HBH,
 CENTRAL and the TA methods do not use it.
