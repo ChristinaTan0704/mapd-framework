@@ -33,6 +33,7 @@ inline const NameTable<AssignMethod>& names(AssignMethod) {
         {AM_DECOUPLED_GREEDY_SWAPS, "DECOUPLED_GREEDY_SWAPS"},
         {AM_CENTRALIZED_GREEDY, "CENTRALIZED_GREEDY"},
         {AM_CENTRAL_HUNGARIAN, "CENTRAL_HUNGARIAN"},
+        {AM_CENTRAL_HUNGARIAN_FIXED, "CENTRAL_HUNGARIAN_FIXED"},
         {AM_REPEATED_HUNGARIAN, "REPEATED_HUNGARIAN"},
         {AM_REPEATED_HUNGARIAN_LNS, "REPEATED_HUNGARIAN_LNS"},
         {AM_LKH3_TSP, "LKH3_TSP"},
@@ -48,6 +49,7 @@ inline const NameTable<AssignTrigger>& names(AssignTrigger) {
          "ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE"},
         {AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE,
          "ON_NEW_TASK_OR_AGENT_BECOMES_FREE"},
+        {AT_ON_AGENT_FREE_OR_AT_PICKUP, "ON_AGENT_FREE_OR_AT_PICKUP"},
         {AT_ONCE, "ONCE"}};
     return table;
 }
@@ -109,7 +111,8 @@ inline const char* no_flags_name(ReplanEvent) { return "WHEN_ASSIGNED"; }
 
 inline const NameTable<AgentSelection>& names(AgentSelection) {
     static const NameTable<AgentSelection> table = {
-        {SELECT_ALL, "ALL"}, {SELECT_CHANGED, "CHANGED"}};
+        {SELECT_ALL, "ALL"}, {SELECT_CHANGED, "CHANGED"},
+        {SELECT_CHANGED_OR_NOT_CARRYING, "CHANGED_OR_NOT_CARRYING"}};
     return table;
 }
 

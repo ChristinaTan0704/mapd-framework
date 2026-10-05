@@ -71,15 +71,16 @@ METHODS = (
 BASE_METHOD_COUNT = 21
 
 # Seed-0 results with the default reference tie-breaking (validated on Linux,
-# 2026-10-03; --tie_breaking random reproduces the earlier 2026-08-24 values).
+# 2026-10-03; CENTRAL rows after the reference ECBS port and the TP/TPTS
+# MLSIPP rows after its goal waiting, 2026-10-04).
 # Runtime is deliberately excluded because it depends on the server.  LNS rows are reported but are not
 # exact-gated: their one-second CPU budget can perform a different number of
 # iterations on another processor/compiler.
 SMOKE_BASELINE = {
     "TP-STA*": (2532, 19270),
     "TPTS-STA*": (2532, 14666),
-    "CENTRAL-CBS": (2513, 14122),
-    "CENTRAL-fixed-CBS": (2514, 14183),
+    "CENTRAL-CBS": (2516, 14887),
+    "CENTRAL-fixed-CBS": (2513, 14423),
     "HBH+MLA*": (2532, 14728),
     "HBH+MLSIPP": (2532, 14618),
     "HBH+2-segment SIPP": (2514, 14659),
@@ -87,14 +88,14 @@ SMOKE_BASELINE = {
     "TA-Prioritized-STA*": (1052, 263485),
     "Hungarian+PBS-MLA*": (2514, 13781),
     "Hungarian+wPBS-MLA*": (2513, 13781),
-    "LNS(1s)+PBS-MLA*": (2512, 13681),
-    "LNS(1s)+wPBS-MLA*": (2513, 13637),
+    "LNS(1s)+PBS-MLA*": (2513, 13553),
+    "LNS(1s)+wPBS-MLA*": (2512, 13774),
     "Hungarian+PBS-MLSIPP": (2513, 13668),
     "Hungarian+wPBS-MLSIPP": (2513, 13780),
-    "LNS(1s)+PBS-MLSIPP": (2515, 13759),
-    "LNS(1s)+wPBS-MLSIPP": (2514, 13648),
-    "TP-MLSIPP": (2540, 19335),
-    "TPTS-MLSIPP": (2530, 14668),
+    "LNS(1s)+PBS-MLSIPP": (2512, 13817),
+    "LNS(1s)+wPBS-MLSIPP": (2513, 13677),
+    "TP-MLSIPP": (2540, 19336),
+    "TPTS-MLSIPP": (2530, 14670),
     "Hungarian+PP-SIPP": (2513, 13863),
     "LNS(1s)+PP-SIPP": (2513, 13746),
     "Hungarian+PBS-MLA* (ts 1)": (2514, 13781),
@@ -110,8 +111,8 @@ SMOKE_BASELINE = {
 MULTIGOAL_BASELINE = {
     "TP-STA*": (161, 1060),
     "TPTS-STA*": (161, 1014),
-    "CENTRAL-CBS": (164, 1020),
-    "CENTRAL-fixed-CBS": (156, 1020),
+    "CENTRAL-CBS": (168, 1092),
+    "CENTRAL-fixed-CBS": (159, 1029),
     "HBH+MLA*": (161, 1014),
     "HBH+MLSIPP": (161, 1014),
     "HBH+2-segment SIPP": (161, 1014),
@@ -126,7 +127,7 @@ MULTIGOAL_BASELINE = {
     "LNS(1s)+PBS-MLSIPP": (158, 1028),
     "LNS(1s)+wPBS-MLSIPP": (163, 1031),
     "TP-MLSIPP": (161, 1060),
-    "TPTS-MLSIPP": (161, 1014),
+    "TPTS-MLSIPP": (161, 1016),
     "Hungarian+PP-SIPP": (161, 1048),
     "LNS(1s)+PP-SIPP": (161, 1048),
     "Hungarian+PBS-MLA* (ts 1)": (158, 1029),

@@ -39,9 +39,11 @@ const std::vector<EndpointStrategy> ALL_ENDPOINTS = {
 const std::vector<SingleAgentMethod> ANY_SEARCH = {
     SA_STA_TASK_EP, SA_MLA_SEQUENCE, SA_MLSIPP_SEQUENCE, SA_SIPP_SEGMENTS, SA_SEQ_STA};
 const std::vector<AgentSelection> CHANGED = {SELECT_CHANGED};
-const std::vector<AgentSelection> EITHER_SELECTION = {SELECT_ALL, SELECT_CHANGED};
+const std::vector<AgentSelection> ANY_SELECTION = {SELECT_ALL, SELECT_CHANGED,
+                                                   SELECT_CHANGED_OR_NOT_CARRYING};
 const std::vector<bool> EITHER = {true, false};
 const AssignTrigger ON_EVENT = AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE;
+const AssignTrigger AT_PICKUP = AT_ON_AGENT_FREE_OR_AT_PICKUP;
 
 const int WHEN_ASSIGNED = 0;   // each agent is planned when assigned, inside the assignment
 const int AFTER = REPLAN_AFTER_ASSIGNMENT;
@@ -49,16 +51,19 @@ const int SEGMENTS = REPLAN_AFTER_ASSIGNMENT | REPLAN_GOAL_REACHED;
 const int WINDOWED = REPLAN_AFTER_ASSIGNMENT | REPLAN_PERIODIC;
 const int ALL_EVENTS = REPLAN_AFTER_ASSIGNMENT | REPLAN_GOAL_REACHED | REPLAN_PERIODIC;
 const int PERIODIC = REPLAN_PERIODIC;
+const int GOAL_PERIODIC = REPLAN_GOAL_REACHED | REPLAN_PERIODIC;
 const std::vector<int> ANY_REPLAN = {AFTER, SEGMENTS, WINDOWED, ALL_EVENTS, PERIODIC,
-                                     REPLAN_EVERY_TIMESTEP};
+                                     GOAL_PERIODIC, REPLAN_EVERY_TIMESTEP};
 // A plan that ends at a goal before the task's next leg (TA-Hybrid's groups,
 // a CENTRAL pickup) must be followed by one when an agent gets there, and a
 // windowed plan must be refreshed before its window runs out.
-const std::vector<int> WITH_SEGMENTS = {SEGMENTS, ALL_EVENTS, REPLAN_EVERY_TIMESTEP};
-const std::vector<int> WITH_REFRESH = {WINDOWED, ALL_EVENTS, PERIODIC, REPLAN_EVERY_TIMESTEP};
+const std::vector<int> WITH_SEGMENTS = {SEGMENTS, ALL_EVENTS, GOAL_PERIODIC,
+                                        REPLAN_EVERY_TIMESTEP};
+const std::vector<int> WITH_REFRESH = {WINDOWED, ALL_EVENTS, PERIODIC, GOAL_PERIODIC,
+                                       REPLAN_EVERY_TIMESTEP};
 // CENTRAL's delivery legs: per-goal or periodic replans.
 const std::vector<int> SEGMENTS_OR_REFRESH = {SEGMENTS, WINDOWED, ALL_EVENTS, PERIODIC,
-                                              REPLAN_EVERY_TIMESTEP};
+                                              GOAL_PERIODIC, REPLAN_EVERY_TIMESTEP};
 
 std::vector<Support> supported_rows() {
     std::vector<Support> rows = {
@@ -77,31 +82,34 @@ std::vector<Support> supported_rows() {
         // upfront. TA-Hybrid's two groups plan each carrier's next goal and
         // route free agents to their pickups.
         {AM_LKH3_TSP_REASSIGN, MAPF_TA_HYBRID_TWO_GROUP,
-         {AT_EVERY_TIMESTEP, ON_EVENT, AT_ON_FREE_WAITS}, WITH_SEGMENTS,
-         EITHER_SELECTION, ANY_SEARCH, ALL_ENDPOINTS, {MODE_OFFLINE}, EITHER},
+         {AT_EVERY_TIMESTEP, ON_EVENT, AT_PICKUP, AT_ON_FREE_WAITS}, WITH_SEGMENTS,
+         ANY_SELECTION, ANY_SEARCH, ALL_ENDPOINTS, {MODE_OFFLINE}, EITHER},
     };
     // Methods that only assign tasks feed every planner: repeated Hungarian
     // with or without LNS, and TP, TPTS and HBH whenever planning is a
     // separate step (replan_on is set). The prioritized planners, PBS and CBS
     // plan every selected agent's next tasks (PP_TASK_SEQUENCE all of them);
     // wPBS plans a window of them and must refresh it before it runs out.
-    const std::vector<AssignTrigger> triggers = {ON_EVENT, AT_EVERY_TIMESTEP, AT_ON_FREE_WAITS};
+    const std::vector<AssignTrigger> triggers = {ON_EVENT, AT_PICKUP, AT_EVERY_TIMESTEP,
+                                                 AT_ON_FREE_WAITS};
     for (AssignMethod method : {AM_REPEATED_HUNGARIAN, AM_REPEATED_HUNGARIAN_LNS,
                                 AM_DECOUPLED_GREEDY, AM_DECOUPLED_GREEDY_SWAPS,
                                 AM_CENTRALIZED_GREEDY}) {
         for (MAPFMethod mapf : {MAPF_PP_PER_TASK, MAPF_PP_TASK_SEQUENCE, MAPF_PBS, MAPF_CBS})
-            rows.push_back({method, mapf, triggers, ANY_REPLAN, EITHER_SELECTION,
+            rows.push_back({method, mapf, triggers, ANY_REPLAN, ANY_SELECTION,
                             ANY_SEARCH, ALL_ENDPOINTS, ALL_MODES, EITHER});
-        rows.push_back({method, MAPF_wPBS, triggers, WITH_REFRESH, EITHER_SELECTION,
+        rows.push_back({method, MAPF_wPBS, triggers, WITH_REFRESH, ANY_SELECTION,
                         ANY_SEARCH, ALL_ENDPOINTS, ALL_MODES, EITHER});
     }
     // CENTRAL plans an agent to its matched pickup only, so a replan must
     // follow when it gets there (wPBS reaches it at its periodic replan).
-    for (MAPFMethod mapf : {MAPF_PP_PER_TASK, MAPF_PP_TASK_SEQUENCE, MAPF_PBS, MAPF_CBS})
-        rows.push_back({AM_CENTRAL_HUNGARIAN, mapf, triggers, SEGMENTS_OR_REFRESH, EITHER_SELECTION,
+    for (AssignMethod method : {AM_CENTRAL_HUNGARIAN, AM_CENTRAL_HUNGARIAN_FIXED}) {
+        for (MAPFMethod mapf : {MAPF_PP_PER_TASK, MAPF_PP_TASK_SEQUENCE, MAPF_PBS, MAPF_CBS})
+            rows.push_back({method, mapf, triggers, SEGMENTS_OR_REFRESH, ANY_SELECTION,
+                            ANY_SEARCH, ALL_ENDPOINTS, ALL_MODES, EITHER});
+        rows.push_back({method, MAPF_wPBS, triggers, WITH_REFRESH, ANY_SELECTION,
                         ANY_SEARCH, ALL_ENDPOINTS, ALL_MODES, EITHER});
-    rows.push_back({AM_CENTRAL_HUNGARIAN, MAPF_wPBS, triggers, WITH_REFRESH, EITHER_SELECTION,
-                    ANY_SEARCH, ALL_ENDPOINTS, ALL_MODES, EITHER});
+    }
     // The LKH3 task sequences feed the same planners. A planner that plans only
     // the next tasks of a sequence must be refreshed periodically as the
     // agents work through it; PP_TASK_SEQUENCE plans all of it, and
@@ -109,14 +117,20 @@ std::vector<Support> supported_rows() {
     // searches each time) does not finish in reasonable time.
     // LKH3_TSP_REASSIGN also lets an idle agent take over a task not yet
     // started; it feeds the same planners.
-    const std::vector<AssignTrigger> tour_triggers = {AT_ONCE, ON_EVENT, AT_EVERY_TIMESTEP,
-                                                      AT_ON_FREE_WAITS};
     const std::vector<Mode> OFFLINE = {MODE_OFFLINE};
     for (AssignMethod method : {AM_LKH3_TSP, AM_LKH3_TSP_REASSIGN}) {
-        rows.push_back({method, MAPF_PP_TASK_SEQUENCE, {AT_ONCE, ON_EVENT}, {AFTER},
-                        EITHER_SELECTION, ANY_SEARCH, ALL_ENDPOINTS, OFFLINE, EITHER});
+        // Reassignment acts after time 0, so ONCE would make it LKH3_TSP.
+        std::vector<AssignTrigger> tour_triggers = {ON_EVENT, AT_PICKUP, AT_EVERY_TIMESTEP,
+                                                    AT_ON_FREE_WAITS};
+        std::vector<AssignTrigger> sequence_triggers = {ON_EVENT};
+        if (method == AM_LKH3_TSP) {
+            tour_triggers.insert(tour_triggers.begin(), AT_ONCE);
+            sequence_triggers.insert(sequence_triggers.begin(), AT_ONCE);
+        }
+        rows.push_back({method, MAPF_PP_TASK_SEQUENCE, sequence_triggers, {AFTER},
+                        ANY_SELECTION, ANY_SEARCH, ALL_ENDPOINTS, OFFLINE, EITHER});
         for (MAPFMethod mapf : {MAPF_PP_PER_TASK, MAPF_PBS, MAPF_CBS, MAPF_wPBS})
-            rows.push_back({method, mapf, tour_triggers, WITH_REFRESH, EITHER_SELECTION,
+            rows.push_back({method, mapf, tour_triggers, WITH_REFRESH, ANY_SELECTION,
                             ANY_SEARCH, ALL_ENDPOINTS, OFFLINE, EITHER});
     }
     return rows;

@@ -209,6 +209,7 @@ private:
     //  Section 2 — Computation: dispatchers on the config axes
     // ======================================================================
     bool should_assign();            // test and consume assign_trigger events
+    bool agent_on_open_pickup() const;
     void task_assignment();          // assign_method
     bool should_replan(bool assignment_triggered) const;
     void path_planning(bool assignment_triggered); // mapf
@@ -221,6 +222,7 @@ private:
     void process_events();
     bool new_or_deferred_task_event_ = false;
     bool new_available_agent_ = false; // newly available for event-triggered reassignment
+    bool pickup_event_ = false;        // an agent picked up a task this timestep
     unsigned int last_path_planning_time_ = 0;
 
     // LKH3 tour input used by the offline TA algorithms.
@@ -245,7 +247,7 @@ private:
     int ta_sequence_cost(int agent_id, int start) const;
     vector<int> ta_agents_in_sequence_order() const;
     vector<bool> central_carried_goals() const;
-    void central_phase1_instant_pickup(vector<bool>& held);
+    vector<int> central_phase1_instant_pickup(vector<bool>& held);
     void assign_central_hungarian();
     int central_path_cost(int agent_id, int start_loc, int goal_loc,
                           int start_time, const vector<vector<int>>& constraints,
@@ -274,6 +276,8 @@ private:
     // Component 4: which agents a replan plans (switch on agent_selection),
     // and the task goals each committed path was planned for.
     vector<bool> select_agents(const vector<vector<pair<int,int>>>& task_goals) const;
+    vector<bool> select_agents_unstaged(const vector<vector<pair<int,int>>>& task_goals) const;
+    vector<char> stage_filter_;   // planned stage: only these agents (empty = all)
     bool path_reaches(int agent_id, const pair<int,int>& goal) const;
     void remember_plans(const vector<bool>& planned,
                         const vector<vector<pair<int,int>>>& task_goals);
@@ -353,6 +357,9 @@ private:
     PBSContext pbs_;
 
     void pbs_build_context();
+    bool reference_ecbs_applies(const vector<int>& agent_ids) const;
+    bool central_assignment() const;   // CENTRAL_HUNGARIAN or its fixed variant
+    bool path_planning_reference_ecbs(vector<int> agent_ids);
     vector<int> pbs_plan_agent(int agent_id, const vector<vector<int>>& cons_paths,
                                const vector<vector<int>>& old_paths, bool use_old);
     vector<vector<int>> pbs_others_old_paths(int agent_id) const;
@@ -420,7 +427,14 @@ private:
                                 const vector<vector<int>>& old_paths,
                                 bool use_old_paths,
                                 bool skip_holding = false, int stop_time = INT_MAX,
-                                const CBSConstraintTable* constraints = nullptr);
+                                const CBSConstraintTable* constraints = nullptr,
+                                bool wait_early = false);
+    vector<int> sipp_search_core(int agent_id, int start_loc, int start_time,
+                                const vector<pair<int,int>>& goals,
+                                const vector<vector<int>>& cons_paths,
+                                const vector<vector<int>>& old_paths,
+                                bool use_old_paths, bool skip_holding, int stop_time,
+                                const CBSConstraintTable* constraints, bool wait_early);
 
     // TP/TPTS ordered-goal low-level planning and endpoint-vacating fallback.
     vector<int> plan_sipp_segments(

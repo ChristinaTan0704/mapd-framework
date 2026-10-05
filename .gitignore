@@ -10,11 +10,14 @@
 !/output/
 /output/*
 !/output/all_paper_algorithms_comparison_2026-08-24.xlsx
+!/output/kiva_small_results_2026-10-04.csv
+!/output/kiva_small_results_2026-10-04.xlsx
 
 # Active headers only.
 !/inc/
 /inc/*
 !/inc/cbs.h
+!/inc/ecbs_reference.h
 !/inc/config.h
 !/inc/config_names.h
 !/inc/map_loader.h
@@ -26,6 +29,7 @@
 !/src/
 /src/*
 !/src/cbs.cpp
+!/src/ecbs_reference.cpp
 !/src/config_validate.cpp
 !/src/map_loader.cpp
 !/src/path_planners.cpp

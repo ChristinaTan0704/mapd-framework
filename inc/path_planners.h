@@ -66,6 +66,9 @@ struct SingleAgentRequest {
     int stop_time = INT_MAX;
     // CBS: the constraints of the high-level node, or none.
     const CBSConstraintTable* constraints = nullptr;
+    // Token passing: of the equally fast MLSIPP paths, one that waits at the
+    // goal or as early as possible (see sipp_search_impl).
+    bool wait_early = false;
 };
 
 // Strategy objects used by Simulation's dispatchers. They receive the live

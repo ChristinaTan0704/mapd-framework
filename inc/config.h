@@ -14,6 +14,9 @@ enum AssignMethod {
     AM_DECOUPLED_GREEDY,
     AM_CENTRALIZED_GREEDY,
     AM_CENTRAL_HUNGARIAN,
+    // CENTRAL-fixed (Ma's thesis, Sec 6.5.3): a match persists until its task
+    // is picked up; only agents without one are matched, to unmatched tasks.
+    AM_CENTRAL_HUNGARIAN_FIXED,
     AM_REPEATED_HUNGARIAN,
     AM_DECOUPLED_GREEDY_SWAPS,
     AM_LKH3_TSP,
@@ -26,6 +29,10 @@ enum AssignTrigger {
     // A task is released, an assignment method deferred a task, or an agent
     // became free.
     AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE,
+    // An agent became free (every agent at time 0), or an agent that carries
+    // no task is at the pickup of a released task or picked one up (the
+    // reference CENTRAL's has_new_agent). A new task alone is no event.
+    AT_ON_AGENT_FREE_OR_AT_PICKUP,
     AT_ONCE               // at time 0, with the complete task set
 };
 // When paths are replanned: a set of these flags. With none, the assignment
@@ -40,7 +47,10 @@ enum ReplanEvent {
 // the planned agents must avoid.
 enum AgentSelection {
     SELECT_ALL,
-    SELECT_CHANGED   // agents whose task goals changed since their last plan
+    SELECT_CHANGED,  // agents whose task goals changed since their last plan
+    // CHANGED, and every agent that carries no task (the reference CENTRAL
+    // replans all of them after each assignment)
+    SELECT_CHANGED_OR_NOT_CARRYING
 };
 enum MAPFMethod {
     MAPF_PP_PER_TASK,
@@ -85,6 +95,12 @@ enum EndpointStrategy {
 };
 
 // ============ Config struct ============
+
+// The reference CENTRAL's ECBS has no expansion limit. With 1,000,000 every
+// CENTRAL run on kiva small finishes within the 1000 s limit (the reference
+// itself does not on a40/a50 with every task at time 0); searches that reach
+// it fall back as any CBS does.
+constexpr int CENTRAL_ECBS_EXPANSION_LIMIT = 1000000;
 
 struct MAPDConfig {
     Mode mode;
@@ -182,33 +198,35 @@ inline MAPDConfig get_preset(const string& name) {
         c.endpoint_strategy = WAIT_OR_NEAREST_SAFE;
     }
     else if (name == "CENTRAL" || name == "CENTRAL_CBS" ||
-             name == "CENTRAL-CBS" || name == "CENTRAL-ECBS") {
-        c.mode = MODE_ONLINE;
-        c.assign_method = AM_CENTRAL_HUNGARIAN;
-        c.assign_trigger = AT_EVERY_TIMESTEP;
-        c.replan_on = REPLAN_EVERY_TIMESTEP;
-        c.agent_selection = SELECT_CHANGED;
-        c.mapf = MAPF_CBS;
-        c.single_agent = SA_MLA_SEQUENCE;
-        // CENTRAL plans only to the next assigned endpoint; it does not append
-        // a separate post-delivery dummy path.
-        c.dummy_path = false;
-        c.endpoint_strategy = NEAREST_AVAILABLE;
-    }
-    else if (name == "CENTRAL_FIXED" || name == "CENTRAL-FIXED" ||
+             name == "CENTRAL-CBS" || name == "CENTRAL-ECBS" ||
+             name == "CENTRAL_FIXED" || name == "CENTRAL-FIXED" ||
              name == "CENTRAL-fixed" || name == "CENTRAL_FIXED_CBS" ||
              name == "CENTRAL-fixed-CBS" ||
              name == "CENTRAL_FIXED_ECBS" ||
              name == "CENTRAL-fixed-ECBS") {
+        // CENTRAL is the reference CENTRAL code: assignment when an agent
+        // becomes free or stands at a pickup, agents that picked up a task
+        // planned first, then every agent that carries none, by plain ECBS
+        // with focal weight 1. CENTRAL-fixed (Ma's thesis, Sec 6.5.3) assigns
+        // when a task is added or an agent becomes free and keeps matches.
+        const bool fixed = name.find("FIXED") != string::npos ||
+                           name.find("fixed") != string::npos;
         c.mode = MODE_ONLINE;
-        c.assign_method = AM_CENTRAL_HUNGARIAN;
-        c.assign_trigger = AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE;
+        c.assign_method = fixed ? AM_CENTRAL_HUNGARIAN_FIXED : AM_CENTRAL_HUNGARIAN;
+        c.assign_trigger = fixed ? AT_ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE
+                                 : AT_ON_AGENT_FREE_OR_AT_PICKUP;
         c.replan_on = REPLAN_AFTER_ASSIGNMENT | REPLAN_GOAL_REACHED;
-        c.agent_selection = SELECT_CHANGED;
+        c.agent_selection = SELECT_CHANGED_OR_NOT_CARRYING;
         c.mapf = MAPF_CBS;
+        c.ecbs_focal_weight = 1.0;
+        c.cbs_conflict_selection = CBS_CONFLICT_EARLIEST;
+        c.cbs_bypass = false;
+        c.cbs_target_reasoning = false;
+        c.cbs_rectangle_reasoning = false;
+        c.cbs_high_level_expansion_limit = CENTRAL_ECBS_EXPANSION_LIMIT;
         c.single_agent = SA_MLA_SEQUENCE;
-        // CENTRAL-fixed retains the endpoint-holding policy but avoids
-        // recomputing the free-agent assignment on every timestep.
+        // CENTRAL plans only to the next assigned endpoint; it does not append
+        // a separate post-delivery dummy path.
         c.dummy_path = false;
         c.endpoint_strategy = NEAREST_AVAILABLE;
     }

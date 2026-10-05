@@ -26,7 +26,7 @@ LDFLAGS += -L$(BOOST_LIB_DIR)
 endif
 
 HEADERS  = $(wildcard $(INCDIR)/*.h)
-LIB_SRCS = $(SRCDIR)/map_loader.cpp $(SRCDIR)/cbs.cpp $(SRCDIR)/config_validate.cpp \
+LIB_SRCS = $(SRCDIR)/map_loader.cpp $(SRCDIR)/cbs.cpp $(SRCDIR)/ecbs_reference.cpp $(SRCDIR)/config_validate.cpp \
            $(SRCDIR)/path_planners.cpp $(SRCDIR)/simulation.cpp
 LIB_OBJS = $(LIB_SRCS:.cpp=.o)
 TARGET   = mapd

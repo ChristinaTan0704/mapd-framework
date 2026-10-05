@@ -17,9 +17,12 @@ REQUIRED = {
     "Makefile",
     "README.md",
     "output/all_paper_algorithms_comparison_2026-08-24.xlsx",
+    "output/kiva_small_results_2026-10-04.csv",
+    "output/kiva_small_results_2026-10-04.xlsx",
     "driver.cpp",
     "history/2026-08-24_linux_server_handover.md",
     "inc/cbs.h",
+    "inc/ecbs_reference.h",
     "inc/config.h",
     "inc/config_names.h",
     "inc/map_loader.h",
@@ -37,6 +40,7 @@ REQUIRED = {
     "scripts/run_structured_small_matrix.py",
     "scripts/run_structured_small_mg_matrix.py",
     "src/cbs.cpp",
+    "src/ecbs_reference.cpp",
     "src/config_validate.cpp",
     "src/map_loader.cpp",
     "src/path_planners.cpp",
@@ -154,6 +158,7 @@ def main() -> int:
 
     workbooks = (
         ROOT / "output" / "all_paper_algorithms_comparison_2026-08-24.xlsx",
+        ROOT / "output" / "kiva_small_results_2026-10-04.xlsx",
     )
     invalid_workbooks = [
         workbook for workbook in workbooks

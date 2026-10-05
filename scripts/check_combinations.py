@@ -37,8 +37,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data" / "Instances" / "small"
 
+# CENTRAL-fixed runs the same components as CENTRAL; the thesis's fixed
+# matching (CENTRAL_HUNGARIAN_FIXED) is crossed with the planners below.
 CONFIGS = ("table1/TP", "table1/TPTS", "table1/HBH", "table1/CENTRAL",
-           "table1/CENTRAL-fixed", "variants/Hungarian-PBS", "variants/Hungarian-wPBS",
+           "variants/Hungarian-PBS", "variants/Hungarian-wPBS",
            "table1/LNS-PBS", "table1/LNS-wPBS", "table1/TA-Prioritized",
            "table1/TA-Hybrid")
 OFFLINE_ONLY = {"table1/TA-Prioritized", "table1/TA-Hybrid"}
@@ -48,7 +50,9 @@ ENDPOINTS = ("WAIT_OR_NEAREST_SAFE", "WAIT_OR_NEAREST_FREE_NONTASK",
              "NEAREST_AVAILABLE", "NEAREST_WITH_STRICT_EXCLUSIONS",
              "PAIRWISE_TASK_THEN_HOME", "RETURN_TO_HOME")
 TRIGGERS = ("ON_FREE_WAITS", "EVERY_TIMESTEP",
-            "ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE", "ONCE")
+            "ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE", "ON_AGENT_FREE_OR_AT_PICKUP",
+            "ONCE")
+SELECTIONS = ("ALL", "CHANGED", "CHANGED_OR_NOT_CARRYING")
 MODES = ("ONLINE", "SEMI_ONLINE", "OFFLINE")
 REPLANS = ("WHEN_ASSIGNED", "AFTER_ASSIGNMENT", "EVERY_TIMESTEP", "AFTER_ASSIGNMENT,GOAL_REACHED",
            "AFTER_ASSIGNMENT,PERIODIC", "AFTER_ASSIGNMENT,GOAL_REACHED,PERIODIC")
@@ -62,7 +66,7 @@ PLANNER_SETUPS = (
     ("wPBS", REFRESH, "PAIRWISE_TASK_THEN_HOME"),
     ("CBS", "AFTER_ASSIGNMENT,GOAL_REACHED", "NEAREST_WITH_STRICT_EXCLUSIONS"),
 )
-CENTRAL = ("table1/CENTRAL", "table1/CENTRAL-fixed")
+CENTRAL = ("table1/CENTRAL",)
 # Releases far ahead of the agents, in both modes: the planners fed by
 # repeated Hungarian with 10 agents and by TP's greedy batch assignment with 50
 # (Hungarian rematching ~500 known tasks at every event outlasts the time
@@ -91,7 +95,7 @@ def combinations() -> list[tuple[str, int, str, list[str]]]:
         jobs += [(config, 10, "500" if config in OFFLINE_ONLY else "0.2", ["--mode", m])
                  for m in MODES]
         jobs += [(config, 10, base, ["--replan_on", r]) for r in REPLANS]
-        jobs += [(config, 10, base, ["--agent_selection", a]) for a in ("ALL", "CHANGED")]
+        jobs += [(config, 10, base, ["--agent_selection", a]) for a in SELECTIONS]
         # Where agents rest matters most when many agents share few free
         # endpoints (50 agents, every task open at once).
         for agents, frequency in ((10, base), (50, base), (50, "500")):
@@ -131,6 +135,8 @@ def combinations() -> list[tuple[str, int, str, list[str]]]:
                 if config in CENTRAL:
                     jobs += [(config, agents, base, setup + ["--dummy_path", d])
                              for d in ("0", "1")]
+                    jobs.append((config, agents, base,
+                                 setup + ["--assign_method", "CENTRAL_HUNGARIAN_FIXED"]))
             if config in CENTRAL:
                 jobs += [(config, 10, "0.2", setup + ["--dummy_path", "1", "--mode", m])
                          for m in MODES]

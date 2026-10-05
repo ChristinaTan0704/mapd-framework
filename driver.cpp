@@ -91,9 +91,9 @@ void set_parameters(MAPDConfig& config, const po::variables_map& vm)
     if (vm.count("semi_online_lookahead_batches")) {
         config.semi_online_lookahead_batches =
             vm["semi_online_lookahead_batches"].as<int>();
-        if (config.semi_online_lookahead_batches < 0)
+        if (config.semi_online_lookahead_batches < 1)
             throw invalid_argument(
-                "semi_online_lookahead_batches must be non-negative");
+                "semi_online_lookahead_batches must be at least 1 (0 would be ONLINE)");
     }
 }
 

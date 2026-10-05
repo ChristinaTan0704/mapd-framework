@@ -145,12 +145,12 @@ Representative seed-0 baselines are:
 |---|---:|---:|---:|
 | TP-STA* | 10 / 0.2 | 2532 | 19270 |
 | TPTS-STA* | 10 / 0.2 | 2532 | 14666 |
-| CENTRAL-CBS | 10 / 0.2 | 2513 | 14122 |
+| CENTRAL-CBS | 10 / 0.2 | 2516 | 14887 |
 | HBH+MLA* | 10 / 0.2 | 2532 | 14728 |
 | Hungarian+PBS-MLA* | 10 / 0.2 | 2514 | 13781 |
 | Hungarian+wPBS-MLA* | 10 / 0.2 | 2513 | 13781 |
-| LNS(1s)+PBS-MLA* | 10 / 0.2 | 2512 | 13681 |
-| LNS(1s)+wPBS-MLA* | 10 / 0.2 | 2513 | 13637 |
+| LNS(1s)+PBS-MLA* | 10 / 0.2 | 2513 | 13553 |
+| LNS(1s)+wPBS-MLA* | 10 / 0.2 | 2512 | 13774 |
 | TA-Prioritized-STA* | 10 / offline | 1052 | 263485 |
 | TA-Hybrid-STA* | 10 / offline | 1050 | 263910 |
 
@@ -239,6 +239,193 @@ The committed regression contains ten tasks with five goals each. Across those
 tasks, the ordered inter-goal legs total 724 steps, whereas travelling directly
 from each first goal to its final goal totals only 204. This makes skipped
 intermediate goals visible in the expected makespan/SWT baselines.
+
+## Kiva small results (Table 1 and the seven variants)
+
+The sixteen methods on `data/Instances/small` with 10 to 50 agents and the
+seven task frequencies (`kiva-<f>.task`), run with the final build of
+2026-10-04: seed 0, reference tie-breaking, a 1000 s limit per run. Every run
+completed all 500 tasks and passed the collision and task-order checks. The
+numbers are in `output/kiva_small_results_2026-10-04.csv` and `.xlsx` (with
+the Excel's original values, `ori_*`; the workbook also has makespan and SWT
+pivots and the best method per setting); SWT is the sum over tasks of completion minus release time.
+
+Against the original results (per row, at most 2% worse; where the reference
+code run on Linux is itself more than 2% off them, against that run): TP,
+TPTS, TA-Prioritized, TA-Hybrid and LNS-wPBS pass every row; CENTRAL every row
+but a50 f500 (makespan +2.6%; the reference code needs more than 1000 s
+there); LNS-PBS, Hungarian+PBS and Hungarian+wPBS fail two rows each; the
+MLSIPP variants are judged by random-tie seed means against their A* versions
+on the same seeds (at most one row over 2% each). CENTRAL-fixed follows Ma's
+thesis (Sec 6.5.3) and is worse than the original results, which are the
+reference CENTRAL's, on 17 rows. HBH has no original results.
+
+### All results
+
+Seed 0, reference tie-breaking, 1000 s per run; each cell is makespan / SWT. Bold: the best makespan or SWT of that column. TA methods are offline (LKH3 tours of the whole task set) and run only the frequency-500 task set.
+
+**10 agents**
+
+| Method | f 0.2 | f 0.5 | f 1 | f 2 | f 5 | f 10 | f 500 |
+|---|---|---|---|---|---|---|---|
+| TP-STA* | 2532 / 19270 | 1309 / 66393 | 1198 / 155890 | 1167 / 203809 | 1162 / 236892 | 1163 / 247964 | 1136 / 256428 |
+| TPTS-STA* | 2532 / 14666 | 1274 / 65574 | 1182 / 150514 | 1168 / 203618 | 1165 / 236590 | 1172 / 252631 | 1105 / 254750 |
+| HBH+MLA* | 2532 / 14728 | 1240 / 57913 | **1142** / 143521 | 1131 / 197124 | 1132 / 227889 | 1126 / 242785 | 1095 / 248776 |
+| CENTRAL-CBS | 2516 / 14887 | **1230** / 54856 | 1155 / 142875 | **1129** / 194109 | **1117** / 227584 | 1130 / 239088 | 1101 / 250555 |
+| CENTRAL-fixed-CBS | 2513 / 14423 | 1250 / 58776 | 1158 / 146013 | **1129** / 195465 | 1145 / 233707 | **1106** / 242936 | 1136 / 251460 |
+| TA-Prioritized-STA* | — | — | — | — | — | — | 1052 / 263485 |
+| TA-Hybrid-STA* | — | — | — | — | — | — | **1050** / 263910 |
+| LNS(1s)+PBS-MLA* | 2513 / **13553** | 1267 / **50689** | 1206 / 126485 | 1170 / **164885** | 1156 / 194544 | 1152 / 204535 | 1146 / 213233 |
+| LNS(1s)+wPBS-MLA* | **2512** / 13774 | 1265 / 51427 | 1206 / 124793 | 1172 / 166049 | 1138 / **192075** | 1137 / 203500 | 1116 / **210301** |
+| TPTS-MLSIPP | 2530 / 14670 | 1264 / 66634 | 1183 / 147775 | 1158 / 202137 | 1162 / 236213 | 1153 / 246314 | 1144 / 257971 |
+| Hungarian+PBS-MLA* | 2514 / 13781 | 1291 / 53452 | 1189 / 124940 | 1155 / 164991 | 1149 / 193386 | 1139 / 203115 | 1131 / 211886 |
+| Hungarian+wPBS-MLA* | 2513 / 13781 | 1288 / 53704 | 1193 / 122341 | 1146 / 165676 | 1142 / 193931 | 1144 / 203279 | 1150 / 210594 |
+| Hungarian+PBS-MLSIPP | 2513 / 13668 | 1275 / 52741 | 1206 / 124757 | 1167 / 165147 | 1156 / 193624 | 1152 / 203229 | 1136 / 212537 |
+| Hungarian+wPBS-MLSIPP | 2513 / 13780 | 1282 / 52636 | 1187 / **121338** | 1151 / 166359 | 1154 / 192868 | 1144 / 203279 | 1127 / 210636 |
+| LNS(1s)+PBS-MLSIPP | **2512** / 13817 | 1271 / 51967 | 1200 / 125569 | 1167 / 165411 | 1149 / 193511 | 1150 / 204121 | 1142 / 211559 |
+| LNS(1s)+wPBS-MLSIPP | 2513 / 13677 | 1283 / 51899 | 1201 / 124974 | 1174 / 165844 | 1147 / 193446 | 1136 / **200936** | 1136 / 211189 |
+
+**20 agents**
+
+| Method | f 0.2 | f 0.5 | f 1 | f 2 | f 5 | f 10 | f 500 |
+|---|---|---|---|---|---|---|---|
+| TP-STA* | 2540 / 19887 | 1094 / 21345 | 757 / 47992 | 683 / 95380 | 655 / 123540 | 643 / 137618 | 634 / 141526 |
+| TPTS-STA* | 2520 / 12682 | 1038 / 15369 | 706 / 44126 | 667 / 90517 | 645 / 119012 | 645 / 129182 | 640 / 143386 |
+| HBH+MLA* | 2532 / 12843 | 1062 / 15297 | 664 / 38285 | 631 / 81648 | 608 / 111633 | 594 / 123656 | 583 / 131243 |
+| CENTRAL-CBS | 2515 / 13350 | 1034 / 13996 | 661 / 37566 | 613 / 81001 | 603 / 114776 | 589 / 121091 | 580 / 131779 |
+| CENTRAL-fixed-CBS | 2520 / 12518 | 1033 / 14706 | 654 / 39713 | 619 / 82060 | 603 / 113282 | 587 / 123342 | 596 / 131554 |
+| TA-Prioritized-STA* | — | — | — | — | — | — | **539** / 138466 |
+| TA-Hybrid-STA* | — | — | — | — | — | — | **539** / 137780 |
+| LNS(1s)+PBS-MLA* | 2513 / 12424 | 1027 / 13187 | 645 / 31323 | 611 / 66893 | 594 / 92537 | **581** / **100405** | 587 / 110183 |
+| LNS(1s)+wPBS-MLA* | 2513 / **12368** | 1032 / 13152 | 639 / **29644** | 602 / **64779** | 591 / **90809** | 598 / 101722 | 567 / **108277** |
+| TPTS-MLSIPP | 2515 / 12510 | 1043 / 15414 | 700 / 45926 | 660 / 89273 | 660 / 121688 | 648 / 133458 | 620 / 141218 |
+| Hungarian+PBS-MLA* | 2513 / 12424 | 1027 / 13185 | 647 / 32395 | 604 / 66389 | 593 / 92601 | 601 / 101786 | 592 / 111386 |
+| Hungarian+wPBS-MLA* | **2511** / 12408 | 1031 / 13160 | 640 / 30771 | 624 / 66022 | 590 / 91141 | 593 / 100537 | 570 / 108944 |
+| Hungarian+PBS-MLSIPP | 2512 / 12382 | **1022** / 13186 | 649 / 31686 | 610 / 66412 | 589 / 92335 | 595 / 101517 | 601 / 110423 |
+| Hungarian+wPBS-MLSIPP | 2512 / 12426 | 1032 / 13153 | **638** / 31582 | 606 / 66268 | 589 / 90975 | 585 / 101302 | 584 / 109768 |
+| LNS(1s)+PBS-MLSIPP | 2512 / 12382 | **1022** / 13139 | 646 / 31512 | **597** / 66191 | 594 / 92247 | 583 / 101525 | 574 / 110218 |
+| LNS(1s)+wPBS-MLSIPP | 2513 / 12369 | 1027 / **13125** | 650 / 30351 | 617 / 65521 | **586** / 91551 | 590 / 101739 | 581 / 108669 |
+
+**30 agents**
+
+| Method | f 0.2 | f 0.5 | f 1 | f 2 | f 5 | f 10 | f 500 |
+|---|---|---|---|---|---|---|---|
+| TP-STA* | 2546 / 19354 | 1069 / 21983 | 607 / 26902 | 529 / 57197 | 478 / 85391 | 526 / 96007 | 432 / 96677 |
+| TPTS-STA* | 2527 / 11942 | 1035 / 13568 | 561 / 21421 | 496 / 51346 | 474 / 83829 | 491 / 99152 | 444 / 97516 |
+| HBH+MLA* | 2532 / 12399 | 1066 / 13843 | 600 / 19426 | 503 / 45769 | 451 / 74893 | 469 / 84981 | 409 / 91144 |
+| CENTRAL-CBS | 2520 / 12780 | 1034 / 13117 | 553 / 15705 | 449 / 42945 | 424 / 73880 | 422 / 82565 | 401 / 92877 |
+| CENTRAL-fixed-CBS | 2520 / **11782** | 1032 / 13172 | 576 / 17476 | 452 / 45889 | 440 / 72869 | 433 / 85035 | 425 / 94619 |
+| TA-Prioritized-STA* | — | — | — | — | — | — | 372 / 93627 |
+| TA-Hybrid-STA* | — | — | — | — | — | — | **365** / 92532 |
+| LNS(1s)+PBS-MLA* | 2513 / 11925 | 1029 / 12062 | 534 / 13846 | 433 / 35420 | 399 / 58941 | 404 / 69050 | 406 / 77724 |
+| LNS(1s)+wPBS-MLA* | **2512** / 12049 | 1027 / 12255 | **529** / 13653 | 427 / 34477 | 410 / 57981 | **396** / **66780** | 393 / **75594** |
+| TPTS-MLSIPP | 2524 / 11974 | 1036 / 13541 | 570 / 20640 | 494 / 53945 | 471 / 82998 | 475 / 95709 | 478 / 100045 |
+| Hungarian+PBS-MLA* | 2513 / 11925 | **1026** / **12029** | 530 / 13804 | 428 / 35393 | 412 / 59089 | 415 / 69009 | 405 / 77297 |
+| Hungarian+wPBS-MLA* | **2512** / 12049 | 1029 / 12319 | 532 / 13604 | **419** / **34453** | 411 / 58515 | 402 / 66931 | 406 / 75809 |
+| Hungarian+PBS-MLSIPP | 2513 / 11886 | 1029 / 12145 | 535 / 13752 | 432 / 35597 | 410 / 59019 | 411 / 68133 | 405 / 76986 |
+| Hungarian+wPBS-MLSIPP | **2512** / 12020 | 1028 / 12325 | 532 / **13402** | 423 / 34536 | 410 / 58996 | 408 / 67135 | 410 / 76006 |
+| LNS(1s)+PBS-MLSIPP | 2513 / 11886 | 1029 / 12145 | 534 / 13635 | 429 / 35462 | 411 / 58905 | 415 / 68136 | 403 / 77177 |
+| LNS(1s)+wPBS-MLSIPP | **2512** / 12020 | 1030 / 12335 | 531 / 13561 | 430 / 34732 | **396** / **57363** | 407 / 67216 | 404 / **75594** |
+
+**40 agents**
+
+| Method | f 0.2 | f 0.5 | f 1 | f 2 | f 5 | f 10 | f 500 |
+|---|---|---|---|---|---|---|---|
+| TP-STA* | 2540 / 19439 | 1090 / 21505 | 624 / 24399 | 464 / 47660 | 418 / 77663 | 407 / 77316 | 364 / 78819 |
+| TPTS-STA* | 2524 / 11749 | 1038 / 12991 | 563 / 15996 | 425 / 36294 | 396 / 65681 | 389 / 76244 | 370 / 78691 |
+| HBH+MLA* | 2532 / 12202 | 1062 / 13266 | 598 / 15742 | 433 / 29443 | 357 / 54864 | 395 / 65477 | 352 / 72132 |
+| CENTRAL-CBS | 2524 / 12731 | 1032 / 12698 | 555 / 14169 | 366 / 28769 | 332 / 54143 | 344 / 64198 | 330 / 73829 |
+| CENTRAL-fixed-CBS | 2517 / 11615 | 1032 / 12654 | 560 / 14262 | 400 / 29851 | 373 / 54901 | 352 / 65224 | 329 / 73963 |
+| TA-Prioritized-STA* | — | — | — | — | — | — | 284 / 73256 |
+| TA-Hybrid-STA* | — | — | — | — | — | — | **280** / 72717 |
+| LNS(1s)+PBS-MLA* | 2513 / 11508 | 1028 / 11801 | **526** / 12432 | 338 / 21950 | 319 / 43446 | 318 / 51714 | 320 / 59863 |
+| LNS(1s)+wPBS-MLA* | 2512 / 11842 | 1032 / 12090 | 532 / 12484 | 341 / **20830** | 321 / 41857 | **308** / **50261** | 307 / **59000** |
+| TPTS-MLSIPP | 2520 / 11840 | 1035 / 12962 | 554 / 16512 | 422 / 37679 | 391 / 65829 | 410 / 77292 | 387 / 83197 |
+| Hungarian+PBS-MLA* | 2513 / **11507** | 1028 / 11801 | **526** / 12432 | 336 / 21682 | 321 / 43503 | 311 / 52248 | 317 / 60738 |
+| Hungarian+wPBS-MLA* | 2512 / 11875 | 1028 / 12033 | 529 / 12418 | **334** / 21646 | 324 / 42441 | 315 / 51026 | 312 / 59325 |
+| Hungarian+PBS-MLSIPP | **2511** / 11523 | **1022** / **11770** | 528 / 12394 | 338 / 22234 | 318 / 43603 | 310 / 51672 | 307 / 60122 |
+| Hungarian+wPBS-MLSIPP | 2513 / 11843 | 1029 / 12043 | 528 / 12369 | 337 / 21545 | **313** / 41994 | 313 / 50403 | 316 / 59427 |
+| LNS(1s)+PBS-MLSIPP | **2511** / 11523 | **1022** / **11770** | 527 / **12328** | 342 / 21710 | 317 / 43393 | 313 / 51550 | 306 / 59856 |
+| LNS(1s)+wPBS-MLSIPP | 2512 / 11796 | 1027 / 12001 | 532 / 12503 | 342 / 21310 | 314 / **41728** | 312 / 50683 | 319 / 59188 |
+
+**50 agents**
+
+| Method | f 0.2 | f 0.5 | f 1 | f 2 | f 5 | f 10 | f 500 |
+|---|---|---|---|---|---|---|---|
+| TP-STA* | 2540 / 20016 | 1083 / 21832 | 597 / 24570 | 432 / 37817 | 395 / 62294 | 333 / 65711 | 336 / 68302 |
+| TPTS-STA* | 2524 / 11553 | 1036 / 12609 | 554 / 15134 | 383 / 29030 | 343 / 52428 | 319 / 63478 | 338 / 68049 |
+| HBH+MLA* | 2532 / 12136 | 1062 / 13131 | 593 / 14947 | 377 / 21817 | 310 / 44208 | 313 / 54768 | 319 / 60624 |
+| CENTRAL-CBS | 2524 / 12528 | 1035 / 12471 | 553 / 13692 | 335 / 20718 | 313 / 43452 | 304 / 53351 | 280 / 62413 |
+| CENTRAL-fixed-CBS | 2518 / **11366** | 1034 / 12294 | 553 / 13617 | 331 / 21775 | 301 / 43554 | 320 / 54258 | 285 / 62729 |
+| TA-Prioritized-STA* | — | — | — | — | — | — | 233 / 60403 |
+| TA-Hybrid-STA* | — | — | — | — | — | — | **230** / 59431 |
+| LNS(1s)+PBS-MLA* | 2514 / 11390 | 1029 / 11622 | **527** / 11979 | 296 / 14805 | 266 / 34396 | 264 / 42254 | 261 / 50554 |
+| LNS(1s)+wPBS-MLA* | **2511** / 11743 | 1030 / 12018 | 528 / 12339 | **290** / 14250 | 267 / 33055 | **258** / **41012** | 260 / 49509 |
+| TPTS-MLSIPP | 2524 / 11490 | 1034 / 12717 | 558 / 15398 | 356 / 29909 | 322 / 51809 | 353 / 63837 | 324 / 70632 |
+| Hungarian+PBS-MLA* | 2514 / 11390 | 1028 / 11644 | 528 / 12032 | 292 / 14980 | 263 / 33738 | **258** / 42196 | 256 / 50363 |
+| Hungarian+wPBS-MLA* | 2512 / 11724 | 1031 / 11926 | 532 / 12228 | 297 / 14097 | **258** / 32760 | 263 / 41118 | 252 / 49419 |
+| Hungarian+PBS-MLSIPP | 2512 / 11441 | **1022** / **11555** | **527** / **11863** | 294 / 14551 | 270 / 33843 | **258** / 42119 | 258 / 49831 |
+| Hungarian+wPBS-MLSIPP | 2512 / 11779 | 1033 / 11836 | 528 / 12001 | 292 / 14241 | 272 / 32777 | 261 / 41889 | 246 / **49125** |
+| LNS(1s)+PBS-MLSIPP | 2512 / 11441 | **1022** / **11555** | **527** / **11863** | 296 / 14480 | 259 / 33766 | 261 / 41274 | 259 / 50148 |
+| LNS(1s)+wPBS-MLSIPP | 2512 / 11743 | 1027 / 11850 | 531 / 12065 | 293 / **13940** | 263 / **32716** | 261 / 41214 | 251 / 49254 |
+
+### Best method per setting
+
+| Agents | Frequency | Best makespan | Best SWT |
+|---:|---:|---|---|
+| 10 | 0.2 | LNS(1s)+wPBS-MLA*, LNS(1s)+PBS-MLSIPP (2512) | LNS(1s)+PBS-MLA* (13553) |
+| 10 | 0.5 | CENTRAL-CBS (1230) | LNS(1s)+PBS-MLA* (50689) |
+| 10 | 1 | HBH+MLA* (1142) | Hungarian+wPBS-MLSIPP (121338) |
+| 10 | 2 | CENTRAL-CBS, CENTRAL-fixed-CBS (1129) | LNS(1s)+PBS-MLA* (164885) |
+| 10 | 5 | CENTRAL-CBS (1117) | LNS(1s)+wPBS-MLA* (192075) |
+| 10 | 10 | CENTRAL-fixed-CBS (1106) | LNS(1s)+wPBS-MLSIPP (200936) |
+| 10 | 500 | TA-Hybrid-STA* (1050) | LNS(1s)+wPBS-MLA* (210301) |
+| 20 | 0.2 | Hungarian+wPBS-MLA* (2511) | LNS(1s)+wPBS-MLA* (12368) |
+| 20 | 0.5 | Hungarian+PBS-MLSIPP, LNS(1s)+PBS-MLSIPP (1022) | LNS(1s)+wPBS-MLSIPP (13125) |
+| 20 | 1 | Hungarian+wPBS-MLSIPP (638) | LNS(1s)+wPBS-MLA* (29644) |
+| 20 | 2 | LNS(1s)+PBS-MLSIPP (597) | LNS(1s)+wPBS-MLA* (64779) |
+| 20 | 5 | LNS(1s)+wPBS-MLSIPP (586) | LNS(1s)+wPBS-MLA* (90809) |
+| 20 | 10 | LNS(1s)+PBS-MLA* (581) | LNS(1s)+PBS-MLA* (100405) |
+| 20 | 500 | TA-Prioritized-STA*, TA-Hybrid-STA* (539) | LNS(1s)+wPBS-MLA* (108277) |
+| 30 | 0.2 | LNS(1s)+wPBS-MLA*, Hungarian+wPBS-MLA*, Hungarian+wPBS-MLSIPP, LNS(1s)+wPBS-MLSIPP (2512) | CENTRAL-fixed-CBS (11782) |
+| 30 | 0.5 | Hungarian+PBS-MLA* (1026) | Hungarian+PBS-MLA* (12029) |
+| 30 | 1 | LNS(1s)+wPBS-MLA* (529) | Hungarian+wPBS-MLSIPP (13402) |
+| 30 | 2 | Hungarian+wPBS-MLA* (419) | Hungarian+wPBS-MLA* (34453) |
+| 30 | 5 | LNS(1s)+wPBS-MLSIPP (396) | LNS(1s)+wPBS-MLSIPP (57363) |
+| 30 | 10 | LNS(1s)+wPBS-MLA* (396) | LNS(1s)+wPBS-MLA* (66780) |
+| 30 | 500 | TA-Hybrid-STA* (365) | LNS(1s)+wPBS-MLA*, LNS(1s)+wPBS-MLSIPP (75594) |
+| 40 | 0.2 | Hungarian+PBS-MLSIPP, LNS(1s)+PBS-MLSIPP (2511) | Hungarian+PBS-MLA* (11507) |
+| 40 | 0.5 | Hungarian+PBS-MLSIPP, LNS(1s)+PBS-MLSIPP (1022) | Hungarian+PBS-MLSIPP, LNS(1s)+PBS-MLSIPP (11770) |
+| 40 | 1 | LNS(1s)+PBS-MLA*, Hungarian+PBS-MLA* (526) | LNS(1s)+PBS-MLSIPP (12328) |
+| 40 | 2 | Hungarian+wPBS-MLA* (334) | LNS(1s)+wPBS-MLA* (20830) |
+| 40 | 5 | Hungarian+wPBS-MLSIPP (313) | LNS(1s)+wPBS-MLSIPP (41728) |
+| 40 | 10 | LNS(1s)+wPBS-MLA* (308) | LNS(1s)+wPBS-MLA* (50261) |
+| 40 | 500 | TA-Hybrid-STA* (280) | LNS(1s)+wPBS-MLA* (59000) |
+| 50 | 0.2 | LNS(1s)+wPBS-MLA* (2511) | CENTRAL-fixed-CBS (11366) |
+| 50 | 0.5 | Hungarian+PBS-MLSIPP, LNS(1s)+PBS-MLSIPP (1022) | Hungarian+PBS-MLSIPP, LNS(1s)+PBS-MLSIPP (11555) |
+| 50 | 1 | LNS(1s)+PBS-MLA*, Hungarian+PBS-MLSIPP, LNS(1s)+PBS-MLSIPP (527) | Hungarian+PBS-MLSIPP, LNS(1s)+PBS-MLSIPP (11863) |
+| 50 | 2 | LNS(1s)+wPBS-MLA* (290) | LNS(1s)+wPBS-MLSIPP (13940) |
+| 50 | 5 | Hungarian+wPBS-MLA* (258) | LNS(1s)+wPBS-MLSIPP (32716) |
+| 50 | 10 | LNS(1s)+wPBS-MLA*, Hungarian+PBS-MLA*, Hungarian+PBS-MLSIPP (258) | LNS(1s)+wPBS-MLA* (41012) |
+| 50 | 500 | TA-Hybrid-STA* (230) | Hungarian+wPBS-MLSIPP (49125) |
+
+Times best (ties count for each):
+
+| Method | Best makespan | Best SWT |
+|---|---:|---:|
+| HBH+MLA* | 1 | 0 |
+| CENTRAL-CBS | 3 | 0 |
+| CENTRAL-fixed-CBS | 2 | 2 |
+| TA-Prioritized-STA* | 1 | 0 |
+| TA-Hybrid-STA* | 5 | 0 |
+| LNS(1s)+PBS-MLA* | 3 | 4 |
+| LNS(1s)+wPBS-MLA* | 8 | 13 |
+| Hungarian+PBS-MLA* | 3 | 2 |
+| Hungarian+wPBS-MLA* | 5 | 1 |
+| Hungarian+PBS-MLSIPP | 6 | 3 |
+| Hungarian+wPBS-MLSIPP | 3 | 3 |
+| LNS(1s)+PBS-MLSIPP | 7 | 4 |
+| LNS(1s)+wPBS-MLSIPP | 3 | 7 |
 
 ## Full paper-result matrix
 
@@ -438,8 +625,9 @@ components, and the Table 1 configurations (`configs/table1/`) that use them:
 | Value | Meaning | Used by |
 |---|---|---|
 | `ON_FREE_WAITS` | an agent is free and waiting (one agent per call) | TP, TPTS, HBH |
-| `EVERY_TIMESTEP` | every timestep | CENTRAL, TA-Hybrid |
-| `ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE` | a task is released, an assignment method deferred a task, or an agent became free (alias `ON_NEW_TASK_OR_AGENT_BECOMES_FREE`) | CENTRAL-fixed, LNS-PBS, LNS-wPBS |
+| `EVERY_TIMESTEP` | every timestep | TA-Hybrid |
+| `ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE` | a task is released, an assignment method deferred a task (or CENTRAL a pickup), or an agent became free (alias `ON_NEW_TASK_OR_AGENT_BECOMES_FREE`) | CENTRAL-fixed, LNS-PBS, LNS-wPBS |
+| `ON_AGENT_FREE_OR_AT_PICKUP` | an agent became free (every agent at time 0), or an agent that carries no task is at the pickup of a released task or picked one up; a new task alone is no event (the reference CENTRAL code) | CENTRAL |
 | `ONCE` | once, at time 0 | TA-Prioritized |
 
 **2. Task assignment** — `--assign_method`
@@ -449,7 +637,8 @@ components, and the Table 1 configurations (`configs/table1/`) that use them:
 | `DECOUPLED_GREEDY` | each free agent takes its nearest task; planning inside the assignment, it plans the task goal by goal, each goal reached when it can be held (the reference token passing) | TP |
 | `DECOUPLED_GREEDY_SWAPS` | as above; may take over a task another agent would reach later | TPTS |
 | `CENTRALIZED_GREEDY` | the globally nearest (agent, task) pairs first | HBH |
-| `CENTRAL_HUNGARIAN` | Hungarian matching of agents to pickups or parking endpoints (chosen by the endpoint strategy); an agent owns a task once it picks it up, until then it is planned to the pickup and rematched at every assignment | CENTRAL, CENTRAL-fixed |
+| `CENTRAL_HUNGARIAN` | Ma's CENTRAL (the reference code). Phase 1: an agent that carries no task and stands on a released pickup takes that task if no carried task and no agent's path ends at its delivery. The agents that took a task are planned first, with the configured planner (two-stage planning). Phase 2: Hungarian matching of the other agents to released pickups (one task per pickup cell, pickups not on a carried task's goal) or parking endpoints (chosen by the endpoint strategy), costs = path lengths against the carriers' paths. An agent owns a task once it picks it up; until then it is planned to the pickup and rematched at every assignment | CENTRAL |
+| `CENTRAL_HUNGARIAN_FIXED` | as above, but a match persists until its task is picked up; only agents without one are matched, to unmatched tasks (Ma's thesis, Sec 6.5.3) | CENTRAL-fixed |
 | `REPEATED_HUNGARIAN` | repeated Hungarian matching of agents to task sequences | Hungarian-PBS, Hungarian-wPBS (variants) |
 | `REPEATED_HUNGARIAN_LNS` | as above, improved by LNS (`--lns_time`, default 1 s) | LNS-PBS, LNS-wPBS |
 | `LKH3_TSP` | task sequences from an LKH3 tour (`--tour`) | TA-Prioritized |
@@ -461,8 +650,8 @@ components, and the Table 1 configurations (`configs/table1/`) that use them:
 |---|---|---|
 | `WHEN_ASSIGNED` (alias `NONE`) | each agent is planned when it is assigned a task, inside the assignment | TP, TPTS, HBH |
 | `AFTER_ASSIGNMENT` | after every task assignment | LNS-PBS, TA-Prioritized; with others below |
-| `EVERY_TIMESTEP` | every timestep | CENTRAL |
-| `GOAL_REACHED` | an agent picked up a task or reached a later goal with goals left (plans its next leg) | CENTRAL-fixed, TA-Hybrid (`AFTER_ASSIGNMENT,GOAL_REACHED`) |
+| `EVERY_TIMESTEP` | every timestep | — |
+| `GOAL_REACHED` | an agent picked up a task or reached a later goal with goals left (plans its next leg) | CENTRAL, CENTRAL-fixed, TA-Hybrid (`AFTER_ASSIGNMENT,GOAL_REACHED`) |
 | `PERIODIC` | every `--wpbs_replan_window` steps | LNS-wPBS (`AFTER_ASSIGNMENT,PERIODIC`) |
 
 **4. Which agents to plan** — `--agent_selection`
@@ -470,7 +659,8 @@ components, and the Table 1 configurations (`configs/table1/`) that use them:
 | Value | Meaning | Used by |
 |---|---|---|
 | `ALL` | every agent | LNS-PBS, LNS-wPBS, TA-Prioritized |
-| `CHANGED` | agents whose task goals changed, or whose final cell another task needs; the others keep their paths | TP, TPTS, HBH, CENTRAL, CENTRAL-fixed, TA-Hybrid |
+| `CHANGED` | agents whose task goals changed, or whose final cell another task needs; the others keep their paths | TP, TPTS, HBH, TA-Hybrid |
+| `CHANGED_OR_NOT_CARRYING` | `CHANGED`, and every agent that carries no task (carriers keep their paths) | CENTRAL, CENTRAL-fixed |
 
 **5. High-level planner** — `--mapf`
 
@@ -478,7 +668,7 @@ components, and the Table 1 configurations (`configs/table1/`) that use them:
 |---|---|---|
 | `PP` (alias `PP_PER_TASK`) | prioritized planning, one task at a time | TP, TPTS, HBH |
 | `PP_TASK_SEQUENCE` | prioritized planning of each agent's whole task sequence; at each priority level the agent that finishes last goes first | TA-Prioritized |
-| `CBS` | conflict-based search (ICBS) over the selected agents' goal sequences, first `--task_sequence_limit` tasks | CENTRAL, CENTRAL-fixed |
+| `CBS` | conflict-based search (ICBS by default) over the selected agents' goal sequences, first `--task_sequence_limit` tasks. Configured as plain ECBS (`--cbs_conflict_selection earliest`, bypass, target and rectangle reasoning off, reference ties) on agents that each have one goal to reach and hold, it runs the port of the reference CENTRAL code's ECBS (`src/ecbs_reference.cpp`), which returns that code's paths | CENTRAL, CENTRAL-fixed |
 | `PBS` | PBS over each agent's first `--task_sequence_limit` tasks (1 in the LNS/Hungarian configurations) | LNS-PBS |
 | `wPBS` | PBS with a planning window (5.1) | LNS-wPBS |
 | `TA_HYBRID_TWO_GROUP` | TA-Hybrid's two-group planning | TA-Hybrid |
@@ -493,7 +683,7 @@ components, and the Table 1 configurations (`configs/table1/`) that use them:
 |---|---|---|
 | `STA` | space-time A* goal by goal, the reference token-passing search (COBRA's `Agent::AStar`): the last goal is reached when it can be held for good | TP, TPTS |
 | `MLA` | multi-label A*, one task per group | HBH, LNS-PBS, LNS-wPBS, CENTRAL, CENTRAL-fixed (one goal per agent at a time) |
-| `MLSIPP` (alias `SIPP`) | multi-label SIPP over the whole goal sequence | the MLSIPP variants |
+| `MLSIPP` (alias `SIPP`) | multi-label SIPP over the whole goal sequence. In TP/TPTS, of the equally fast paths it takes one that reaches the goal as early as possible and waits there, stepping aside when another agent passes, and otherwise waits as early as possible (SIPP would wait beside a busy cell, often in a corridor that the agents planned later need) | the MLSIPP variants |
 | `SIPP2` (alias `2SEG_SIPP`) | SIPP, one segment per goal | — |
 | `SEQ_STA` | sequential STA*: one leg per goal, each continuing to the final endpoint, which it must be able to hold | TA-Prioritized, TA-Hybrid |
 
@@ -526,7 +716,9 @@ endpoint when another task or agent needs that cell (the `WAIT_*` strategies
 stay at the last goal unless it is needed). An agent CENTRAL parks, or
 matched to a pickup it does not own yet, gets no dummy endpoint: that
 endpoint is its final goal; without dummy paths a CENTRAL carrier also ends at
-its delivery (CENTRAL rematches every agent at every assignment). CENTRAL's
+its delivery (CENTRAL rematches every agent at every assignment), and reaches
+it when it arrives there to stay (its path may cross the cell earlier), as
+the reference code records it. CENTRAL's
 destinations are pairwise distinct, and so are the endpoints of the agents a
 planner plans. Under a planner that holds the final endpoint for good (all but
 `wPBS`), `PAIRWISE` also skips endpoints other tasks or agents need. An idle
@@ -592,7 +784,9 @@ All rows below also receive `--seed 0`. Built-in defaults are
 `lns_no_improvement_limit=2000`, CBS focal weight 1.0, and the CBS high-level
 expansion limit 10000 (`--cbs_high_level_expansion_limit`; a CBS search that
 reaches it fails, so every agent is replanned and then prioritized planning
-takes over; the CENTRAL runs on kiva need at most about 900). CBS uses ICBS
+takes over; the CENTRAL configurations set 1000000: the reference ECBS has
+no limit, and with every task released at time 0 its first plans need more
+than that, beyond 1000 s with 40 or 50 agents). By default CBS uses ICBS
 conflict prioritization
 (MDD-based cardinal, then semi-cardinal, then non-cardinal conflicts), bypass,
 target reasoning (a conflict with an agent parked at its goal branches on
@@ -613,8 +807,8 @@ to 600 seconds. Use `--runtime_limit 0` or
 | TP-MLSIPP | `--config configs/table1/TP.cfg --single_agent MLSIPP` | Online extension |
 | TPTS-STA* | `--config configs/table1/TPTS.cfg` | Online |
 | TPTS-MLSIPP | `--config configs/variants/TPTS-MLSIPP.cfg` | Online extension |
-| CENTRAL-CBS | `--config configs/table1/CENTRAL.cfg` | Online, every timestep |
-| CENTRAL-fixed-CBS | `--config configs/table1/CENTRAL-fixed.cfg` | Online, event-triggered |
+| CENTRAL-CBS | `--config configs/table1/CENTRAL.cfg` | Online, the reference code |
+| CENTRAL-fixed-CBS | `--config configs/table1/CENTRAL-fixed.cfg` | Online, Ma's thesis Sec 6.5.3 (see the note below) |
 | HBH+MLA* | `--config configs/table1/HBH.cfg` | Online |
 | HBH+MLSIPP | `--config configs/table1/HBH.cfg --single_agent MLSIPP` | Online extension |
 | HBH+2-segment SIPP | `--config configs/table1/HBH.cfg --single_agent SIPP2` | Online extension |
@@ -630,6 +824,18 @@ to 600 seconds. Use `--runtime_limit 0` or
 | LNS(1s)+PBS-MLSIPP | `--config configs/variants/LNS-PBS-MLSIPP.cfg` | Online extension |
 | LNS(1s)+wPBS-MLSIPP | `--config configs/variants/LNS-wPBS-MLSIPP.cfg` | Online extension |
 | LNS(1s)+PP-SIPP | `--config configs/variants/LNS-PBS-MLSIPP.cfg --mapf PP` | Online extension |
+
+CENTRAL runs the reference CENTRAL code's components; its ECBS is ported, so
+the runs reproduce that code (on kiva small 31 of the 35 rows are identical to
+the original results, one more to the reference run on Linux). CENTRAL-fixed
+is CENTRAL with Extensions 2 and 4 of Ma's thesis (Sec 6.5.3): assignment
+when a task is added or an agent becomes free, and a match persists until its
+task is picked up (`CENTRAL_HUNGARIAN_FIXED`), which the thesis calls "less
+effective but more efficient". The original results the Excel gives for
+CENTRAL-fixed are the reference CENTRAL code's, so CENTRAL-fixed is expected
+to be worse than them. (The reference directory `CENTRAL-fixed/` is a
+min-cost-flow variant of TA-Hybrid whose flow sees unreleased tasks; it is not
+used.)
 
 The eight Hungarian/LNS PBS or wPBS MLA*/MLSIPP configurations plan one task
 per agent (`task_sequence_limit = 1`, as the original code); their `(ts 1)`
