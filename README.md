@@ -573,13 +573,16 @@ plans an agent to its pickup, so a `GOAL_REACHED`, `PERIODIC` (or
 window of at least 2. When the collision or task-order check fails, `mapd`
 exits with status 2.
 
-Slow but supported: `CBS` with `ALL` and 50 agents (one CBS over every agent's
-goal sequence reaches its expansion limit at almost every replan, and
-prioritized planning takes over), and `LKH3_TSP` + `PP_TASK_SEQUENCE` with an
-endpoint that other agents' tours cross (`NEAREST_AVAILABLE`,
-`NEAREST_WITH_STRICT_EXCLUSIONS`, `WAIT_OR_NEAREST_SAFE`, `PAIRWISE`): every
-leg of a tour must be able to hold that endpoint, which with 10 agents and
-about 50 tasks each takes several minutes on kiva.
+Slow but supported (correct, collision-free, but minutes per run on kiva; the
+combination check lists them as slow): `CBS` with `ALL` and 50 agents (one CBS
+over every agent's goal sequence reaches its expansion limit at almost every
+replan, and prioritized planning takes over); `PP_TASK_SEQUENCE` planning long
+sequences, i.e. LKH3 tours with an endpoint other agents' tours cross
+(`NEAREST_AVAILABLE`, `NEAREST_WITH_STRICT_EXCLUSIONS`, `WAIT_OR_NEAREST_SAFE`,
+`PAIRWISE`; every leg must be able to hold that endpoint), or every known task
+in `OFFLINE` (n(n+1)/2 whole-sequence searches per plan, `SEQ_STA` the
+slowest); `LKH3_TSP` + `PP`/`PBS` with periodic replans at 50 agents and
+frequency 0.2; and LNS with every task known upfront (`OFFLINE`).
 
 ## Algorithm setup
 

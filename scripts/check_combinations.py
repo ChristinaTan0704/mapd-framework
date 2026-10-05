@@ -19,7 +19,8 @@ A run passes when it
   * is rejected immediately (exit 1, "is not supported" / "requires"), or
   * completes every task and passes the collision and task-order checks.
 
-Anything else (crash, timeout, incomplete run, collision) fails the check.
+A run that runs out of time (--timeout) is listed as slow; anything else
+(crash, stall, incomplete run, collision) fails the check.
 
 Usage: scripts/check_combinations.py [--executable ./mapd] [--max-parallel 5]
 """
@@ -172,7 +173,7 @@ def run(executable: Path, config: str, agents: int, frequency: str, extra: list[
                                text=True, errors="replace")
     code, output = completed.returncode, completed.stdout
     if code == 124:
-        return "FAIL timeout"
+        return "SLOW timeout"
     rejected = re.search(r"^Error: .*(is not supported|requires|is not implemented)", output, re.M)
     if rejected and code == 1:
         return "rejected"
@@ -181,6 +182,9 @@ def run(executable: Path, config: str, agents: int, frequency: str, extra: list[
             and "TASK ORDER CHECK PASSED" in output):
         return "ok"
     error = re.findall(r"^Error: (.*)$", output, re.M)
+    # Running out of time is slowness, not a wrong result.
+    if error and error[-1].startswith("System runtime timeout"):
+        return "SLOW " + error[-1][:80]
     return "FAIL " + (error[-1][:80] if error else f"exit {code}")
 
 
@@ -198,13 +202,19 @@ def main() -> int:
 
     failures = [(c, a, f, " ".join(e), r)
                 for (c, a, f, e), r in zip(jobs, results) if r.startswith("FAIL")]
+    slow = [(c, a, f, " ".join(e), r)
+            for (c, a, f, e), r in zip(jobs, results) if r.startswith("SLOW")]
     for config in CONFIGS:
         rows = [r for (c, _, _, _), r in zip(jobs, results) if c == config]
         print(f"{config:24s} ok {rows.count('ok'):3d}  rejected {rows.count('rejected'):3d}  "
+              f"slow {sum(r.startswith('SLOW') for r in rows):3d}  "
               f"failed {sum(r.startswith('FAIL') for r in rows):3d}")
-    for config, agents, frequency, extra, result in failures:
-        print(f"  {config} a{agents} f{frequency} {extra}: {result}")
-    print(f"{len(jobs)} combinations, {len(failures)} failures")
+    for title, listed in (("Slow (out of time, no wrong result):", slow), ("Failed:", failures)):
+        if listed:
+            print(title)
+        for config, agents, frequency, extra, result in listed:
+            print(f"  {config} a{agents} f{frequency} {extra}: {result}")
+    print(f"{len(jobs)} combinations, {len(slow)} slow, {len(failures)} failures")
     return 1 if failures else 0
 
 

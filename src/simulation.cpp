@@ -4963,7 +4963,10 @@ vector<int> Simulation::plan_sta_star(const SingleAgentRequest& request,
         auto heuristic = [&](int loc, int t) {
             return max(goal_h[loc], release - t);
         };
-        if (goal_h[location] == INT_MAX) return {};
+        if (goal_h[location] == INT_MAX || hold_from >= max_time - 1) return {};
+        // As MLA*, search at most 512 steps past the latest of the start, the
+        // goal's release and the time the goal can be held.
+        const int horizon = min(max_time, max({time, release, hold_from}) + 512);
 
         heap_open_t open;
         deque<SearchNode> nodes;
@@ -4984,7 +4987,7 @@ vector<int> Simulation::plan_sta_star(const SingleAgentRequest& request,
                 reached = current;
                 break;
             }
-            if (current->timestep >= max_time - 1) continue;
+            if (current->timestep >= horizon - 1) continue;
             const int actions[5] = {0, 1, -1, cols, -cols};
             for (int action : actions) {
                 const int next = current->loc + action;
