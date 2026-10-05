@@ -189,7 +189,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.replan_on = REPLAN_EVERY_TIMESTEP;
         c.agent_selection = SELECT_CHANGED;
         c.mapf = MAPF_CBS;
-        c.single_agent = SA_STA_TASK_EP;
+        c.single_agent = SA_MLA_SEQUENCE;
         // CENTRAL plans only to the next assigned endpoint; it does not append
         // a separate post-delivery dummy path.
         c.dummy_path = false;
@@ -206,7 +206,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.replan_on = REPLAN_AFTER_ASSIGNMENT | REPLAN_GOAL_REACHED;
         c.agent_selection = SELECT_CHANGED;
         c.mapf = MAPF_CBS;
-        c.single_agent = SA_STA_TASK_EP;
+        c.single_agent = SA_MLA_SEQUENCE;
         // CENTRAL-fixed retains the endpoint-holding policy but avoids
         // recomputing the free-agent assignment on every timestep.
         c.dummy_path = false;
@@ -245,7 +245,7 @@ inline MAPDConfig get_preset(const string& name) {
         c.replan_on = REPLAN_AFTER_ASSIGNMENT | REPLAN_GOAL_REACHED;
         c.agent_selection = SELECT_CHANGED;
         c.mapf = MAPF_TA_HYBRID_TWO_GROUP;
-        c.single_agent = SA_STA_TASK_EP;
+        c.single_agent = SA_SEQ_STA;
         c.dummy_path = true;
         c.endpoint_strategy = RETURN_TO_HOME;
     }

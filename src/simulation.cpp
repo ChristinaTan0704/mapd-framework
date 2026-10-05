@@ -117,6 +117,7 @@ void Simulation::init(const string& map_file, const string& task_file,
     // --- Algorithm 1 line 1-2: t <- 0, T <- {} ---
     cur_time_ = 0;
     last_released_time_ = -1;   // release_tasks() still has to run for t = 0
+    last_release_checked_ = -1;
     open_tasks_.clear();
 
     // --- Algorithm 1 line 5-6: empty task sequences, trivial paths pi_i[0] = v_init_i ---
@@ -224,6 +225,11 @@ void Simulation::release_tasks() {
         break;
     }
 
+    // A task known in advance is still released at its release time, which
+    // is an event too (an assignment may wait for it).
+    for (int t = last_release_checked_ + 1; t <= (int)cur_time_ && t < (int)maxtime; t++)
+        if (!task_indices_by_time[t].empty()) revealed_new_task = true;
+    last_release_checked_ = (int)cur_time_;
     last_released_time_ = max(last_released_time_, reveal_through);
     if (revealed_new_task) new_or_deferred_task_event_ = true;
 }
@@ -363,6 +369,10 @@ bool Simulation::agent_needs_next_segment() const {
 void Simulation::path_planning(bool assignment_triggered) {
     const vector<vector<unsigned int>> committed = path_table_;
     last_planned_.clear();
+    // Kept paths can block the changed agents for good (they then wait or
+    // oscillate): when CHANGED has made no progress for a while, plan every
+    // agent.
+    select_all_ = config.agent_selection == SELECT_CHANGED && selection_stalled();
     bool solved = plan_paths(assignment_triggered);
     const bool clash = !last_planned_.empty() && kept_paths_conflict();
     if (!solved || clash) {
@@ -374,8 +384,8 @@ void Simulation::path_planning(bool assignment_triggered) {
             solved = path_planning_pp();
         if (!solved && config.mapf != MAPF_TA_HYBRID_TWO_GROUP)
             solved = retry_pp_failed_first();
-        select_all_ = false;
     }
+    select_all_ = false;
     replan_pending_ = !solved;
     if (solved) return;
     cerr << "Warning: " << enum_name(config.mapf) << " could not plan every agent at t="
@@ -387,6 +397,21 @@ void Simulation::path_planning(bool assignment_triggered) {
         agents[i].path = committed[i];
         agents[i].finish_time = path_end_time(i);
     }
+}
+
+// Whether no agent has reached a task goal for 2 (rows + cols) steps although
+// some agent has a released goal to reach.
+bool Simulation::selection_stalled() const {
+    unsigned int progress = 0;
+    for (unsigned int t : last_goal_time_) progress = max(progress, t);
+    if (cur_time_ < progress + 2 * (unsigned int)(mapd_map.row + mapd_map.col)) return false;
+    for (const Agent& agent : agents) {
+        if (agent.task_sequence.empty()) continue;
+        const Task& task = all_tasks[agent.task_sequence.front()];
+        const int goal = agent.current_task == task.id ? agent.current_goal_index : 0;
+        if (goal > 0 || task.release_time <= (int)cur_time_) return true;
+    }
+    return false;
 }
 
 // Prioritized planning could not plan every agent: plan the agents it missed
@@ -1116,11 +1141,14 @@ void Simulation::assign_central_hungarian() {
         if (agents[i].status != AG_CARRYING) agent_ids.push_back(i);
     if (agent_ids.empty()) return;
 
+    // Known tasks released within a trip across the map are matched too
+    // (SEMI_ONLINE, OFFLINE): the agent heads there and waits at the pickup
+    // for the release, if it arrives early.
     vector<Task*> candidate_tasks;
     vector<int> candidate_endpoint_ids;
     for (Task* task : open_tasks_) {
         if (task->status != -1 || task->goals.empty() ||
-            task->release_time > (int)cur_time_)
+            task->release_time > (int)cur_time_ + mapd_map.row + mapd_map.col)
             continue;
 
         // Generalize the paper's pickup/delivery test: all ordered goals of a
@@ -1213,6 +1241,9 @@ void Simulation::assign_central_hungarian() {
                 mapd_map.endpoints[endpoint_id].loc, (int)cur_time_, fixed_paths,
                 &vertex_reservations, (int)reservation_count,
                 &last_occupation, cost_visited);
+            if (column < task_destination_count)
+                path_cost = max(path_cost,
+                                candidate_tasks[column]->release_time - (int)cur_time_);
             if (path_cost >= map_size) path_cost = 2 * map_size;
             if (column < task_destination_count)
                 costs(row, column) = (2 * map_size - path_cost) * scale;
@@ -1595,16 +1626,18 @@ void Simulation::assign_repeated_hungarian() {
     // The old endpoints are encoded by the committed path tails; the event
     // flag only records that at least one task needs a retry.
     unordered_set<int> old_dummy_endpoints;
-    // NEAREST_AVAILABLE relaxes selection of the new dummy endpoint, but an
-    // endpoint held by the preceding committed plan remains occupied until its
-    // agent actually moves. Defer overlapping tasks under either PBS policy.
-    // Periodic replanning reaches such a goal once the parked agent leaves;
-    // deferring there can wait forever on an idle agent.
+    // The old endpoints stay occupied until their agents move on to fresh
+    // ones when the previous plan holds them for good: dummy paths under a
+    // planner that is neither windowed (wPBS) nor refreshed periodically, and
+    // a strategy that picks a new endpoint after each task. A WAIT_* agent
+    // leaves only once a task needs its cell, and a periodic replan reaches
+    // such a goal once the parked agent leaves: deferring there would wait
+    // forever on an idle agent.
+    const bool waits = config.endpoint_strategy == WAIT_OR_NEAREST_SAFE ||
+                       config.endpoint_strategy == WAIT_OR_NEAREST_FREE_NONTASK;
     const bool defer_old_dummy_conflicts =
-        config.dummy_path &&
-        (config.endpoint_strategy == NEAREST_WITH_STRICT_EXCLUSIONS ||
-         (config.endpoint_strategy == NEAREST_AVAILABLE &&
-          !(config.replan_on & REPLAN_PERIODIC)));
+        config.dummy_path && !waits && config.mapf != MAPF_wPBS &&
+        !(config.replan_on & REPLAN_PERIODIC);
     if (defer_old_dummy_conflicts) {
         for (const auto& path : path_table_)
             if (!path.empty())
@@ -1702,10 +1735,10 @@ void Simulation::assign_repeated_hungarian() {
 // event trigger is tracked separately, so merely waiting in open_tasks_ does
 // not cause reassignment every timestep.
 void Simulation::truncate_online_task_sequences() {
-    // PP_PER_TASK deliberately materializes one task at a time; the other
-    // planners materialize the paper's configurable C-task prefix.
-    const int keep_count = (config.mapf == MAPF_PP_PER_TASK)
-        ? 1 : max(1, config.task_sequence_limit);
+    // As many tasks as the planner plans: one for PP, the paper's
+    // configurable C-task prefix for PBS, wPBS and CBS, all for
+    // PP_TASK_SEQUENCE.
+    const int keep_count = planned_task_count();
 
     for (Agent& agent : agents) {
         while ((int)agent.task_sequence.size() > keep_count) {
@@ -2190,6 +2223,8 @@ DummyEndpointRequest Simulation::make_token_endpoint_request(
         (int)agents[agent_id].loc, agents[agent_id].initial_loc, {}};
     exclude_others_endpoints(request);
     request.use_safe_relocation_search = true;
+    request.parking_endpoints_only =
+        config.endpoint_strategy == WAIT_OR_NEAREST_FREE_NONTASK;
     request.relocation_required = !mapd_map.is_endpoint[reference_location];
     for (Task* task : open_tasks_)
         for (int goal = 1; goal < (int)task->goals.size(); goal++)
@@ -2278,20 +2313,6 @@ DummyEndpointRequest Simulation::make_sequence_endpoint_request(
     return request;
 }
 
-DummyEndpointRequest Simulation::make_ta_endpoint_request(
-    int agent_id, int reference_location,
-    const vector<int>& reserved_endpoints, bool fixed_home_only) const {
-    DummyEndpointRequest request = make_sequence_endpoint_request(
-        agent_id, reference_location, reserved_endpoints, false);
-    if (fixed_home_only) {
-        request.candidate_endpoints = {request.home_location};
-    } else {
-        request.candidate_endpoints = {
-            request.current_location, request.home_location};
-    }
-    return request;
-}
-
 // Where an agent rests after its last goal (the request's reference
 // location): with --dummy_path 1 the strategy's endpoint. With 0 no path
 // after the last goal is planned in advance: an idle agent stays where it is
@@ -2351,9 +2372,7 @@ int Simulation::choose_dummy_endpoint(
             return endpoint_nearest_available(relocation);
         }
     case NEAREST_AVAILABLE:
-        // Planning inside assignment relocates only when waiting is unsafe.
-        return request.use_safe_relocation_search ? endpoint_wait_or_relocate(request)
-                                                  : endpoint_nearest_available(request);
+        return endpoint_nearest_available(request);
     case PAIRWISE_TASK_THEN_HOME:
         return endpoint_pairwise(request);
     case RETURN_TO_HOME:
@@ -2835,7 +2854,7 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
         for (int other = 0; other < agent_count; other++)
             if (other != agent_id) reserved[other] = (int)agents[other].path[horizon - 1];
         DummyEndpointRequest request =
-            make_ta_endpoint_request(agent_id, location, reserved, true);
+            make_sequence_endpoint_request(agent_id, location, reserved, false);
         if (must_move) {
             request.relocation_required = true;
             request.forbidden_endpoints.insert(location);
@@ -3038,7 +3057,7 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                 const int goal = all_tasks[agent.current_task].goals[agent.current_goal_index];
                 reserved[agent_id] = -1;
                 group_parking[index] = rest_endpoint(
-                    make_ta_endpoint_request(agent_id, goal, reserved, true));
+                    make_sequence_endpoint_request(agent_id, goal, reserved, false));
                 reserved[agent_id] = group_parking[index];
             }
         }
@@ -3072,10 +3091,19 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
             node.first_agent = -1;
             int earliest = INT_MAX;
             uint64_t scanned = 0;
+            // After `settle` every path stands still, so a pair conflicts at
+            // each later step exactly when it shares a cell at `settle`.
+            int settle = now;
+            for (const vector<int>& path : node.paths)
+                for (int t = horizon - 1; t > settle; t--)
+                    if (path[t] != path[t - 1]) { settle = t; break; }
             for (int first = 0; first < (int)group1.size(); first++)
                 for (int second = first + 1;
-                     second < (int)group1.size(); second++)
-                    for (int time = now; time < horizon; time++) {
+                     second < (int)group1.size(); second++) {
+                    if (settle + 1 < horizon &&
+                        node.paths[first][settle] == node.paths[second][settle])
+                        node.conflicts += horizon - 1 - settle;
+                    for (int time = now; time <= settle && time < horizon; time++) {
                         RuntimeDeadline::check_periodic(
                             scanned++, "TA-Hybrid conflict detection");
                         bool vertex =
@@ -3100,6 +3128,29 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                             node.second_location = node.paths[first][time];
                         }
                     }
+                }
+        };
+
+        // When the CBS fails, the carriers are planned one at a time, each
+        // avoiding the new paths of those before it and the current paths of
+        // the rest; one that cannot be planned keeps its current path.
+        auto plan_in_order = [&]() {
+            HybridCBSNode* result = new HybridCBSNode();
+            result->paths.resize(group1.size());
+            result->arrivals.assign(group1.size(), -1);
+            result->constraints.resize(group1.size());
+            for (int index = 0; index < (int)group1.size(); index++) {
+                const size_t base = fixed_paths.size();
+                for (int other = 0; other < (int)group1.size(); other++) {
+                    if (other == index) continue;
+                    if (result->arrivals[other] >= 0) fixed_paths.push_back(result->paths[other]);
+                    else fixed_paths.emplace_back(agents[group1[other]].path.begin(),
+                                                  agents[group1[other]].path.end());
+                }
+                result->arrivals[index] = low_level(index, {}, result->paths[index]);
+                fixed_paths.resize(base);
+            }
+            return result;
         };
 
         auto worse = [](const HybridCBSNode* lhs,
@@ -3117,20 +3168,22 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
         for (int index = 0; index < (int)group1.size(); index++) {
             root->arrivals[index] = low_level(
                 index, root->constraints[index], root->paths[index]);
-            if (root->arrivals[index] < 0) {
-                delete root;
-                throw runtime_error(
-                    "TA-Hybrid Group 1 low-level search failed");
-            }
+            if (root->arrivals[index] < 0) break;
             root->cost = max(root->cost,
                 ta_sequence_cost(group1[index], root->arrivals[index]));
         }
-        detect_conflict(*root);
-        open.push(root);
         allocated.push_back(root);
+        if (find(root->arrivals.begin(), root->arrivals.end(), -1) == root->arrivals.end()) {
+            detect_conflict(*root);
+            open.push(root);
+        }
 
         HybridCBSNode* solution = nullptr;
         int expanded = 0;
+        // Every node holds the whole group's paths: bound the search to about
+        // 2 GB of them (the default runs on kiva expand at most ~50 nodes).
+        const long node_ints = (long)group1.size() * horizon;
+        const int expansion_limit = (int)max(1000L, min(100000L, 250000000L / node_ints));
         while (!open.empty()) {
             RuntimeDeadline::check_periodic(
                 (uint64_t)expanded, "TA-Hybrid Group 1 CBS");
@@ -3140,7 +3193,7 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                 solution = current;
                 break;
             }
-            if (++expanded > 100000)
+            if (++expanded > expansion_limit)
                 break;
 
             for (int branch = 0; branch < 2; branch++) {
@@ -3183,12 +3236,12 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
         }
 
         if (!solution) {
-            for (HybridCBSNode* node : allocated) delete node;
-            throw runtime_error(
-                "TA-Hybrid Group 1 CBS failed to find a collision-free batch");
+            solution = plan_in_order();
+            allocated.push_back(solution);
         }
         for (int index = 0; index < (int)group1.size(); index++) {
             int agent_id = group1[index];
+            if (solution->arrivals[index] < 0) continue;   // keeps its current path
             for (int time = now; time < horizon; time++) {
                 agents[agent_id].path[time] = solution->paths[index][time];
                 path_table_[agent_id][time] = solution->paths[index][time];
@@ -3216,7 +3269,7 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
                 reserved[other] = (int)agents[other].path[horizon - 1];
                 others.emplace_back(agents[other].path.begin(), agents[other].path.end());
             }
-        if (make_ta_endpoint_request(agent_id, (int)agent.path[horizon - 1], reserved, true)
+        if (make_sequence_endpoint_request(agent_id, (int)agent.path[horizon - 1], reserved, false)
                 .relocation_required)
             plan_dummy_path(agent_id, now, others, true);
     }
@@ -3713,6 +3766,11 @@ int Simulation::astar_with_dummy(
     // The endpoint can be held from the last time a constraint occupies it.
     if (hold_from == INT_MIN)
         hold_from = last_occupied(constraint_paths, cbs_constraints, endpoint_loc);
+    // Occupied at the horizon (another agent stays there): it never can be.
+    if (hold_from >= max_time - 1) return -1;
+    // As MLA*, search at most 512 steps past the latest of the start, the
+    // goal's release and the endpoint's hold time.
+    const int horizon = min(max_time, max({start_time, release_time, hold_from}) + 512);
 
     // Write the path to `last` (held afterwards) into agent.path; returns the
     // goal arrival, or stop_time when a windowed search ends before the goal.
@@ -3757,7 +3815,7 @@ int Simulation::astar_with_dummy(
         // A windowed search ends at stop_time; the agent then holds its cell.
         if (current->timestep >= stop_time) return finish(current);
 
-        if (current->timestep >= max_time - 1) continue;
+        if (current->timestep >= horizon - 1) continue;
 
         for (int action : actions) {
             int next_location = current->location + action;
@@ -4521,10 +4579,12 @@ void Simulation::sta_update_path(Agent& agent, const SearchNode& goal_node) {
 }
 
 // TP/TPTS plan one task with the configured single-agent search against every
-// other agent's committed path; a TPTS steal hides the displaced agent. The path
-// is committed only if it is collision-free and its final goal can be held
-// forever, the token-passing invariant. Returns (first-goal arrival, final-goal
-// arrival), or (-1, -1).
+// other agent's committed path; a TPTS steal hides the displaced agent. As in
+// the reference token passing (one A* to the pickup, then one to the
+// delivery), the task's goals are planned one at a time, each reached when
+// the agent could stay there for good. The path is committed only if it is
+// collision-free and its final goal can be held forever, the token-passing
+// invariant. Returns (first-goal arrival, final-goal arrival), or (-1, -1).
 pair<int,int> Simulation::plan_token_task(Agent& agent, Task& task,
                                           int hidden_agent) {
     const int hidden = hidden_agent >= 0 ? hidden_agent : agent.id;
@@ -4541,22 +4601,28 @@ pair<int,int> Simulation::plan_token_task(Agent& agent, Task& task,
     for (int goal_index = 0; goal_index < (int)task.goals.size(); goal_index++)
         goals.push_back({task.goals[goal_index],
                          goal_index == 0 ? task.release_time : 0});
-    const vector<vector<pair<int,int>>> task_group(1, goals);
     const vector<vector<int>> no_old_paths;
-    vector<int> path = plan_single_agent({agent.id, (int)agent.loc, (int)cur_time_,
-                                          task_group, constraints, no_old_paths, false});
-    if (path.empty()) return {-1, -1};
-
+    vector<int> path;
     int first_goal_time = -1;
     int final_goal_time = -1;
-    int goal_index = 0;
-    for (int t = (int)cur_time_;
-         t < (int)path.size() && goal_index < (int)goals.size(); t++) {
-        if (path[t] == goals[goal_index].first && t >= goals[goal_index].second) {
-            if (goal_index == 0) first_goal_time = t;
-            if (goal_index == (int)goals.size() - 1) final_goal_time = t;
-            goal_index++;
-        }
+    int location = (int)agent.loc;
+    int time = (int)cur_time_;
+    for (const auto& goal : goals) {
+        const vector<vector<pair<int,int>>> one_goal(1, {goal});
+        vector<int> segment = plan_single_agent({agent.id, location, time, one_goal,
+                                                 constraints, no_old_paths, false});
+        if (segment.empty() || segment.back() != goal.first) return {-1, -1};
+        // The goal is reached where the path settles on it for good.
+        int arrival = (int)segment.size() - 1;
+        while (arrival > time && segment[arrival - 1] == goal.first) arrival--;
+        arrival = max(arrival, goal.second);
+        if (path.empty()) path = std::move(segment);
+        else for (int t = time; t < (int)path.size(); t++)
+            path[t] = segment[min(t, (int)segment.size() - 1)];
+        if (first_goal_time < 0) first_goal_time = arrival;
+        final_goal_time = arrival;
+        location = goal.first;
+        time = arrival;
     }
     if (first_goal_time < 0 || final_goal_time < 0) return {-1, -1};
 
@@ -4822,15 +4888,8 @@ vector<int> Simulation::plan_single_agent(const SingleAgentRequest& request) {
         all_goals.insert(all_goals.end(), group.begin(), group.end());
 
     switch (config.single_agent) {
-    case SA_STA_TASK_EP: {
-        vector<vector<pair<int,int>>> one_per_group;
-        for (const auto& goal : all_goals) one_per_group.push_back({goal});
-        return mla_star_taskwise_impl(request.agent_id, request.start_loc,
-                                      request.start_time, one_per_group,
-                                      request.constraint_paths, request.old_paths,
-                                      request.use_old_paths, request.stop_time,
-                                      request.constraints);
-    }
+    case SA_STA_TASK_EP:
+        return plan_sta_star(request, all_goals);
     case SA_MLA_SEQUENCE:
         return mla_star_taskwise_impl(request.agent_id, request.start_loc,
                                       request.start_time, request.goal_groups,
@@ -4852,6 +4911,102 @@ vector<int> Simulation::plan_single_agent(const SingleAgentRequest& request) {
     default:
         throw logic_error("plan_single_agent: unsupported single_agent");
     }
+}
+
+// --- STA* (TP's and TPTS's low level) ---------------------------------------
+// The reference token-passing space-time A* (COBRA's Agent::AStar), one goal
+// at a time: each search reaches its goal (not before the goal's release),
+// the last one at a time from which the agent can stay there for good, and
+// the next search starts there. Nodes are (location, g), the first one
+// generated is kept, and successors come in the reference order wait, east,
+// west, south, north. The other agents' paths (and old paths when requested)
+// and CBS constraints are obeyed; a windowed search ends at stop_time.
+vector<int> Simulation::plan_sta_star(const SingleAgentRequest& request,
+                                      const vector<pair<int,int>>& goals) {
+    const int max_time = (int)maxtime;
+    const int map_size = mapd_map.row * mapd_map.col;
+    const int cols = mapd_map.col;
+    vector<const vector<int>*> others;
+    for (const vector<int>& path : request.constraint_paths) others.push_back(&path);
+    if (request.use_old_paths)
+        for (const vector<int>& path : request.old_paths) others.push_back(&path);
+    auto at = [](const vector<int>& path, int t) {
+        return path[min(t, (int)path.size() - 1)];
+    };
+    auto blocked = [&](int from, int to, int t) {
+        for (const vector<int>* path : others) {
+            const int next = at(*path, t);
+            if (next == to || (next == from && at(*path, t - 1) == to)) return true;
+        }
+        return request.constraints && request.constraints->blocks(from, to, t);
+    };
+
+    vector<int> full(max_time, request.start_loc);
+    int location = request.start_loc;
+    int time = request.start_time;
+    for (int k = 0; k < (int)goals.size() && time < request.stop_time; k++) {
+        const int goal = goals[k].first;
+        const int release = goals[k].second;
+        const vector<int>& goal_h = distances_to(goal);
+        // The last goal can be held once nothing else occupies it later.
+        int hold_from = INT_MIN;
+        if (k + 1 == (int)goals.size()) {
+            for (const vector<int>* path : others)
+                for (int t = (int)path->size() - 1; t > hold_from && t >= 0; t--)
+                    if ((*path)[t] == goal) { hold_from = t; break; }
+            if (request.constraints) {
+                const int holdable = request.constraints->holdable_from(goal);
+                if (holdable == INT_MAX) return {};
+                hold_from = max(hold_from, holdable - 1);
+            }
+        }
+        auto heuristic = [&](int loc, int t) {
+            return max(goal_h[loc], release - t);
+        };
+        if (goal_h[location] == INT_MAX) return {};
+
+        heap_open_t open;
+        deque<SearchNode> nodes;
+        unordered_set<uint64_t> seen;
+        nodes.emplace_back(location, 0, heuristic(location, time), nullptr, time);
+        open.push(&nodes.back());
+        seen.insert((uint64_t)location);
+        const SearchNode* reached = nullptr;
+        uint64_t expanded = 0;
+        while (!open.empty()) {
+            RuntimeDeadline::check_periodic(expanded++, "STA* low-level search");
+            SearchNode* current = open.top();
+            open.pop();
+            current->in_openlist = false;
+            if ((current->loc == goal && current->timestep >= release &&
+                 current->timestep >= hold_from) ||
+                current->timestep >= request.stop_time) {
+                reached = current;
+                break;
+            }
+            if (current->timestep >= max_time - 1) continue;
+            const int actions[5] = {0, 1, -1, cols, -cols};
+            for (int action : actions) {
+                const int next = current->loc + action;
+                const int next_time = current->timestep + 1;
+                if (next < 0 || next >= map_size || !mapd_map.grid[next] ||
+                    abs(next % cols - current->loc % cols) > 1 ||
+                    goal_h[next] == INT_MAX || blocked(current->loc, next, next_time))
+                    continue;
+                const int g = current->g_val + 1;
+                if (!seen.insert((uint64_t)next + (uint64_t)g * map_size).second) continue;
+                nodes.emplace_back(next, g, heuristic(next, next_time), current, next_time);
+                open.push(&nodes.back());
+            }
+        }
+        if (!reached) return {};
+        for (const SearchNode* node = reached; node; node = node->parent)
+            full[node->timestep] = node->loc;
+        for (int t = reached->timestep + 1; t < max_time; t++) full[t] = reached->loc;
+        location = reached->loc;
+        time = reached->timestep;
+    }
+    return full;
 }
 
 // --- SEQ_STA (TA-Prioritized's low level) -----------------------------------

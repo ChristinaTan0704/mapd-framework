@@ -184,6 +184,7 @@ private:
     unsigned int maxtime = 0;                  // planning horizon bound
     int t_task = 0;                            // last task release time
     int last_released_time_ = -1;              // latest task-release time revealed to assignment
+    int last_release_checked_ = -1;            // latest time checked for actual releases
 
     // ======================================================================
     //  Section 1 — Algorithm 1: the unified main loop
@@ -295,9 +296,6 @@ private:
     DummyEndpointRequest make_sequence_endpoint_request(
         int agent_id, int reference_location,
         const vector<int>& reserved_endpoints, bool leave_previous_endpoint) const;
-    DummyEndpointRequest make_ta_endpoint_request(
-        int agent_id, int reference_location,
-        const vector<int>& reserved_endpoints, bool fixed_home_only) const;
     int choose_dummy_endpoint(EndpointStrategy strategy,
                               const DummyEndpointRequest& request);
     int rest_endpoint(const DummyEndpointRequest& request);
@@ -324,6 +322,7 @@ private:
     bool path_planning_pbs();
     bool path_planning_cbs();
     bool retry_pp_failed_first();
+    bool selection_stalled() const;
     vector<bool> cbs_mdd_singletons(int agent_id, const CBSConstraintTable& constraints,
                                     int cost) const;
     void commit_path(int agent_id, const vector<int>& path);
@@ -393,6 +392,8 @@ private:
     // The configured single-agent search (config.single_agent); every planner
     // reaches the low level through here.
     vector<int> plan_single_agent(const SingleAgentRequest& request);
+    vector<int> plan_sta_star(const SingleAgentRequest& request,
+                              const vector<pair<int,int>>& goals);
     vector<int> plan_sequential_sta(const SingleAgentRequest& request,
                                     const vector<pair<int,int>>& goals);
     const vector<int>& distances_to(int location);

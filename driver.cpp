@@ -134,7 +134,7 @@ int main(int argc, char** argv)
         ("screen,s",       po::value<int>()->default_value(1),         "screen output (0=none, 1=results)")
         // Algorithm-specific tuning options. They do not affect algorithms
         // that do not use the named component.
-        ("task_sequence_limit", po::value<int>(),                       "PBS/wPBS only: maximum tasks planned per agent (default 2)")
+        ("task_sequence_limit", po::value<int>(),                       "tasks planned per agent by PBS, wPBS and CBS, and kept per agent by repeated Hungarian/LNS (default 2)")
         ("wpbs_replan_window", po::value<int>(),                       "steps between PERIODIC replans; also the wPBS planning window (default 10)")
         ("lns_time",       po::value<int>(),                           "LNS only: assignment-improvement budget in seconds (default 1)")
         ("lns_no_improvement_limit", po::value<int>(),                 "LNS only: rejected moves before early stop; 0 disables (default 2000)")

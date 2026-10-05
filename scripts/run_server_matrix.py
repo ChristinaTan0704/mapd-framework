@@ -76,8 +76,8 @@ BASE_METHOD_COUNT = 21
 # exact-gated: their one-second CPU budget can perform a different number of
 # iterations on another processor/compiler.
 SMOKE_BASELINE = {
-    "TP-STA*": (2541, 18884),
-    "TPTS-STA*": (2516, 14305),
+    "TP-STA*": (2532, 19417),
+    "TPTS-STA*": (2532, 14666),
     "CENTRAL-CBS": (2513, 14122),
     "CENTRAL-fixed-CBS": (2514, 14183),
     "HBH+MLA*": (2532, 14728),
@@ -93,8 +93,8 @@ SMOKE_BASELINE = {
     "Hungarian+wPBS-MLSIPP": (2512, 13652),
     "LNS(1s)+PBS-MLSIPP": (2515, 13759),
     "LNS(1s)+wPBS-MLSIPP": (2514, 13648),
-    "TP-MLSIPP": (2541, 18830),
-    "TPTS-MLSIPP": (2514, 14241),
+    "TP-MLSIPP": (2548, 19576),
+    "TPTS-MLSIPP": (2530, 14668),
     "Hungarian+PP-SIPP": (2513, 13863),
     "LNS(1s)+PP-SIPP": (2513, 13746),
     "Hungarian+PBS-MLA* (ts 1)": (2514, 13781),
@@ -108,7 +108,7 @@ SMOKE_BASELINE = {
 }
 
 MULTIGOAL_BASELINE = {
-    "TP-STA*": (161, 1045),
+    "TP-STA*": (161, 1062),
     "TPTS-STA*": (161, 1014),
     "CENTRAL-CBS": (164, 1020),
     "CENTRAL-fixed-CBS": (156, 1020),
@@ -125,7 +125,7 @@ MULTIGOAL_BASELINE = {
     "Hungarian+wPBS-MLSIPP": (163, 1031),
     "LNS(1s)+PBS-MLSIPP": (158, 1028),
     "LNS(1s)+wPBS-MLSIPP": (163, 1031),
-    "TP-MLSIPP": (161, 1045),
+    "TP-MLSIPP": (161, 1062),
     "TPTS-MLSIPP": (161, 1014),
     "Hungarian+PP-SIPP": (161, 1048),
     "LNS(1s)+PP-SIPP": (161, 1048),

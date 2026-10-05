@@ -6,7 +6,7 @@
 //  agent selections, single-agent searches, endpoint strategies, task modes and
 //  dummy-path settings it runs correctly with. A configuration is supported
 //  when some row admits all of its components; anything else is rejected before
-//  the simulation starts, so no combination runs with a component ignored.
+//  the simulation starts.
 //
 //  Supporting a new combination means implementing it and adding or widening
 //  its row.
@@ -48,13 +48,17 @@ const int AFTER = REPLAN_AFTER_ASSIGNMENT;
 const int SEGMENTS = REPLAN_AFTER_ASSIGNMENT | REPLAN_GOAL_REACHED;
 const int WINDOWED = REPLAN_AFTER_ASSIGNMENT | REPLAN_PERIODIC;
 const int ALL_EVENTS = REPLAN_AFTER_ASSIGNMENT | REPLAN_GOAL_REACHED | REPLAN_PERIODIC;
-const std::vector<int> ANY_REPLAN = {AFTER, SEGMENTS, WINDOWED, ALL_EVENTS,
+const int PERIODIC = REPLAN_PERIODIC;
+const std::vector<int> ANY_REPLAN = {AFTER, SEGMENTS, WINDOWED, ALL_EVENTS, PERIODIC,
                                      REPLAN_EVERY_TIMESTEP};
 // A plan that ends at a goal before the task's next leg (TA-Hybrid's groups,
 // a CENTRAL pickup) must be followed by one when an agent gets there, and a
 // windowed plan must be refreshed before its window runs out.
 const std::vector<int> WITH_SEGMENTS = {SEGMENTS, ALL_EVENTS, REPLAN_EVERY_TIMESTEP};
-const std::vector<int> WITH_REFRESH = {WINDOWED, ALL_EVENTS, REPLAN_EVERY_TIMESTEP};
+const std::vector<int> WITH_REFRESH = {WINDOWED, ALL_EVENTS, PERIODIC, REPLAN_EVERY_TIMESTEP};
+// CENTRAL's delivery legs: per-goal or periodic replans.
+const std::vector<int> SEGMENTS_OR_REFRESH = {SEGMENTS, WINDOWED, ALL_EVENTS, PERIODIC,
+                                              REPLAN_EVERY_TIMESTEP};
 
 std::vector<Support> supported_rows() {
     std::vector<Support> rows = {
@@ -73,7 +77,7 @@ std::vector<Support> supported_rows() {
         // upfront. TA-Hybrid's two groups plan each carrier's next goal and
         // route free agents to their pickups.
         {AM_LKH3_TSP_REASSIGN, MAPF_TA_HYBRID_TWO_GROUP,
-         {AT_EVERY_TIMESTEP, ON_EVENT}, {SEGMENTS},
+         {AT_EVERY_TIMESTEP, ON_EVENT, AT_ON_FREE_WAITS}, WITH_SEGMENTS,
          EITHER_SELECTION, ANY_SEARCH, ALL_ENDPOINTS, {MODE_OFFLINE}, EITHER},
     };
     // Methods that only assign tasks feed every planner: repeated Hungarian
@@ -81,7 +85,7 @@ std::vector<Support> supported_rows() {
     // separate step (replan_on is set). The prioritized planners, PBS and CBS
     // plan every selected agent's next tasks (PP_TASK_SEQUENCE all of them);
     // wPBS plans a window of them and must refresh it before it runs out.
-    const std::vector<AssignTrigger> triggers = {ON_EVENT, AT_EVERY_TIMESTEP};
+    const std::vector<AssignTrigger> triggers = {ON_EVENT, AT_EVERY_TIMESTEP, AT_ON_FREE_WAITS};
     for (AssignMethod method : {AM_REPEATED_HUNGARIAN, AM_REPEATED_HUNGARIAN_LNS,
                                 AM_DECOUPLED_GREEDY, AM_DECOUPLED_GREEDY_SWAPS,
                                 AM_CENTRALIZED_GREEDY}) {
@@ -94,7 +98,7 @@ std::vector<Support> supported_rows() {
     // CENTRAL plans an agent to its matched pickup only, so a replan must
     // follow when it gets there (wPBS reaches it at its periodic replan).
     for (MAPFMethod mapf : {MAPF_PP_PER_TASK, MAPF_PP_TASK_SEQUENCE, MAPF_PBS, MAPF_CBS})
-        rows.push_back({AM_CENTRAL_HUNGARIAN, mapf, triggers, WITH_SEGMENTS, EITHER_SELECTION,
+        rows.push_back({AM_CENTRAL_HUNGARIAN, mapf, triggers, SEGMENTS_OR_REFRESH, EITHER_SELECTION,
                         ANY_SEARCH, ALL_ENDPOINTS, ALL_MODES, EITHER});
     rows.push_back({AM_CENTRAL_HUNGARIAN, MAPF_wPBS, triggers, WITH_REFRESH, EITHER_SELECTION,
                     ANY_SEARCH, ALL_ENDPOINTS, ALL_MODES, EITHER});
@@ -103,13 +107,18 @@ std::vector<Support> supported_rows() {
     // agents work through it; PP_TASK_SEQUENCE plans all of it, and
     // replanning complete tours at every goal or period (n(n+1)/2 whole-tour
     // searches each time) does not finish in reasonable time.
-    const std::vector<AssignTrigger> tour_triggers = {AT_ONCE, ON_EVENT};
+    // LKH3_TSP_REASSIGN also lets an idle agent take over a task not yet
+    // started; it feeds the same planners.
+    const std::vector<AssignTrigger> tour_triggers = {AT_ONCE, ON_EVENT, AT_EVERY_TIMESTEP,
+                                                      AT_ON_FREE_WAITS};
     const std::vector<Mode> OFFLINE = {MODE_OFFLINE};
-    rows.push_back({AM_LKH3_TSP, MAPF_PP_TASK_SEQUENCE, tour_triggers, {AFTER},
-                    EITHER_SELECTION, ANY_SEARCH, ALL_ENDPOINTS, OFFLINE, EITHER});
-    for (MAPFMethod mapf : {MAPF_PP_PER_TASK, MAPF_PBS, MAPF_CBS, MAPF_wPBS})
-        rows.push_back({AM_LKH3_TSP, mapf, tour_triggers, WITH_REFRESH, EITHER_SELECTION,
-                        ANY_SEARCH, ALL_ENDPOINTS, OFFLINE, EITHER});
+    for (AssignMethod method : {AM_LKH3_TSP, AM_LKH3_TSP_REASSIGN}) {
+        rows.push_back({method, MAPF_PP_TASK_SEQUENCE, {AT_ONCE, ON_EVENT}, {AFTER},
+                        EITHER_SELECTION, ANY_SEARCH, ALL_ENDPOINTS, OFFLINE, EITHER});
+        for (MAPFMethod mapf : {MAPF_PP_PER_TASK, MAPF_PBS, MAPF_CBS, MAPF_wPBS})
+            rows.push_back({method, mapf, tour_triggers, WITH_REFRESH, EITHER_SELECTION,
+                            ANY_SEARCH, ALL_ENDPOINTS, OFFLINE, EITHER});
+    }
     return rows;
 }
 
@@ -130,8 +139,11 @@ void check(std::ostringstream& reason, const char* field, T value,
 std::string mismatch(const Support& row, const MAPDConfig& config) {
     std::ostringstream reason;
     check(reason, "assign_trigger", config.assign_trigger, row.triggers);
+    // Replanning every timestep subsumes the other replan events.
+    const int replan_on = (config.replan_on & REPLAN_EVERY_TIMESTEP) ? REPLAN_EVERY_TIMESTEP
+                                                                     : config.replan_on;
     if (reason.str().empty() &&
-        std::find(row.replans.begin(), row.replans.end(), config.replan_on) ==
+        std::find(row.replans.begin(), row.replans.end(), replan_on) ==
             row.replans.end()) {
         reason << "replan_on " << flags_name<ReplanEvent>(config.replan_on)
                << " (supported:";
