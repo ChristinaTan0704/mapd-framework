@@ -210,6 +210,8 @@ def run_one(args, output_dir: Path, job):
     options = [value.format(tour=str(tour_path)) for value in method.options]
     if args.multigoal_smoke:
         options += ["--task_type", "MG_MAPD"]
+    elif args.task_type:
+        options += ["--task_type", args.task_type]
     command = [str(args.executable), "-m", str(map_path), "-t", str(task_path),
                *options, "--seed", str(args.seed),
                "--runtime_limit", str(args.runtime_limit),
@@ -392,6 +394,9 @@ def main():
                  "PAIRWISE_TASK_THEN_HOME",
                  "WAIT_OR_NEAREST_FREE_NONTASK", "NEAREST_AVAILABLE"),
         help="override the configured endpoint strategy for every selected method")
+    parser.add_argument(
+        "--task-type", choices=("MAPD", "MG_MAPD"),
+        help="override the configured task type (MG_MAPD for multi-goal task files)")
     parser.add_argument("--timeout", type=int, default=1000,
                         help="wall-clock timeout per simulator process (seconds)")
     parser.add_argument(

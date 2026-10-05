@@ -210,6 +210,7 @@ private:
     // ======================================================================
     bool should_assign();            // test and consume assign_trigger events
     bool agent_on_open_pickup() const;
+    bool nobody_on_open_tasks() const;
     void task_assignment();          // assign_method
     bool should_replan(bool assignment_triggered) const;
     void path_planning(bool assignment_triggered); // mapf

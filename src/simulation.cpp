@@ -287,7 +287,7 @@ bool Simulation::should_assign() {
     }
     case AT_ON_AGENT_FREE_OR_AT_PICKUP:
         return cur_time_ == 0 || new_available_agent_ || pickup_event_ ||
-               agent_on_open_pickup();
+               agent_on_open_pickup() || nobody_on_open_tasks();
     default:
         throw logic_error("should_assign: unsupported assign_trigger");
     }
@@ -302,6 +302,17 @@ bool Simulation::agent_on_open_pickup() const {
             pickup[task->goals.front()] = 1;
     for (const Agent& agent : agents)
         if (agent.status != AG_CARRYING && pickup[agent.loc]) return true;
+    return false;
+}
+
+// A released task is open while no agent carries or is matched to a task: the
+// reference CENTRAL would wait for a lucky pickup cell for good (it never does
+// on kiva small, where every task is released at time 0 or an agent is busy).
+bool Simulation::nobody_on_open_tasks() const {
+    for (const Agent& agent : agents)
+        if (agent.status == AG_CARRYING || !agent.task_sequence.empty()) return false;
+    for (const Task* task : open_tasks_)
+        if (task->release_time <= (int)cur_time_) return true;
     return false;
 }
 
@@ -1274,8 +1285,9 @@ void Simulation::assign_central_hungarian() {
 
     int agent_count = agent_ids.size();
     int destination_count = candidate_endpoint_ids.size();
-    int scale = agent_count * destination_count;
-    dlib::matrix<int> costs(matrix_size, matrix_size);
+    // 64-bit: with hundreds of agents (2 * cells - path) * scale exceeds int.
+    const long scale = (long)agent_count * destination_count;
+    dlib::matrix<long> costs(matrix_size, matrix_size);
     for (int row = 0; row < matrix_size; row++) {
         for (int column = 0; column < matrix_size; column++) {
             if (row >= agent_count || column >= destination_count) {
@@ -1288,7 +1300,7 @@ void Simulation::assign_central_hungarian() {
             // there would block its owner's way home.
             if (column >= task_destination_count && config.endpoint_strategy == RETURN_TO_HOME &&
                 agent_ids[column - task_destination_count] != agent_id) {
-                costs(row, column) = INT_MIN / 2;
+                costs(row, column) = -4L * map_size * scale;
                 continue;
             }
             int path_cost = central_path_cost(
@@ -1301,9 +1313,9 @@ void Simulation::assign_central_hungarian() {
                                 candidate_tasks[column]->release_time - (int)cur_time_);
             if (path_cost >= map_size) path_cost = 2 * map_size;
             if (column < task_destination_count)
-                costs(row, column) = (2 * map_size - path_cost) * scale;
+                costs(row, column) = (2L * map_size - path_cost) * scale;
             else
-                costs(row, column) = map_size * scale - path_cost;
+                costs(row, column) = (long)map_size * scale - path_cost;
         }
     }
 

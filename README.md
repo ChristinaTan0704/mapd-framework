@@ -560,6 +560,7 @@ python3 scripts/run_server_matrix.py --base-methods \
     --map-template 'benchmark_instances/maps/benchmark_structured_small_a{agents}.map' \
     --task-template 'benchmark_instances/tasks/benchmark_structured_small_mg_a{agents}_f{frequency}.task' \
     --tour-template 'benchmark_instances/lkh_tours/benchmark_structured_small_mg_a{agents}_fall.tour' \
+    --task-type MG_MAPD \
     --seed 0 --max-parallel 5 --timeout 1000 \
     --output-dir server_results/benchmark_structured_small_mg
 ```
@@ -627,7 +628,7 @@ components, and the Table 1 configurations (`configs/table1/`) that use them:
 | `ON_FREE_WAITS` | an agent is free and waiting (one agent per call) | TP, TPTS, HBH |
 | `EVERY_TIMESTEP` | every timestep | TA-Hybrid |
 | `ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE` | a task is released, an assignment method deferred a task (or CENTRAL a pickup), or an agent became free (alias `ON_NEW_TASK_OR_AGENT_BECOMES_FREE`) | CENTRAL-fixed, LNS-PBS, LNS-wPBS |
-| `ON_AGENT_FREE_OR_AT_PICKUP` | an agent became free (every agent at time 0), or an agent that carries no task is at the pickup of a released task or picked one up; a new task alone is no event (the reference CENTRAL code) | CENTRAL |
+| `ON_AGENT_FREE_OR_AT_PICKUP` | an agent became free (every agent at time 0), or an agent that carries no task is at the pickup of a released task or picked one up; a new task alone is no event (the reference CENTRAL code), unless no agent carries or is matched to a task (where the reference would wait for good) | CENTRAL |
 | `ONCE` | once, at time 0 | TA-Prioritized |
 
 **2. Task assignment** — `--assign_method`
