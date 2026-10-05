@@ -1761,21 +1761,17 @@ void Simulation::assign_repeated_hungarian() {
         int remain = (int)remaining_tasks.size();
         int row = max(num_ag, remain);
 
-        // Square cost matrix; padding cells are unusable (INT_MIN reward).
-        dlib::matrix<int> cost_mat(row, row);
-        for (int i = 0; i < row; i++) {
-            for (int j = 0; j < row; j++) {
-                if (i >= num_ag || j >= remain) {
-                    cost_mat(i, j) = INT_MIN;
-                } else {
-                    // max_cost_assignment maximises, so negate the arrival time.
-                    cost_mat(i, j) = -hungarian_arrival_estimate(agents[i], *remaining_tasks[j]);
-                }
-            }
-        }
-
-        vector<long> assignment = dlib::max_cost_assignment(cost_mat);
-
+        // Square cost matrix; padding cells are unusable (INT_MIN reward). The
+        // matrix is 64-bit: on the reference's int matrix (MGMAPD) dlib's
+        // label arithmetic overflows on INT_MIN, which changes assignments and
+        // can leave every agent on a padding cell, so that this loop never ends.
+        dlib::matrix<long> cost_mat(row, row);
+        for (int i = 0; i < row; i++)
+            for (int j = 0; j < row; j++)
+                cost_mat(i, j) = (i >= num_ag || j >= remain) ? INT_MIN
+                    // maximised, so the arrival time is negated
+                    : -hungarian_arrival_estimate(agents[i], *remaining_tasks[j]);
+        const vector<long> assignment = dlib::max_cost_assignment(cost_mat);
         vector<Task*> assigned;
         for (int i = 0; i < num_ag; i++) {
             if (assignment[i] < remain) {
@@ -1785,6 +1781,7 @@ void Simulation::assign_repeated_hungarian() {
                 assigned.push_back(task);
             }
         }
+        if (assigned.empty()) break;
 
         for (Task* t : assigned) {
             remaining_tasks.erase(
@@ -3103,7 +3100,19 @@ void Simulation::path_planning_ta_hybrid(bool assignment_triggered) {
             agent.current_task = task.id;
             agent.current_goal_index = 1;
             agent.finish_time = now;
+            last_goal_time_[agent.id] = now;
             picked_up = true;
+            if (task.goals.size() == 1) {   // a one-goal task is done here
+                task.completion_time = now;
+                task.status = INT_MAX;
+                task.ag = nullptr;
+                task.delivering = false;
+                agent.task_sequence.pop_front();
+                agent.status = AG_FREE;
+                agent.current_task = agent.task_sequence.empty() ? -1 : agent.task_sequence.front();
+                agent.current_goal_index = 0;
+                new_available_agent_ = true;
+            }
         }
         return picked_up;
     };
