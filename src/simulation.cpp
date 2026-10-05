@@ -137,6 +137,7 @@ void Simulation::init(const string& map_file, const string& task_file,
     for (int i = 0; i < (int)agents.size(); i++) ta_sequence_rank_[i] = i;
     last_goal_time_.assign(agents.size(), 0);
     rested_at_.assign(agents.size(), -1);
+    token_time_ = 0;
 }
 
 // ============================================================================
@@ -489,14 +490,23 @@ bool Simulation::plan_paths(bool assignment_triggered) {
 // deterministic pair (finish_time, agent_id); no separate timestep-transition
 // flag is needed.
 void Simulation::assign_decoupled_greedy_step() {
-    Agent* agent = &agents[0];
-    for (int i = 1; i < (int)agents.size(); i++)
-        if (agents[i].finish_time < agent->finish_time ||
-            (agents[i].finish_time == agent->finish_time &&
-             agents[i].id < agent->id))
-            agent = &agents[i];
-    if (agent->finish_time <= cur_time_)
+    Agent* agent = &next_token_holder();
+    if (agent->finish_time <= cur_time_) {
+        token_time_ = agent->finish_time;
         assign_decoupled_greedy(*agent);
+    }
+}
+
+// The reference token passing's waiting line: an agent still free at the
+// token's time (the lowest id from 1 up, agent 0 last), else the earliest free
+// agent (the lowest id among them).
+Agent& Simulation::next_token_holder() {
+    Agent* agent = &agents[0];
+    for (int i = 1; i < (int)agents.size(); i++) {
+        if (agents[i].finish_time == token_time_) return agents[i];
+        if (agents[i].finish_time < agent->finish_time) agent = &agents[i];
+    }
+    return *agent;
 }
 
 bool Simulation::assign_decoupled_greedy(Agent& agent) {
@@ -562,20 +572,17 @@ void Simulation::tpts_purge_picked_up_tasks() {
 }
 
 void Simulation::assign_tpts_step() {
-    Agent* agent = &agents[0];
-    for (int i = 1; i < (int)agents.size(); i++)
-        if (agents[i].finish_time < agent->finish_time ||
-            (agents[i].finish_time == agent->finish_time &&
-             agents[i].id < agent->id))
-            agent = &agents[i];
+    Agent* agent = &next_token_holder();
 
     // A TPTS task remains in the token while its assigned agent is travelling
     // to its first goal, allowing another agent with an earlier arrival to
     // steal it. Once that first goal is reached, execution of the ordered
     // multi-goal task has begun and the task can no longer be swapped.
     tpts_purge_picked_up_tasks();
-    if (agent->finish_time <= cur_time_)
+    if (agent->finish_time <= cur_time_) {
+        token_time_ = agent->finish_time;
         assign_tpts(*agent);
+    }
 }
 
 bool Simulation::assign_tpts(Agent& agent, int depth) {

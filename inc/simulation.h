@@ -301,6 +301,8 @@ private:
     int rest_endpoint(const DummyEndpointRequest& request);
     bool move_to_rest_endpoint(Agent& agent, const DummyEndpointRequest& request);
     vector<int> rested_at_;   // where an idle token-passing agent rests, else -1
+    unsigned int token_time_ = 0;   // when the token was last passed (TP, TPTS)
+    Agent& next_token_holder();
     void exclude_others_endpoints(DummyEndpointRequest& request) const;
     int endpoint_wait_or_relocate(const DummyEndpointRequest& request);
     int endpoint_nearest_available(const DummyEndpointRequest& request) const;

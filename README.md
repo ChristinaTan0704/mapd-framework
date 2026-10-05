@@ -143,7 +143,7 @@ Representative seed-0 baselines are:
 
 | Method | Setup | Makespan | SWT |
 |---|---:|---:|---:|
-| TP-STA* | 10 / 0.2 | 2532 | 19417 |
+| TP-STA* | 10 / 0.2 | 2532 | 19270 |
 | TPTS-STA* | 10 / 0.2 | 2532 | 14666 |
 | CENTRAL-CBS | 10 / 0.2 | 2513 | 14122 |
 | HBH+MLA* | 10 / 0.2 | 2532 | 14728 |
