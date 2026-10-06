@@ -244,7 +244,7 @@ intermediate goals visible in the expected makespan/SWT baselines.
 
 The sixteen methods on `data/Instances/small` with 10 to 50 agents and the
 seven task frequencies (`kiva-<f>.task`), run with the final build of
-2026-10-04: seed 0, reference tie-breaking, a 1000 s limit per run. Every run
+2026-10-05 (Hungarian/LNS rows after the 64-bit Hungarian): seed 0, reference tie-breaking, a 1000 s limit per run. Every run
 completed all 500 tasks and passed the collision and task-order checks. The
 numbers are in `output/kiva_small_results_2026-10-04.csv` and `.xlsx` (with
 the Excel's original values, `ori_*`; the workbook also has makespan and SWT
@@ -254,7 +254,7 @@ Against the original results (per row, at most 2% worse; where the reference
 code run on Linux is itself more than 2% off them, against that run): TP,
 TPTS, TA-Prioritized, TA-Hybrid and LNS-wPBS pass every row; CENTRAL every row
 but a50 f500 (makespan +2.6%; the reference code needs more than 1000 s
-there); LNS-PBS, Hungarian+PBS and Hungarian+wPBS fail two rows each; the
+there); Hungarian+PBS fails one row, LNS-PBS and Hungarian+wPBS two each; the
 MLSIPP variants are judged by random-tie seed means against their A* versions
 on the same seeds (at most one row over 2% each). CENTRAL-fixed follows Ma's
 thesis (Sec 6.5.3) and is worse than the original results, which are the
@@ -275,15 +275,15 @@ Seed 0, reference tie-breaking, 1000 s per run; each cell is makespan / SWT. Bol
 | CENTRAL-fixed-CBS | 2513 / 14423 | 1250 / 58776 | 1158 / 146013 | **1129** / 195465 | 1145 / 233707 | **1106** / 242936 | 1136 / 251460 |
 | TA-Prioritized-STA* | — | — | — | — | — | — | 1052 / 263485 |
 | TA-Hybrid-STA* | — | — | — | — | — | — | **1050** / 263910 |
-| LNS(1s)+PBS-MLA* | 2513 / **13553** | 1267 / **50689** | 1206 / 126485 | 1170 / **164885** | 1156 / 194544 | 1152 / 204535 | 1146 / 213233 |
-| LNS(1s)+wPBS-MLA* | **2512** / 13774 | 1265 / 51427 | 1206 / 124793 | 1172 / 166049 | 1138 / **192075** | 1137 / 203500 | 1116 / **210301** |
+| LNS(1s)+PBS-MLA* | 2513 / **13553** | 1267 / **50689** | 1206 / 126485 | 1170 / **164885** | 1144 / 193113 | 1145 / **202873** | 1130 / 210965 |
+| LNS(1s)+wPBS-MLA* | **2512** / 13774 | 1265 / 51427 | 1206 / 124793 | 1172 / 166049 | 1138 / **192075** | 1148 / 203875 | 1141 / **210551** |
 | TPTS-MLSIPP | 2530 / 14670 | 1264 / 66634 | 1183 / 147775 | 1158 / 202137 | 1162 / 236213 | 1153 / 246314 | 1144 / 257971 |
 | Hungarian+PBS-MLA* | 2514 / 13781 | 1291 / 53452 | 1189 / 124940 | 1155 / 164991 | 1149 / 193386 | 1139 / 203115 | 1131 / 211886 |
 | Hungarian+wPBS-MLA* | 2513 / 13781 | 1288 / 53704 | 1193 / 122341 | 1146 / 165676 | 1142 / 193931 | 1144 / 203279 | 1150 / 210594 |
 | Hungarian+PBS-MLSIPP | 2513 / 13668 | 1275 / 52741 | 1206 / 124757 | 1167 / 165147 | 1156 / 193624 | 1152 / 203229 | 1136 / 212537 |
 | Hungarian+wPBS-MLSIPP | 2513 / 13780 | 1282 / 52636 | 1187 / **121338** | 1151 / 166359 | 1154 / 192868 | 1144 / 203279 | 1127 / 210636 |
-| LNS(1s)+PBS-MLSIPP | **2512** / 13817 | 1271 / 51967 | 1200 / 125569 | 1167 / 165411 | 1149 / 193511 | 1150 / 204121 | 1142 / 211559 |
-| LNS(1s)+wPBS-MLSIPP | 2513 / 13677 | 1283 / 51899 | 1201 / 124974 | 1174 / 165844 | 1147 / 193446 | 1136 / **200936** | 1136 / 211189 |
+| LNS(1s)+PBS-MLSIPP | **2512** / 13817 | 1271 / 51967 | 1200 / 125569 | 1167 / 165411 | 1149 / 193511 | 1138 / 204716 | 1142 / 211559 |
+| LNS(1s)+wPBS-MLSIPP | 2513 / 13677 | 1283 / 51899 | 1201 / 124974 | 1174 / 165844 | 1147 / 193446 | 1139 / 202915 | 1136 / 211189 |
 
 **20 agents**
 
@@ -296,15 +296,15 @@ Seed 0, reference tie-breaking, 1000 s per run; each cell is makespan / SWT. Bol
 | CENTRAL-fixed-CBS | 2520 / 12518 | 1033 / 14706 | 654 / 39713 | 619 / 82060 | 603 / 113282 | 587 / 123342 | 596 / 131554 |
 | TA-Prioritized-STA* | — | — | — | — | — | — | **539** / 138466 |
 | TA-Hybrid-STA* | — | — | — | — | — | — | **539** / 137780 |
-| LNS(1s)+PBS-MLA* | 2513 / 12424 | 1027 / 13187 | 645 / 31323 | 611 / 66893 | 594 / 92537 | **581** / **100405** | 587 / 110183 |
-| LNS(1s)+wPBS-MLA* | 2513 / **12368** | 1032 / 13152 | 639 / **29644** | 602 / **64779** | 591 / **90809** | 598 / 101722 | 567 / **108277** |
+| LNS(1s)+PBS-MLA* | 2513 / 12424 | 1027 / 13187 | 645 / 31323 | 614 / 66260 | 593 / 93468 | **581** / **100405** | 587 / 110183 |
+| LNS(1s)+wPBS-MLA* | 2513 / **12368** | 1032 / 13152 | 639 / **29644** | 608 / **64615** | 594 / 91562 | 598 / 101722 | 567 / **108277** |
 | TPTS-MLSIPP | 2515 / 12510 | 1043 / 15414 | 700 / 45926 | 660 / 89273 | 660 / 121688 | 648 / 133458 | 620 / 141218 |
-| Hungarian+PBS-MLA* | 2513 / 12424 | 1027 / 13185 | 647 / 32395 | 604 / 66389 | 593 / 92601 | 601 / 101786 | 592 / 111386 |
-| Hungarian+wPBS-MLA* | **2511** / 12408 | 1031 / 13160 | 640 / 30771 | 624 / 66022 | 590 / 91141 | 593 / 100537 | 570 / 108944 |
-| Hungarian+PBS-MLSIPP | 2512 / 12382 | **1022** / 13186 | 649 / 31686 | 610 / 66412 | 589 / 92335 | 595 / 101517 | 601 / 110423 |
-| Hungarian+wPBS-MLSIPP | 2512 / 12426 | 1032 / 13153 | **638** / 31582 | 606 / 66268 | 589 / 90975 | 585 / 101302 | 584 / 109768 |
-| LNS(1s)+PBS-MLSIPP | 2512 / 12382 | **1022** / 13139 | 646 / 31512 | **597** / 66191 | 594 / 92247 | 583 / 101525 | 574 / 110218 |
-| LNS(1s)+wPBS-MLSIPP | 2513 / 12369 | 1027 / **13125** | 650 / 30351 | 617 / 65521 | **586** / 91551 | 590 / 101739 | 581 / 108669 |
+| Hungarian+PBS-MLA* | 2513 / 12424 | 1027 / 13185 | 647 / 32395 | 609 / 67132 | 596 / 92658 | 601 / 101786 | 592 / 111386 |
+| Hungarian+wPBS-MLA* | **2511** / 12408 | 1031 / 13160 | 640 / 30771 | 607 / 66339 | 598 / **91152** | 593 / 100537 | 570 / 108944 |
+| Hungarian+PBS-MLSIPP | 2512 / 12382 | **1022** / 13186 | 649 / 31686 | 611 / 66708 | 592 / 92673 | 595 / 101517 | 601 / 110423 |
+| Hungarian+wPBS-MLSIPP | 2512 / 12426 | 1032 / 13153 | **638** / 31582 | 616 / 66365 | 589 / 91213 | 585 / 101302 | 584 / 109768 |
+| LNS(1s)+PBS-MLSIPP | 2512 / 12382 | **1022** / 13139 | 646 / 31512 | **604** / 65834 | 596 / 93131 | 591 / 101438 | 574 / 110218 |
+| LNS(1s)+wPBS-MLSIPP | 2513 / 12369 | 1027 / **13125** | 650 / 30351 | 606 / 64693 | **584** / 91397 | 590 / 101739 | 581 / 108669 |
 
 **30 agents**
 
@@ -317,15 +317,15 @@ Seed 0, reference tie-breaking, 1000 s per run; each cell is makespan / SWT. Bol
 | CENTRAL-fixed-CBS | 2520 / **11782** | 1032 / 13172 | 576 / 17476 | 452 / 45889 | 440 / 72869 | 433 / 85035 | 425 / 94619 |
 | TA-Prioritized-STA* | — | — | — | — | — | — | 372 / 93627 |
 | TA-Hybrid-STA* | — | — | — | — | — | — | **365** / 92532 |
-| LNS(1s)+PBS-MLA* | 2513 / 11925 | 1029 / 12062 | 534 / 13846 | 433 / 35420 | 399 / 58941 | 404 / 69050 | 406 / 77724 |
-| LNS(1s)+wPBS-MLA* | **2512** / 12049 | 1027 / 12255 | **529** / 13653 | 427 / 34477 | 410 / 57981 | **396** / **66780** | 393 / **75594** |
+| LNS(1s)+PBS-MLA* | 2513 / 11925 | 1029 / 12062 | 534 / 13846 | 430 / 35742 | 408 / 59171 | 406 / 68830 | 409 / 77695 |
+| LNS(1s)+wPBS-MLA* | **2512** / 12049 | 1027 / 12255 | 532 / **13444** | 422 / 35135 | 405 / 57969 | **395** / 67055 | 393 / **75594** |
 | TPTS-MLSIPP | 2524 / 11974 | 1036 / 13541 | 570 / 20640 | 494 / 53945 | 471 / 82998 | 475 / 95709 | 478 / 100045 |
-| Hungarian+PBS-MLA* | 2513 / 11925 | **1026** / **12029** | 530 / 13804 | 428 / 35393 | 412 / 59089 | 415 / 69009 | 405 / 77297 |
-| Hungarian+wPBS-MLA* | **2512** / 12049 | 1029 / 12319 | 532 / 13604 | **419** / **34453** | 411 / 58515 | 402 / 66931 | 406 / 75809 |
-| Hungarian+PBS-MLSIPP | 2513 / 11886 | 1029 / 12145 | 535 / 13752 | 432 / 35597 | 410 / 59019 | 411 / 68133 | 405 / 76986 |
-| Hungarian+wPBS-MLSIPP | **2512** / 12020 | 1028 / 12325 | 532 / **13402** | 423 / 34536 | 410 / 58996 | 408 / 67135 | 410 / 76006 |
-| LNS(1s)+PBS-MLSIPP | 2513 / 11886 | 1029 / 12145 | 534 / 13635 | 429 / 35462 | 411 / 58905 | 415 / 68136 | 403 / 77177 |
-| LNS(1s)+wPBS-MLSIPP | **2512** / 12020 | 1030 / 12335 | 531 / 13561 | 430 / 34732 | **396** / **57363** | 407 / 67216 | 404 / **75594** |
+| Hungarian+PBS-MLA* | 2513 / 11925 | **1026** / **12029** | **530** / 13804 | 437 / 36650 | 418 / 59385 | 405 / 69175 | 405 / 77297 |
+| Hungarian+wPBS-MLA* | **2512** / 12049 | 1030 / 12361 | 531 / 13453 | 426 / 34712 | 410 / 57980 | 397 / **66945** | 406 / 75809 |
+| Hungarian+PBS-MLSIPP | 2513 / 11886 | 1029 / 12145 | 535 / 13752 | 424 / 36506 | 410 / 59338 | 407 / 68129 | 405 / 76986 |
+| Hungarian+wPBS-MLSIPP | **2512** / 12020 | 1027 / 12248 | 533 / 13543 | **421** / **34498** | 411 / **57502** | 406 / 67430 | 410 / 76006 |
+| LNS(1s)+PBS-MLSIPP | 2513 / 11886 | 1029 / 12145 | 534 / 13635 | 422 / 35250 | 410 / 58666 | 407 / 67580 | 402 / 78050 |
+| LNS(1s)+wPBS-MLSIPP | **2512** / 12020 | 1030 / 12335 | 531 / 13561 | 429 / 34986 | **404** / 57722 | 414 / 66972 | 404 / **75594** |
 
 **40 agents**
 
@@ -338,15 +338,15 @@ Seed 0, reference tie-breaking, 1000 s per run; each cell is makespan / SWT. Bol
 | CENTRAL-fixed-CBS | 2517 / 11615 | 1032 / 12654 | 560 / 14262 | 400 / 29851 | 373 / 54901 | 352 / 65224 | 329 / 73963 |
 | TA-Prioritized-STA* | — | — | — | — | — | — | 284 / 73256 |
 | TA-Hybrid-STA* | — | — | — | — | — | — | **280** / 72717 |
-| LNS(1s)+PBS-MLA* | 2513 / 11508 | 1028 / 11801 | **526** / 12432 | 338 / 21950 | 319 / 43446 | 318 / 51714 | 320 / 59863 |
-| LNS(1s)+wPBS-MLA* | 2512 / 11842 | 1032 / 12090 | 532 / 12484 | 341 / **20830** | 321 / 41857 | **308** / **50261** | 307 / **59000** |
+| LNS(1s)+PBS-MLA* | 2513 / 11508 | 1028 / 11801 | **526** / 12432 | 336 / 21838 | 320 / 42747 | 320 / 51384 | 320 / 59863 |
+| LNS(1s)+wPBS-MLA* | 2512 / 11842 | 1032 / 12090 | 532 / 12484 | 338 / 21076 | 328 / 42148 | 312 / 50370 | 307 / **59000** |
 | TPTS-MLSIPP | 2520 / 11840 | 1035 / 12962 | 554 / 16512 | 422 / 37679 | 391 / 65829 | 410 / 77292 | 387 / 83197 |
-| Hungarian+PBS-MLA* | 2513 / **11507** | 1028 / 11801 | **526** / 12432 | 336 / 21682 | 321 / 43503 | 311 / 52248 | 317 / 60738 |
-| Hungarian+wPBS-MLA* | 2512 / 11875 | 1028 / 12033 | 529 / 12418 | **334** / 21646 | 324 / 42441 | 315 / 51026 | 312 / 59325 |
-| Hungarian+PBS-MLSIPP | **2511** / 11523 | **1022** / **11770** | 528 / 12394 | 338 / 22234 | 318 / 43603 | 310 / 51672 | 307 / 60122 |
-| Hungarian+wPBS-MLSIPP | 2513 / 11843 | 1029 / 12043 | 528 / 12369 | 337 / 21545 | **313** / 41994 | 313 / 50403 | 316 / 59427 |
-| LNS(1s)+PBS-MLSIPP | **2511** / 11523 | **1022** / **11770** | 527 / **12328** | 342 / 21710 | 317 / 43393 | 313 / 51550 | 306 / 59856 |
-| LNS(1s)+wPBS-MLSIPP | 2512 / 11796 | 1027 / 12001 | 532 / 12503 | 342 / 21310 | 314 / **41728** | 312 / 50683 | 319 / 59188 |
+| Hungarian+PBS-MLA* | 2513 / **11507** | 1028 / 11801 | **526** / 12432 | 345 / 22445 | 324 / 43527 | 313 / 51596 | 317 / 60738 |
+| Hungarian+wPBS-MLA* | 2512 / 11875 | 1032 / 12090 | 532 / 12469 | 333 / 21489 | **313** / **42087** | 312 / 50470 | 312 / 59325 |
+| Hungarian+PBS-MLSIPP | **2511** / 11523 | **1022** / **11770** | 528 / 12394 | 339 / 21793 | 319 / 43245 | 316 / 52128 | 307 / 60122 |
+| Hungarian+wPBS-MLSIPP | 2513 / 11843 | 1029 / 12003 | 527 / 12581 | 337 / 21620 | 323 / 42533 | **304** / 50374 | 316 / 59427 |
+| LNS(1s)+PBS-MLSIPP | **2511** / 11523 | **1022** / **11770** | 527 / **12328** | 342 / 21710 | 318 / 42665 | 314 / 51839 | 306 / 59856 |
+| LNS(1s)+wPBS-MLSIPP | 2512 / 11796 | 1027 / 12001 | 532 / 12503 | **329** / **20872** | 317 / 42535 | 312 / **50330** | 319 / 59188 |
 
 **50 agents**
 
@@ -359,15 +359,15 @@ Seed 0, reference tie-breaking, 1000 s per run; each cell is makespan / SWT. Bol
 | CENTRAL-fixed-CBS | 2518 / **11366** | 1034 / 12294 | 553 / 13617 | 331 / 21775 | 301 / 43554 | 320 / 54258 | 285 / 62729 |
 | TA-Prioritized-STA* | — | — | — | — | — | — | 233 / 60403 |
 | TA-Hybrid-STA* | — | — | — | — | — | — | **230** / 59431 |
-| LNS(1s)+PBS-MLA* | 2514 / 11390 | 1029 / 11622 | **527** / 11979 | 296 / 14805 | 266 / 34396 | 264 / 42254 | 261 / 50554 |
-| LNS(1s)+wPBS-MLA* | **2511** / 11743 | 1030 / 12018 | 528 / 12339 | **290** / 14250 | 267 / 33055 | **258** / **41012** | 260 / 49509 |
+| LNS(1s)+PBS-MLA* | 2514 / 11390 | 1029 / 11622 | **527** / 11979 | 296 / 14968 | 269 / 33560 | 260 / 41684 | 261 / 50554 |
+| LNS(1s)+wPBS-MLA* | **2511** / 11743 | 1030 / 12018 | 528 / 12339 | 290 / 14250 | **256** / 33099 | **250** / 40975 | 259 / 49689 |
 | TPTS-MLSIPP | 2524 / 11490 | 1034 / 12717 | 558 / 15398 | 356 / 29909 | 322 / 51809 | 353 / 63837 | 324 / 70632 |
-| Hungarian+PBS-MLA* | 2514 / 11390 | 1028 / 11644 | 528 / 12032 | 292 / 14980 | 263 / 33738 | **258** / 42196 | 256 / 50363 |
-| Hungarian+wPBS-MLA* | 2512 / 11724 | 1031 / 11926 | 532 / 12228 | 297 / 14097 | **258** / 32760 | 263 / 41118 | 252 / 49419 |
-| Hungarian+PBS-MLSIPP | 2512 / 11441 | **1022** / **11555** | **527** / **11863** | 294 / 14551 | 270 / 33843 | **258** / 42119 | 258 / 49831 |
-| Hungarian+wPBS-MLSIPP | 2512 / 11779 | 1033 / 11836 | 528 / 12001 | 292 / 14241 | 272 / 32777 | 261 / 41889 | 246 / **49125** |
-| LNS(1s)+PBS-MLSIPP | 2512 / 11441 | **1022** / **11555** | **527** / **11863** | 296 / 14480 | 259 / 33766 | 261 / 41274 | 259 / 50148 |
-| LNS(1s)+wPBS-MLSIPP | 2512 / 11743 | 1027 / 11850 | 531 / 12065 | 293 / **13940** | 263 / **32716** | 261 / 41214 | 251 / 49254 |
+| Hungarian+PBS-MLA* | 2514 / 11390 | 1028 / 11644 | 528 / 12032 | 292 / 15111 | 263 / 33823 | 257 / 41777 | 256 / 50363 |
+| Hungarian+wPBS-MLA* | 2512 / 11724 | 1027 / 11980 | 532 / 12228 | 297 / **14097** | 271 / 33131 | 260 / 41066 | 252 / 49419 |
+| Hungarian+PBS-MLSIPP | 2512 / 11441 | **1022** / **11555** | **527** / **11863** | 293 / 15083 | 266 / 33864 | 258 / 42047 | 258 / 49831 |
+| Hungarian+wPBS-MLSIPP | 2512 / 11779 | 1029 / 11883 | 528 / 12001 | **289** / 14235 | 260 / **32321** | 265 / 41275 | 246 / **49125** |
+| LNS(1s)+PBS-MLSIPP | 2512 / 11441 | **1022** / **11555** | **527** / **11863** | 295 / 14953 | 267 / 33647 | 261 / 42197 | 259 / 50148 |
+| LNS(1s)+wPBS-MLSIPP | 2512 / 11743 | 1027 / 11850 | 531 / 12065 | 293 / 14232 | 271 / 32427 | 259 / **40920** | 251 / 49254 |
 
 ### Best method per setting
 
@@ -378,35 +378,35 @@ Seed 0, reference tie-breaking, 1000 s per run; each cell is makespan / SWT. Bol
 | 10 | 1 | HBH+MLA* (1142) | Hungarian+wPBS-MLSIPP (121338) |
 | 10 | 2 | CENTRAL-CBS, CENTRAL-fixed-CBS (1129) | LNS(1s)+PBS-MLA* (164885) |
 | 10 | 5 | CENTRAL-CBS (1117) | LNS(1s)+wPBS-MLA* (192075) |
-| 10 | 10 | CENTRAL-fixed-CBS (1106) | LNS(1s)+wPBS-MLSIPP (200936) |
-| 10 | 500 | TA-Hybrid-STA* (1050) | LNS(1s)+wPBS-MLA* (210301) |
+| 10 | 10 | CENTRAL-fixed-CBS (1106) | LNS(1s)+PBS-MLA* (202873) |
+| 10 | 500 | TA-Hybrid-STA* (1050) | LNS(1s)+wPBS-MLA* (210551) |
 | 20 | 0.2 | Hungarian+wPBS-MLA* (2511) | LNS(1s)+wPBS-MLA* (12368) |
 | 20 | 0.5 | Hungarian+PBS-MLSIPP, LNS(1s)+PBS-MLSIPP (1022) | LNS(1s)+wPBS-MLSIPP (13125) |
 | 20 | 1 | Hungarian+wPBS-MLSIPP (638) | LNS(1s)+wPBS-MLA* (29644) |
-| 20 | 2 | LNS(1s)+PBS-MLSIPP (597) | LNS(1s)+wPBS-MLA* (64779) |
-| 20 | 5 | LNS(1s)+wPBS-MLSIPP (586) | LNS(1s)+wPBS-MLA* (90809) |
+| 20 | 2 | LNS(1s)+PBS-MLSIPP (604) | LNS(1s)+wPBS-MLA* (64615) |
+| 20 | 5 | LNS(1s)+wPBS-MLSIPP (584) | Hungarian+wPBS-MLA* (91152) |
 | 20 | 10 | LNS(1s)+PBS-MLA* (581) | LNS(1s)+PBS-MLA* (100405) |
 | 20 | 500 | TA-Prioritized-STA*, TA-Hybrid-STA* (539) | LNS(1s)+wPBS-MLA* (108277) |
 | 30 | 0.2 | LNS(1s)+wPBS-MLA*, Hungarian+wPBS-MLA*, Hungarian+wPBS-MLSIPP, LNS(1s)+wPBS-MLSIPP (2512) | CENTRAL-fixed-CBS (11782) |
 | 30 | 0.5 | Hungarian+PBS-MLA* (1026) | Hungarian+PBS-MLA* (12029) |
-| 30 | 1 | LNS(1s)+wPBS-MLA* (529) | Hungarian+wPBS-MLSIPP (13402) |
-| 30 | 2 | Hungarian+wPBS-MLA* (419) | Hungarian+wPBS-MLA* (34453) |
-| 30 | 5 | LNS(1s)+wPBS-MLSIPP (396) | LNS(1s)+wPBS-MLSIPP (57363) |
-| 30 | 10 | LNS(1s)+wPBS-MLA* (396) | LNS(1s)+wPBS-MLA* (66780) |
+| 30 | 1 | Hungarian+PBS-MLA* (530) | LNS(1s)+wPBS-MLA* (13444) |
+| 30 | 2 | Hungarian+wPBS-MLSIPP (421) | Hungarian+wPBS-MLSIPP (34498) |
+| 30 | 5 | LNS(1s)+wPBS-MLSIPP (404) | Hungarian+wPBS-MLSIPP (57502) |
+| 30 | 10 | LNS(1s)+wPBS-MLA* (395) | Hungarian+wPBS-MLA* (66945) |
 | 30 | 500 | TA-Hybrid-STA* (365) | LNS(1s)+wPBS-MLA*, LNS(1s)+wPBS-MLSIPP (75594) |
 | 40 | 0.2 | Hungarian+PBS-MLSIPP, LNS(1s)+PBS-MLSIPP (2511) | Hungarian+PBS-MLA* (11507) |
 | 40 | 0.5 | Hungarian+PBS-MLSIPP, LNS(1s)+PBS-MLSIPP (1022) | Hungarian+PBS-MLSIPP, LNS(1s)+PBS-MLSIPP (11770) |
 | 40 | 1 | LNS(1s)+PBS-MLA*, Hungarian+PBS-MLA* (526) | LNS(1s)+PBS-MLSIPP (12328) |
-| 40 | 2 | Hungarian+wPBS-MLA* (334) | LNS(1s)+wPBS-MLA* (20830) |
-| 40 | 5 | Hungarian+wPBS-MLSIPP (313) | LNS(1s)+wPBS-MLSIPP (41728) |
-| 40 | 10 | LNS(1s)+wPBS-MLA* (308) | LNS(1s)+wPBS-MLA* (50261) |
+| 40 | 2 | LNS(1s)+wPBS-MLSIPP (329) | LNS(1s)+wPBS-MLSIPP (20872) |
+| 40 | 5 | Hungarian+wPBS-MLA* (313) | Hungarian+wPBS-MLA* (42087) |
+| 40 | 10 | Hungarian+wPBS-MLSIPP (304) | LNS(1s)+wPBS-MLSIPP (50330) |
 | 40 | 500 | TA-Hybrid-STA* (280) | LNS(1s)+wPBS-MLA* (59000) |
 | 50 | 0.2 | LNS(1s)+wPBS-MLA* (2511) | CENTRAL-fixed-CBS (11366) |
 | 50 | 0.5 | Hungarian+PBS-MLSIPP, LNS(1s)+PBS-MLSIPP (1022) | Hungarian+PBS-MLSIPP, LNS(1s)+PBS-MLSIPP (11555) |
 | 50 | 1 | LNS(1s)+PBS-MLA*, Hungarian+PBS-MLSIPP, LNS(1s)+PBS-MLSIPP (527) | Hungarian+PBS-MLSIPP, LNS(1s)+PBS-MLSIPP (11863) |
-| 50 | 2 | LNS(1s)+wPBS-MLA* (290) | LNS(1s)+wPBS-MLSIPP (13940) |
-| 50 | 5 | Hungarian+wPBS-MLA* (258) | LNS(1s)+wPBS-MLSIPP (32716) |
-| 50 | 10 | LNS(1s)+wPBS-MLA*, Hungarian+PBS-MLA*, Hungarian+PBS-MLSIPP (258) | LNS(1s)+wPBS-MLA* (41012) |
+| 50 | 2 | Hungarian+wPBS-MLSIPP (289) | Hungarian+wPBS-MLA* (14097) |
+| 50 | 5 | LNS(1s)+wPBS-MLA* (256) | Hungarian+wPBS-MLSIPP (32321) |
+| 50 | 10 | LNS(1s)+wPBS-MLA* (250) | LNS(1s)+wPBS-MLSIPP (40920) |
 | 50 | 500 | TA-Hybrid-STA* (230) | Hungarian+wPBS-MLSIPP (49125) |
 
 Times best (ties count for each):
@@ -418,14 +418,623 @@ Times best (ties count for each):
 | CENTRAL-fixed-CBS | 2 | 2 |
 | TA-Prioritized-STA* | 1 | 0 |
 | TA-Hybrid-STA* | 5 | 0 |
-| LNS(1s)+PBS-MLA* | 3 | 4 |
-| LNS(1s)+wPBS-MLA* | 8 | 13 |
+| LNS(1s)+PBS-MLA* | 3 | 5 |
+| LNS(1s)+wPBS-MLA* | 6 | 9 |
 | Hungarian+PBS-MLA* | 3 | 2 |
-| Hungarian+wPBS-MLA* | 5 | 1 |
-| Hungarian+PBS-MLSIPP | 6 | 3 |
-| Hungarian+wPBS-MLSIPP | 3 | 3 |
+| Hungarian+wPBS-MLA* | 3 | 4 |
+| Hungarian+PBS-MLSIPP | 5 | 3 |
+| Hungarian+wPBS-MLSIPP | 5 | 5 |
 | LNS(1s)+PBS-MLSIPP | 7 | 4 |
-| LNS(1s)+wPBS-MLSIPP | 3 | 7 |
+| LNS(1s)+wPBS-MLSIPP | 4 | 5 |
+
+## Generated-benchmark results (Table 1 and the seven variants)
+
+The same sixteen methods on every map family of `benchmark_instances/`, with
+the commands of the next sections (seed 0, reference tie-breaking, 1000 s per
+run; TA-Prioritized and TA-Hybrid run once per agent count on the offline
+`all` task set, so in the multi-goal and MEDIUM tables the `all` column holds
+only them). Builds of 2026-10-05 (`6022b51`; the CENTRAL rows `8ae6c7a`,
+whose differences only concern Hungarian/LNS and TA-Hybrid). All numbers,
+with the reason of every run without a result, are in
+`output/benchmark_results_2026-10-05.csv` and `.xlsx` (one sheet per family,
+makespan and SWT pivots and the best method per setting).
+
+On the LARGE map (1,000 agents, 1,000 to 5,000 tasks) no method finishes
+within 1000 s: the searches run out of time, and the PBS family also needs
+about 20 GB (these runs were capped at 14 GB; with 60 GB
+Hungarian+PBS-MLSIPP still timed out after 995 s).
+
+### Results by map family
+
+#### Structured SMALL (35 x 21, 500 tasks)
+
+500 runs, all completed every task.
+
+**10 agents** (makespan / SWT; — not run; × no result in 1000 s)
+
+| Method | f 0.2 | f 0.5 | f 1 | f 2 | f 5 | f 10 | f all |
+|---|---|---|---|---|---|---|---|
+| TP-STA* | 2546 / 20031 | 1251 / 71392 | 1190 / 164966 | 1166 / 216018 | 1146 / 249304 | 1141 / 260916 | 1135 / 266757 |
+| TPTS-STA* | 2543 / 14970 | 1258 / 70075 | 1160 / 167868 | 1140 / 217923 | 1152 / 249201 | 1137 / 264442 | 1125 / 266881 |
+| HBH+MLA* | 2546 / 15139 | 1225 / 56628 | 1139 / 150600 | 1112 / 206905 | 1117 / 238187 | 1101 / 253783 | **1076** / 259053 |
+| CENTRAL-CBS | **2535** / 15263 | **1223** / 61155 | **1131** / 153544 | **1097** / 208279 | **1106** / 242168 | 1100 / 254705 | 1103 / 265176 |
+| CENTRAL-fixed-CBS | **2535** / 14960 | 1224 / 59312 | 1133 / 153352 | 1118 / 212078 | 1117 / 244892 | **1095** / 253065 | 1104 / 265522 |
+| TA-Prioritized-STA* | — | — | — | — | — | — | 2042 / 495443 |
+| TA-Hybrid-STA* | — | — | — | — | — | — | 1618 / 407234 |
+| LNS(1s)+PBS-MLA* | 2540 / 14368 | 1265 / 54603 | 1179 / 129687 | 1153 / 173049 | 1121 / **195096** | 1126 / 206591 | 1140 / 214717 |
+| LNS(1s)+wPBS-MLA* | 2543 / 14328 | 1282 / 54912 | 1175 / **127518** | 1153 / **169735** | 1140 / 198370 | 1128 / **204290** | 1118 / **212542** |
+| TPTS-MLSIPP | **2535** / 14934 | 1265 / 68879 | 1172 / 164167 | 1132 / 212712 | 1159 / 251207 | 1130 / 261211 | 1121 / 268511 |
+| Hungarian+PBS-MLA* | 2542 / 14410 | 1281 / 56532 | 1175 / 130231 | 1149 / 170501 | 1143 / 196714 | 1142 / 208281 | 1129 / 214289 |
+| Hungarian+wPBS-MLA* | 2543 / 14371 | 1279 / 56629 | 1175 / 128379 | 1152 / 171527 | 1124 / 195887 | 1128 / 206346 | 1116 / 213819 |
+| Hungarian+PBS-MLSIPP | 2541 / 14451 | 1261 / 55752 | 1183 / 129684 | 1154 / 170405 | 1143 / 196701 | 1128 / 207861 | 1133 / 214361 |
+| Hungarian+wPBS-MLSIPP | 2542 / **14289** | 1287 / 56379 | 1185 / 128241 | 1148 / 171872 | 1144 / 195888 | 1128 / 206346 | 1116 / 213819 |
+| LNS(1s)+PBS-MLSIPP | 2540 / 14404 | 1272 / 55751 | 1181 / 132136 | 1158 / 172921 | 1132 / 196566 | 1124 / 205636 | 1109 / 213767 |
+| LNS(1s)+wPBS-MLSIPP | 2542 / 14416 | 1284 / **54534** | 1191 / 129589 | 1159 / 169748 | 1140 / 197532 | 1120 / 204295 | 1123 / 213202 |
+
+**20 agents** (makespan / SWT; — not run; × no result in 1000 s)
+
+| Method | f 0.2 | f 0.5 | f 1 | f 2 | f 5 | f 10 | f all |
+|---|---|---|---|---|---|---|---|
+| TP-STA* | 2554 / 20517 | 1052 / 22209 | 716 / 60626 | 685 / 106036 | 668 / 138967 | 681 / 148308 | 650 / 149167 |
+| TPTS-STA* | 2538 / 13509 | 1060 / 16522 | 707 / 54940 | 692 / 104245 | 662 / 137640 | 653 / 144002 | 623 / 149370 |
+| HBH+MLA* | 2535 / 13224 | 1047 / 15704 | 657 / 41490 | 644 / 88538 | 617 / 122735 | 610 / 133365 | 658 / 143856 |
+| CENTRAL-CBS | 2533 / 13907 | 1041 / 14579 | 672 / 41013 | 636 / 89814 | 632 / 122005 | 641 / 134601 | 613 / 141969 |
+| CENTRAL-fixed-CBS | 2535 / **12969** | 1046 / 15007 | 654 / 41828 | 645 / 91556 | 633 / 122808 | 623 / 134476 | 622 / 143018 |
+| TA-Prioritized-STA* | — | — | — | — | — | — | 1127 / 259370 |
+| TA-Hybrid-STA* | — | — | — | — | — | — | 772 / 195449 |
+| LNS(1s)+PBS-MLA* | 2528 / 13550 | 1042 / 14124 | 674 / 34830 | 630 / 72669 | 612 / 97270 | **602** / 105976 | 602 / 113991 |
+| LNS(1s)+wPBS-MLA* | 2538 / 13900 | 1050 / 14197 | 664 / 34005 | 635 / 71982 | 615 / 97223 | 614 / 106078 | 610 / 113668 |
+| TPTS-MLSIPP | 2538 / 13259 | 1058 / 16220 | 734 / 55366 | 671 / 99116 | 663 / 135315 | 662 / 143638 | 669 / 151500 |
+| Hungarian+PBS-MLA* | **2527** / 13674 | 1050 / **14050** | 657 / 34995 | 640 / 72337 | **606** / 97607 | 603 / 106820 | 612 / 115340 |
+| Hungarian+wPBS-MLA* | 2530 / 13903 | 1046 / 14099 | 679 / 34809 | 641 / **71235** | 609 / 96837 | 609 / **105750** | 607 / 113902 |
+| Hungarian+PBS-MLSIPP | 2531 / 13642 | **1040** / 14058 | 670 / 34466 | 641 / 72369 | 619 / 97532 | 618 / 106911 | 611 / 115143 |
+| Hungarian+wPBS-MLSIPP | 2530 / 13883 | 1041 / 14060 | **648** / 34200 | **627** / 71294 | 610 / **96363** | 604 / 105788 | 604 / 113817 |
+| LNS(1s)+PBS-MLSIPP | 2529 / 13690 | 1043 / 14112 | 662 / 34379 | 643 / 73046 | 620 / 97417 | 605 / 106673 | 615 / 114879 |
+| LNS(1s)+wPBS-MLSIPP | 2528 / 13920 | 1044 / 14289 | 664 / **33819** | 630 / 72054 | **606** / 97273 | 616 / 106144 | **593** / **113333** |
+
+**30 agents** (makespan / SWT; — not run; × no result in 1000 s)
+
+| Method | f 0.2 | f 0.5 | f 1 | f 2 | f 5 | f 10 | f all |
+|---|---|---|---|---|---|---|---|
+| TP-STA* | 2565 / 19906 | 1093 / 21571 | 577 / 25164 | 513 / 61545 | 498 / 92077 | 465 / 100556 | 490 / 103944 |
+| TPTS-STA* | 2532 / 12504 | 1048 / 13780 | 574 / 23587 | 497 / 56827 | 509 / 87565 | 502 / 99691 | 450 / 105387 |
+| HBH+MLA* | 2532 / 12598 | 1035 / 13276 | 595 / 18461 | 470 / 45918 | 454 / 76049 | 425 / 87369 | 398 / 93523 |
+| CENTRAL-CBS | 2535 / 13386 | 1038 / 13816 | 551 / 15565 | 471 / 45940 | 414 / 75717 | 401 / 87651 | 400 / 94572 |
+| CENTRAL-fixed-CBS | 2532 / **12197** | 1035 / 13036 | 544 / 17695 | 438 / 47085 | 418 / 77505 | 426 / 89186 | 440 / 94876 |
+| TA-Prioritized-STA* | — | — | — | — | — | — | 755 / 175268 |
+| TA-Hybrid-STA* | — | — | — | — | — | — | 500 / 124571 |
+| LNS(1s)+PBS-MLA* | 2532 / 12764 | 1035 / 13068 | **541** / **14053** | 426 / 35865 | 410 / 60242 | 403 / 69874 | 399 / 77972 |
+| LNS(1s)+wPBS-MLA* | 2533 / 13078 | **1034** / 13276 | **541** / 14201 | 422 / 35102 | 413 / 59714 | 406 / 68791 | **391** / 76332 |
+| TPTS-MLSIPP | 2532 / 12445 | 1041 / 13708 | 571 / 20179 | 477 / 57575 | 456 / 85557 | 481 / 98035 | 448 / 105279 |
+| Hungarian+PBS-MLA* | **2531** / 12751 | 1035 / 13086 | 545 / 14202 | 419 / 36242 | 407 / 60016 | 406 / 69559 | 393 / 77294 |
+| Hungarian+wPBS-MLA* | 2534 / 13091 | 1036 / 13121 | 544 / 14365 | 425 / 35501 | 403 / **59077** | 415 / 68602 | 400 / 76311 |
+| Hungarian+PBS-MLSIPP | **2531** / 12999 | 1035 / **12970** | 543 / 14177 | 428 / 36113 | **399** / 60763 | 405 / 70012 | 399 / 77501 |
+| Hungarian+wPBS-MLSIPP | 2533 / 12973 | 1036 / 13168 | **541** / 14212 | 422 / 35870 | 408 / 59314 | 414 / 68756 | 403 / **76106** |
+| LNS(1s)+PBS-MLSIPP | **2531** / 12999 | 1035 / 13012 | 545 / 14392 | 428 / 36425 | 406 / 60431 | 405 / 69423 | 403 / 77184 |
+| LNS(1s)+wPBS-MLSIPP | 2533 / 12973 | 1036 / 13107 | **541** / 14252 | **416** / **35087** | 405 / 59529 | **395** / **68474** | 399 / 76529 |
+
+**40 agents** (makespan / SWT; — not run; × no result in 1000 s)
+
+| Method | f 0.2 | f 0.5 | f 1 | f 2 | f 5 | f 10 | f all |
+|---|---|---|---|---|---|---|---|
+| TP-STA* | 2541 / 20215 | 1055 / 22512 | 602 / 24974 | 428 / 43315 | 367 / 67693 | 400 / 78672 | 398 / 85370 |
+| TPTS-STA* | 2517 / 12088 | **1026** / 13715 | 549 / 17714 | 410 / 42294 | 368 / 66095 | 379 / 77874 | 350 / 82314 |
+| HBH+MLA* | **2514** / 12358 | **1026** / 13124 | 548 / 14918 | 403 / 28182 | 384 / 54412 | 362 / 65318 | 341 / 71850 |
+| CENTRAL-CBS | **2514** / 12969 | 1027 / 12858 | 531 / 13958 | 351 / 27203 | 336 / 55211 | 330 / 65027 | 322 / 75143 |
+| CENTRAL-fixed-CBS | 2517 / **11928** | 1028 / 12632 | 532 / 14017 | 363 / 28271 | 331 / 55629 | 337 / 66168 | 324 / 75241 |
+| TA-Prioritized-STA* | — | — | — | — | — | — | 633 / 134614 |
+| TA-Hybrid-STA* | — | — | — | — | — | — | 375 / 93452 |
+| LNS(1s)+PBS-MLA* | 2516 / 12299 | 1030 / 12471 | 531 / 12863 | 333 / 21741 | 312 / 42062 | 314 / 50700 | 305 / 59494 |
+| LNS(1s)+wPBS-MLA* | 2521 / 12761 | 1035 / 12908 | 533 / 13280 | 334 / 20695 | 312 / 41563 | **300** / 49651 | 300 / 57976 |
+| TPTS-MLSIPP | **2514** / 11934 | **1026** / 13366 | 552 / 16561 | 397 / 34804 | 372 / 63181 | 381 / 74872 | 396 / 82628 |
+| Hungarian+PBS-MLA* | 2517 / 12249 | 1029 / **12453** | **530** / 12827 | 336 / 21341 | 312 / 42123 | 314 / 50662 | 309 / 58612 |
+| Hungarian+wPBS-MLA* | 2518 / 12683 | 1032 / 12628 | 535 / 13234 | 338 / 21039 | 315 / 41262 | **300** / 49624 | 305 / **57623** |
+| Hungarian+PBS-MLSIPP | 2517 / 12249 | 1029 / 12683 | **530** / **12775** | 333 / 21451 | 312 / 42256 | 309 / 50878 | 304 / 59129 |
+| Hungarian+wPBS-MLSIPP | 2517 / 12872 | 1032 / 12913 | 532 / 13183 | **328** / 21099 | 313 / 41146 | **300** / 49896 | 304 / 57642 |
+| LNS(1s)+PBS-MLSIPP | 2516 / 12193 | 1029 / 12539 | **530** / 12997 | 330 / 20891 | 315 / 41945 | 309 / 50477 | 303 / 59354 |
+| LNS(1s)+wPBS-MLSIPP | 2516 / 12764 | 1037 / 12835 | 532 / 13384 | 339 / **20552** | **303** / **40823** | 303 / **49011** | **298** / 58211 |
+
+**50 agents** (makespan / SWT; — not run; × no result in 1000 s)
+
+| Method | f 0.2 | f 0.5 | f 1 | f 2 | f 5 | f 10 | f all |
+|---|---|---|---|---|---|---|---|
+| TP-STA* | 2536 / 20370 | 1044 / 22535 | 565 / 25888 | 483 / 42865 | 440 / 65534 | 455 / 68417 | 356 / 68709 |
+| TPTS-STA* | 2509 / 11908 | 1034 / 13568 | 576 / 15771 | 364 / 30722 | 360 / 61652 | 372 / 61751 | 334 / 68083 |
+| HBH+MLA* | 2520 / 12169 | 1034 / 12945 | 541 / 14429 | 348 / 21434 | 402 / 45143 | 400 / 55224 | 375 / 63669 |
+| CENTRAL-CBS | **2507** / 12744 | **1022** / 12498 | **529** / 13546 | 307 / 20286 | 323 / 46581 | 313 / 55287 | 325 / 64060 |
+| CENTRAL-fixed-CBS | **2507** / **11644** | 1025 / 12351 | 530 / 13560 | 336 / 21414 | 328 / 46737 | 318 / 55378 | 313 / 63471 |
+| TA-Prioritized-STA* | — | — | — | — | — | — | 484 / 113130 |
+| TA-Hybrid-STA* | — | — | — | — | — | — | 300 / 76599 |
+| LNS(1s)+PBS-MLA* | 2513 / 12082 | 1027 / 12178 | 530 / **12536** | 298 / 16042 | 272 / 35804 | 269 / 44448 | 274 / 51543 |
+| LNS(1s)+wPBS-MLA* | 2514 / 12635 | 1029 / 12803 | 537 / 13039 | 297 / 15122 | 266 / 34381 | 264 / 43222 | **254** / 50155 |
+| TPTS-MLSIPP | 2508 / 11932 | **1022** / 13605 | 569 / 16438 | 391 / 28742 | 376 / 61125 | 366 / 63802 | 343 / 69904 |
+| Hungarian+PBS-MLA* | 2517 / 12073 | 1028 / **12176** | 531 / 12596 | 292 / 15843 | 266 / 35542 | 262 / 43830 | 260 / 51622 |
+| Hungarian+wPBS-MLA* | 2514 / 12681 | 1030 / 12656 | 537 / 13117 | **290** / 15040 | 264 / 34795 | 262 / 42892 | 255 / 50608 |
+| Hungarian+PBS-MLSIPP | 2513 / 12103 | 1028 / 12207 | 530 / 12610 | 292 / 15822 | 269 / 34982 | 264 / 44192 | 260 / 51592 |
+| Hungarian+wPBS-MLSIPP | 2513 / 12577 | 1029 / 12796 | 541 / 13271 | 297 / 15211 | 267 / **34304** | 276 / 43036 | 261 / 50853 |
+| LNS(1s)+PBS-MLSIPP | 2514 / 12175 | 1027 / 12195 | 532 / 12591 | 293 / 15640 | **263** / 35134 | **259** / 43610 | 255 / 50838 |
+| LNS(1s)+wPBS-MLSIPP | 2514 / 12591 | 1030 / 12940 | 537 / 13370 | 297 / **14962** | 271 / 34379 | 267 / **42727** | 260 / **50077** |
+
+Best method per setting:
+
+| Agents | Frequency | Best makespan | Best SWT |
+|---:|---:|---|---|
+| 10 | 0.2 | CENTRAL-CBS, CENTRAL-fixed-CBS, TPTS-MLSIPP (2535) | Hungarian+wPBS-MLSIPP (14289) |
+| 10 | 0.5 | CENTRAL-CBS (1223) | LNS(1s)+wPBS-MLSIPP (54534) |
+| 10 | 1 | CENTRAL-CBS (1131) | LNS(1s)+wPBS-MLA* (127518) |
+| 10 | 2 | CENTRAL-CBS (1097) | LNS(1s)+wPBS-MLA* (169735) |
+| 10 | 5 | CENTRAL-CBS (1106) | LNS(1s)+PBS-MLA* (195096) |
+| 10 | 10 | CENTRAL-fixed-CBS (1095) | LNS(1s)+wPBS-MLA* (204290) |
+| 10 | all | HBH+MLA* (1076) | LNS(1s)+wPBS-MLA* (212542) |
+| 20 | 0.2 | Hungarian+PBS-MLA* (2527) | CENTRAL-fixed-CBS (12969) |
+| 20 | 0.5 | Hungarian+PBS-MLSIPP (1040) | Hungarian+PBS-MLA* (14050) |
+| 20 | 1 | Hungarian+wPBS-MLSIPP (648) | LNS(1s)+wPBS-MLSIPP (33819) |
+| 20 | 2 | Hungarian+wPBS-MLSIPP (627) | Hungarian+wPBS-MLA* (71235) |
+| 20 | 5 | Hungarian+PBS-MLA*, LNS(1s)+wPBS-MLSIPP (606) | Hungarian+wPBS-MLSIPP (96363) |
+| 20 | 10 | LNS(1s)+PBS-MLA* (602) | Hungarian+wPBS-MLA* (105750) |
+| 20 | all | LNS(1s)+wPBS-MLSIPP (593) | LNS(1s)+wPBS-MLSIPP (113333) |
+| 30 | 0.2 | Hungarian+PBS-MLA*, Hungarian+PBS-MLSIPP, LNS(1s)+PBS-MLSIPP (2531) | CENTRAL-fixed-CBS (12197) |
+| 30 | 0.5 | LNS(1s)+wPBS-MLA* (1034) | Hungarian+PBS-MLSIPP (12970) |
+| 30 | 1 | LNS(1s)+PBS-MLA*, LNS(1s)+wPBS-MLA*, Hungarian+wPBS-MLSIPP, LNS(1s)+wPBS-MLSIPP (541) | LNS(1s)+PBS-MLA* (14053) |
+| 30 | 2 | LNS(1s)+wPBS-MLSIPP (416) | LNS(1s)+wPBS-MLSIPP (35087) |
+| 30 | 5 | Hungarian+PBS-MLSIPP (399) | Hungarian+wPBS-MLA* (59077) |
+| 30 | 10 | LNS(1s)+wPBS-MLSIPP (395) | LNS(1s)+wPBS-MLSIPP (68474) |
+| 30 | all | LNS(1s)+wPBS-MLA* (391) | Hungarian+wPBS-MLSIPP (76106) |
+| 40 | 0.2 | HBH+MLA*, CENTRAL-CBS, TPTS-MLSIPP (2514) | CENTRAL-fixed-CBS (11928) |
+| 40 | 0.5 | TPTS-STA*, HBH+MLA*, TPTS-MLSIPP (1026) | Hungarian+PBS-MLA* (12453) |
+| 40 | 1 | Hungarian+PBS-MLA*, Hungarian+PBS-MLSIPP, LNS(1s)+PBS-MLSIPP (530) | Hungarian+PBS-MLSIPP (12775) |
+| 40 | 2 | Hungarian+wPBS-MLSIPP (328) | LNS(1s)+wPBS-MLSIPP (20552) |
+| 40 | 5 | LNS(1s)+wPBS-MLSIPP (303) | LNS(1s)+wPBS-MLSIPP (40823) |
+| 40 | 10 | LNS(1s)+wPBS-MLA*, Hungarian+wPBS-MLA*, Hungarian+wPBS-MLSIPP (300) | LNS(1s)+wPBS-MLSIPP (49011) |
+| 40 | all | LNS(1s)+wPBS-MLSIPP (298) | Hungarian+wPBS-MLA* (57623) |
+| 50 | 0.2 | CENTRAL-CBS, CENTRAL-fixed-CBS (2507) | CENTRAL-fixed-CBS (11644) |
+| 50 | 0.5 | CENTRAL-CBS, TPTS-MLSIPP (1022) | Hungarian+PBS-MLA* (12176) |
+| 50 | 1 | CENTRAL-CBS (529) | LNS(1s)+PBS-MLA* (12536) |
+| 50 | 2 | Hungarian+wPBS-MLA* (290) | LNS(1s)+wPBS-MLSIPP (14962) |
+| 50 | 5 | LNS(1s)+PBS-MLSIPP (263) | Hungarian+wPBS-MLSIPP (34304) |
+| 50 | 10 | LNS(1s)+PBS-MLSIPP (259) | LNS(1s)+wPBS-MLSIPP (42727) |
+| 50 | all | LNS(1s)+wPBS-MLA* (254) | LNS(1s)+wPBS-MLSIPP (50077) |
+
+#### Structured SMALL multi-goal (500 tasks)
+
+220 runs: 219 completed every task; 1 error(1).
+
+**10 agents** (makespan / SWT; — not run; × no result in 1000 s)
+
+| Method | f 2 | f 5 | f 10 | f all |
+|---|---|---|---|---|
+| TP-STA* | 2845 / 598808 | 2920 / 632753 | 2798 / 653643 | — |
+| TPTS-STA* | 2892 / 595786 | 2836 / 648579 | 2846 / 663410 | — |
+| HBH+MLA* | 2261 / 466538 | **2204** / 505411 | 2237 / 518170 | — |
+| CENTRAL-CBS | **2251** / 469909 | 2296 / 500387 | 2314 / 519542 | — |
+| CENTRAL-fixed-CBS | 2314 / 490303 | 2352 / 532107 | 2291 / 535781 | — |
+| TA-Prioritized-STA* | — | — | — | 3163 / 738963 |
+| TA-Hybrid-STA* | — | — | — | **2689** / **663504** |
+| LNS(1s)+PBS-MLA* | 2292 / 294583 | 2248 / **311956** | 2235 / 319508 | — |
+| LNS(1s)+wPBS-MLA* | 2269 / **290573** | 2270 / 312890 | 2233 / **317759** | — |
+| TPTS-MLSIPP | 2895 / 615025 | 2868 / 659070 | 2835 / 659075 | — |
+| Hungarian+PBS-MLA* | 2294 / 298310 | 2269 / 318293 | 2241 / 320053 | — |
+| Hungarian+wPBS-MLA* | 2291 / 294401 | 2239 / 314821 | 2269 / 321483 | — |
+| Hungarian+PBS-MLSIPP | 2304 / 295785 | 2238 / 317932 | **2220** / 319670 | — |
+| Hungarian+wPBS-MLSIPP | 2257 / 293221 | 2239 / 314496 | 2240 / 320420 | — |
+| LNS(1s)+PBS-MLSIPP | 2306 / 297887 | 2276 / 313856 | 2268 / 321035 | — |
+| LNS(1s)+wPBS-MLSIPP | 2262 / 290938 | 2268 / 313176 | 2223 / 318784 | — |
+
+**20 agents** (makespan / SWT; — not run; × no result in 1000 s)
+
+| Method | f 2 | f 5 | f 10 | f all |
+|---|---|---|---|---|
+| TP-STA* | 1988 / 380448 | 1833 / 373970 | 1870 / 411608 | — |
+| TPTS-STA* | 1951 / 369343 | 2056 / 446907 | 2108 / 447984 | — |
+| HBH+MLA* | 1199 / 218565 | 1218 / 240129 | 1182 / 250459 | — |
+| CENTRAL-CBS | 1298 / 222186 | 1242 / 249111 | 1297 / 264455 | — |
+| CENTRAL-fixed-CBS | 1270 / 218700 | 1269 / 257328 | 1243 / 253549 | — |
+| TA-Prioritized-STA* | — | — | — | 1711 / 360676 |
+| TA-Hybrid-STA* | — | — | — | **1276** / **300456** |
+| LNS(1s)+PBS-MLA* | 1125 / 125886 | 1135 / 148847 | 1118 / 154516 | — |
+| LNS(1s)+wPBS-MLA* | 1119 / 124937 | 1131 / 148712 | **1089** / **153178** | — |
+| TPTS-MLSIPP | 1819 / 356921 | 1812 / 376632 | 1857 / 383936 | — |
+| Hungarian+PBS-MLA* | 1165 / 127177 | 1138 / 148454 | 1116 / 156526 | — |
+| Hungarian+wPBS-MLA* | 1123 / **123478** | 1108 / **146731** | 1109 / 155717 | — |
+| Hungarian+PBS-MLSIPP | 1130 / 127175 | 1122 / 147836 | 1124 / 156835 | — |
+| Hungarian+wPBS-MLSIPP | 1129 / 123915 | 1116 / 147307 | 1092 / 155329 | — |
+| LNS(1s)+PBS-MLSIPP | 1129 / 126171 | 1129 / 149184 | 1115 / 155375 | — |
+| LNS(1s)+wPBS-MLSIPP | **1117** / 124814 | **1098** / 147663 | 1108 / 153193 | — |
+
+**30 agents** (makespan / SWT; — not run; × no result in 1000 s)
+
+| Method | f 2 | f 5 | f 10 | f all |
+|---|---|---|---|---|
+| TP-STA* | 1697 / 299847 | 1801 / 317683 | 1789 / 357657 | — |
+| TPTS-STA* | 1740 / 330294 | 1836 / 338455 | 1680 / 362541 | — |
+| HBH+MLA* | 1007 / 131480 | 854 / 168591 | 864 / 181264 | — |
+| CENTRAL-CBS | 991 / 138382 | 1012 / 168880 | 938 / 185204 | — |
+| CENTRAL-fixed-CBS | 948 / 146407 | 963 / 175150 | 965 / 182867 | — |
+| TA-Prioritized-STA* | — | — | — | 1335 / 254934 |
+| TA-Hybrid-STA* | — | — | — | **845** / **202746** |
+| LNS(1s)+PBS-MLA* | 782 / 77564 | 755 / 98791 | 767 / 105569 | — |
+| LNS(1s)+wPBS-MLA* | 772 / 77661 | 776 / 98189 | **735** / **103395** | — |
+| TPTS-MLSIPP | 1783 / 308426 | 1659 / 327847 | 1534 / 305808 | — |
+| Hungarian+PBS-MLA* | 783 / 78926 | 766 / 99404 | 770 / 105540 | — |
+| Hungarian+wPBS-MLA* | 778 / 76796 | 759 / 98039 | 760 / 104850 | — |
+| Hungarian+PBS-MLSIPP | **750** / 78939 | 762 / 100092 | 747 / 105323 | — |
+| Hungarian+wPBS-MLSIPP | 781 / 77825 | **750** / 98440 | 767 / 105008 | — |
+| LNS(1s)+PBS-MLSIPP | 761 / 78908 | 760 / 98509 | 784 / 105485 | — |
+| LNS(1s)+wPBS-MLSIPP | 758 / **76096** | 761 / **97332** | 743 / 105130 | — |
+
+**40 agents** (makespan / SWT; — not run; × no result in 1000 s)
+
+| Method | f 2 | f 5 | f 10 | f all |
+|---|---|---|---|---|
+| TP-STA* | 1950 / 330013 | 1843 / 372209 | 1424 / 333450 | — |
+| TPTS-STA* | 1713 / 306327 | 1531 / 320248 | × | — |
+| HBH+MLA* | 742 / 96670 | 704 / 129735 | 674 / 138837 | — |
+| CENTRAL-CBS | 784 / 109984 | 763 / 134607 | 820 / 146440 | — |
+| CENTRAL-fixed-CBS | 819 / 105632 | 792 / 136828 | 814 / 150368 | — |
+| TA-Prioritized-STA* | — | — | — | 1023 / 198064 |
+| TA-Hybrid-STA* | — | — | — | **648** / **157873** |
+| LNS(1s)+PBS-MLA* | 614 / 56131 | 609 / 75459 | 614 / 81873 | — |
+| LNS(1s)+wPBS-MLA* | 622 / **55936** | 615 / 74522 | **580** / **80709** | — |
+| TPTS-MLSIPP | 1537 / 295062 | 1779 / 363038 | 1698 / 370207 | — |
+| Hungarian+PBS-MLA* | 626 / 57939 | 609 / 76346 | 597 / 82784 | — |
+| Hungarian+wPBS-MLA* | 623 / 57114 | 614 / 74818 | 607 / 81388 | — |
+| Hungarian+PBS-MLSIPP | 609 / 57589 | 620 / 75805 | 611 / 83250 | — |
+| Hungarian+wPBS-MLSIPP | **602** / 56334 | **577** / 75572 | 611 / 81028 | — |
+| LNS(1s)+PBS-MLSIPP | 604 / 56447 | 608 / 75835 | 591 / 82406 | — |
+| LNS(1s)+wPBS-MLSIPP | 611 / 56392 | 586 / **74176** | 598 / 80851 | — |
+
+**50 agents** (makespan / SWT; — not run; × no result in 1000 s)
+
+| Method | f 2 | f 5 | f 10 | f all |
+|---|---|---|---|---|
+| TP-STA* | 1750 / 324578 | 1770 / 351043 | 1887 / 375604 | — |
+| TPTS-STA* | 1759 / 309098 | 1540 / 289623 | 1682 / 341547 | — |
+| HBH+MLA* | 636 / 79803 | 643 / 111081 | 661 / 119049 | — |
+| CENTRAL-CBS | 837 / 98282 | 734 / 119160 | 761 / 132160 | — |
+| CENTRAL-fixed-CBS | 787 / 95980 | 846 / 123434 | 774 / 128912 | — |
+| TA-Prioritized-STA* | — | — | — | 797 / 165904 |
+| TA-Hybrid-STA* | — | — | — | **538** / **130309** |
+| LNS(1s)+PBS-MLA* | **505** / 46592 | 502 / 64905 | 505 / 71455 | — |
+| LNS(1s)+wPBS-MLA* | 517 / 45830 | 505 / 63389 | 513 / 69716 | — |
+| TPTS-MLSIPP | 1799 / 306119 | 1810 / 337780 | 1548 / 297032 | — |
+| Hungarian+PBS-MLA* | 517 / 47850 | 516 / 65958 | 521 / 71922 | — |
+| Hungarian+wPBS-MLA* | 510 / 46462 | 499 / 63993 | 495 / 69591 | — |
+| Hungarian+PBS-MLSIPP | 514 / 47637 | 505 / 65783 | 497 / 71010 | — |
+| Hungarian+wPBS-MLSIPP | 528 / 46511 | **494** / 64160 | **492** / 70090 | — |
+| LNS(1s)+PBS-MLSIPP | 526 / 46378 | 515 / 64887 | 500 / 71690 | — |
+| LNS(1s)+wPBS-MLSIPP | 513 / **45767** | 505 / **63234** | 496 / **69499** | — |
+
+Best method per setting:
+
+| Agents | Frequency | Best makespan | Best SWT |
+|---:|---:|---|---|
+| 10 | 2 | CENTRAL-CBS (2251) | LNS(1s)+wPBS-MLA* (290573) |
+| 10 | 5 | HBH+MLA* (2204) | LNS(1s)+PBS-MLA* (311956) |
+| 10 | 10 | Hungarian+PBS-MLSIPP (2220) | LNS(1s)+wPBS-MLA* (317759) |
+| 10 | all | TA-Hybrid-STA* (2689) | TA-Hybrid-STA* (663504) |
+| 20 | 2 | LNS(1s)+wPBS-MLSIPP (1117) | Hungarian+wPBS-MLA* (123478) |
+| 20 | 5 | LNS(1s)+wPBS-MLSIPP (1098) | Hungarian+wPBS-MLA* (146731) |
+| 20 | 10 | LNS(1s)+wPBS-MLA* (1089) | LNS(1s)+wPBS-MLA* (153178) |
+| 20 | all | TA-Hybrid-STA* (1276) | TA-Hybrid-STA* (300456) |
+| 30 | 2 | Hungarian+PBS-MLSIPP (750) | LNS(1s)+wPBS-MLSIPP (76096) |
+| 30 | 5 | Hungarian+wPBS-MLSIPP (750) | LNS(1s)+wPBS-MLSIPP (97332) |
+| 30 | 10 | LNS(1s)+wPBS-MLA* (735) | LNS(1s)+wPBS-MLA* (103395) |
+| 30 | all | TA-Hybrid-STA* (845) | TA-Hybrid-STA* (202746) |
+| 40 | 2 | Hungarian+wPBS-MLSIPP (602) | LNS(1s)+wPBS-MLA* (55936) |
+| 40 | 5 | Hungarian+wPBS-MLSIPP (577) | LNS(1s)+wPBS-MLSIPP (74176) |
+| 40 | 10 | LNS(1s)+wPBS-MLA* (580) | LNS(1s)+wPBS-MLA* (80709) |
+| 40 | all | TA-Hybrid-STA* (648) | TA-Hybrid-STA* (157873) |
+| 50 | 2 | LNS(1s)+PBS-MLA* (505) | LNS(1s)+wPBS-MLSIPP (45767) |
+| 50 | 5 | Hungarian+wPBS-MLSIPP (494) | LNS(1s)+wPBS-MLSIPP (63234) |
+| 50 | 10 | Hungarian+wPBS-MLSIPP (492) | LNS(1s)+wPBS-MLSIPP (69499) |
+| 50 | all | TA-Hybrid-STA* (538) | TA-Hybrid-STA* (130309) |
+
+Runs without a result: TPTS-STA* 1x (System runtime timeout).
+
+#### Sparse SMALL-to-MEDIUM (101 x 81, 500 tasks)
+
+500 runs: 491 completed every task; 7 error(1), 2 timeout.
+
+**10 agents** (makespan / SWT; — not run; × no result in 1000 s)
+
+| Method | f 0.2 | f 0.5 | f 1 | f 2 | f 5 | f 10 | f all |
+|---|---|---|---|---|---|---|---|
+| TP-STA* | 3493 / 274292 | 3387 / 577051 | 3403 / 697346 | 3393 / 750939 | 3385 / 793707 | 3339 / 797985 | 3329 / 782741 |
+| TPTS-STA* | 3506 / 270143 | 3368 / 578037 | **3323** / 677149 | 3360 / 734881 | 3343 / 775489 | 3386 / 799267 | 3366 / 791788 |
+| HBH+MLA* | **3399** / 240805 | **3330** / 556252 | 3332 / 667694 | **3288** / 723684 | **3245** / 759341 | **3259** / 777478 | 3277 / 775067 |
+| CENTRAL-CBS | 3454 / 250279 | 3371 / 576449 | 3432 / 673781 | 3346 / 742358 | 3337 / 771084 | 3286 / 776423 | 3270 / 785029 |
+| CENTRAL-fixed-CBS | 3467 / 246417 | 3377 / 562149 | 3358 / 687830 | 3327 / 734702 | 3408 / 767739 | 3386 / 783141 | **3269** / 779687 |
+| TA-Prioritized-STA* | — | — | — | — | — | — | 6413 / 1470749 |
+| TA-Hybrid-STA* | — | — | — | — | — | — | × |
+| LNS(1s)+PBS-MLA* | 3666 / 222404 | 3497 / 460892 | 3446 / 545674 | 3376 / **590073** | 3388 / **615897** | 3418 / **623546** | 3374 / **631487** |
+| LNS(1s)+wPBS-MLA* | 3629 / 220266 | 3494 / 459714 | 3376 / **540465** | 3405 / 590133 | 3376 / 621204 | 3359 / 623949 | 3374 / 634791 |
+| TPTS-MLSIPP | 3483 / 258893 | 3423 / 590458 | 3329 / 676616 | 3329 / 732119 | 3319 / 773931 | 3337 / 790177 | 3349 / 793750 |
+| Hungarian+PBS-MLA* | 3630 / **216459** | 3458 / 458119 | 3427 / 544893 | 3440 / 593234 | 3373 / 617595 | 3415 / 626951 | 3366 / 633567 |
+| Hungarian+wPBS-MLA* | 3638 / 222135 | 3443 / 458971 | 3421 / 541634 | 3378 / 592971 | 3334 / 616286 | 3391 / 627401 | 3359 / 634007 |
+| Hungarian+PBS-MLSIPP | 3630 / **216459** | 3488 / **456965** | 3427 / 544893 | 3401 / 593392 | 3377 / 619477 | 3415 / 626951 | 3366 / 633567 |
+| Hungarian+wPBS-MLSIPP | 3638 / 222135 | 3443 / 458971 | 3421 / 541634 | 3378 / 592969 | 3317 / 616320 | 3390 / 627390 | 3357 / 633974 |
+| LNS(1s)+PBS-MLSIPP | 3666 / 222404 | 3497 / 460894 | 3446 / 545676 | 3439 / 590151 | 3396 / 617499 | 3418 / **623546** | 3374 / **631487** |
+| LNS(1s)+wPBS-MLSIPP | 3629 / 220266 | 3494 / 459724 | 3376 / **540465** | 3405 / 590133 | 3357 / 620589 | 3386 / 625710 | 3363 / 634609 |
+
+**20 agents** (makespan / SWT; — not run; × no result in 1000 s)
+
+| Method | f 0.2 | f 0.5 | f 1 | f 2 | f 5 | f 10 | f all |
+|---|---|---|---|---|---|---|---|
+| TP-STA* | 2650 / 64498 | 1907 / 233101 | 1899 / 336768 | 1783 / 391702 | 1750 / 404674 | 1779 / 415602 | 1789 / 414107 |
+| TPTS-STA* | 2616 / 51568 | 1821 / 205304 | 1728 / 306902 | 1792 / 371959 | 1759 / 398503 | 1773 / 409801 | 1755 / 416182 |
+| HBH+MLA* | 2636 / 54216 | **1732** / 184514 | **1692** / 287668 | 1706 / 354506 | **1638** / 380564 | 1736 / 395217 | **1644** / 405040 |
+| CENTRAL-CBS | 2615 / 43875 | 1795 / 197684 | 1716 / 301347 | 1774 / 355833 | 1791 / 396041 | 1782 / 403137 | 1695 / 411178 |
+| CENTRAL-fixed-CBS | 2683 / 54908 | 1884 / 194323 | 1761 / 301104 | 1760 / 358294 | × | 1736 / 403435 | 1696 / 409032 |
+| TA-Prioritized-STA* | — | — | — | — | — | — | 3224 / 744965 |
+| TA-Hybrid-STA* | — | — | — | — | — | — | × |
+| LNS(1s)+PBS-MLA* | **2582** / 41701 | 1775 / 149692 | 1712 / 227916 | 1719 / **270201** | 1699 / **293149** | 1723 / 306745 | 1702 / 311156 |
+| LNS(1s)+wPBS-MLA* | 2593 / 41821 | 1786 / 148578 | 1753 / 228815 | 1702 / 271349 | 1717 / 296067 | **1674** / 303668 | 1671 / 309674 |
+| TPTS-MLSIPP | 2594 / 52014 | 1908 / 214917 | 1846 / 319900 | 1722 / 367043 | 1806 / 398685 | 1790 / 416058 | 1705 / 415315 |
+| Hungarian+PBS-MLA* | 2593 / 40972 | 1762 / 149774 | 1736 / 228590 | 1737 / 272165 | 1696 / 297004 | 1716 / 304711 | 1666 / 311496 |
+| Hungarian+wPBS-MLA* | 2596 / 41649 | 1788 / **147784** | 1741 / **226507** | 1735 / 272920 | 1709 / 294564 | 1698 / 301611 | 1704 / 313884 |
+| Hungarian+PBS-MLSIPP | 2595 / 41036 | 1796 / 148875 | 1717 / 228414 | **1697** / 271270 | 1709 / 296703 | 1716 / 304711 | 1666 / 311512 |
+| Hungarian+wPBS-MLSIPP | 2616 / 41954 | 1788 / **147784** | 1741 / **226507** | 1727 / 272959 | 1726 / 294513 | 1698 / **301610** | 1704 / 313887 |
+| LNS(1s)+PBS-MLSIPP | 2596 / **40969** | 1751 / 149021 | 1729 / 227297 | 1745 / 271187 | 1724 / 293673 | 1728 / 306565 | 1694 / 311666 |
+| LNS(1s)+wPBS-MLSIPP | 2596 / 41807 | 1771 / 148094 | 1753 / 228815 | 1702 / 271351 | 1717 / 296059 | 1706 / 303560 | 1688 / **309417** |
+
+**30 agents** (makespan / SWT; — not run; × no result in 1000 s)
+
+| Method | f 0.2 | f 0.5 | f 1 | f 2 | f 5 | f 10 | f all |
+|---|---|---|---|---|---|---|---|
+| TP-STA* | 2690 / 66249 | 1598 / 129175 | 1527 / 223229 | 1462 / 263450 | 1379 / 300756 | 1436 / 310279 | 1348 / 294825 |
+| TPTS-STA* | 2613 / 41266 | 1418 / 119813 | 1374 / 200817 | 1325 / 244966 | 1297 / 280482 | 1319 / 294907 | 1310 / 303972 |
+| HBH+MLA* | 2629 / 41816 | 1419 / 87026 | 1372 / 178632 | 1383 / 229070 | 1329 / 260827 | 1243 / 273801 | 1212 / 276239 |
+| CENTRAL-CBS | 2583 / 40007 | 1357 / 92616 | 1242 / 180692 | 1251 / 239586 | 1250 / 267049 | 1250 / 280004 | 1286 / 285715 |
+| CENTRAL-fixed-CBS | **2571** / 39230 | 1374 / 94434 | 1271 / 185958 | 1256 / 236490 | 1255 / 264288 | 1291 / 274997 | 1232 / 285480 |
+| TA-Prioritized-STA* | — | — | — | — | — | — | 2277 / 497576 |
+| TA-Hybrid-STA* | — | — | — | — | — | — | × |
+| LNS(1s)+PBS-MLA* | 2586 / 36779 | 1294 / 69276 | 1229 / 132772 | 1179 / 171607 | **1154** / **197082** | 1186 / 206726 | 1174 / 216724 |
+| LNS(1s)+wPBS-MLA* | 2585 / 37071 | 1312 / **67437** | 1227 / **131751** | 1210 / 171882 | 1182 / 198243 | 1172 / 206380 | **1153** / 216160 |
+| TPTS-MLSIPP | 2605 / 41648 | 1434 / 103993 | 1350 / 189463 | 1289 / 243127 | 1310 / 284106 | 1307 / 292438 | 1354 / 310306 |
+| Hungarian+PBS-MLA* | 2586 / **36504** | 1283 / 68688 | 1223 / 133633 | 1220 / 173047 | 1183 / 197594 | 1187 / 206657 | 1170 / 215888 |
+| Hungarian+wPBS-MLA* | 2586 / 36983 | 1299 / 68480 | **1185** / 132258 | **1176** / 172984 | 1164 / 198056 | 1172 / **205845** | 1180 / 216131 |
+| Hungarian+PBS-MLSIPP | 2583 / 36713 | 1309 / 70260 | 1228 / 134628 | 1220 / 172532 | 1182 / 198459 | 1176 / 208909 | 1170 / 215888 |
+| Hungarian+wPBS-MLSIPP | 2587 / 37039 | 1276 / 69934 | 1200 / 132029 | 1180 / 172543 | 1171 / 197915 | 1173 / 206147 | 1178 / 216391 |
+| LNS(1s)+PBS-MLSIPP | 2585 / 36678 | 1307 / 68160 | 1200 / 133033 | 1200 / 171407 | 1161 / 197721 | **1170** / 206733 | 1176 / 217113 |
+| LNS(1s)+wPBS-MLSIPP | 2586 / 36987 | **1274** / 67718 | 1231 / 133188 | 1190 / **170944** | 1173 / 197543 | 1185 / 206769 | 1159 / **215283** |
+
+**40 agents** (makespan / SWT; — not run; × no result in 1000 s)
+
+| Method | f 0.2 | f 0.5 | f 1 | f 2 | f 5 | f 10 | f all |
+|---|---|---|---|---|---|---|---|
+| TP-STA* | 2816 / 66949 | 1358 / 85159 | 1169 / 157962 | 1082 / 190088 | 1195 / 219699 | 1157 / 238982 | 1127 / 220963 |
+| TPTS-STA* | × | 1346 / 72074 | 1116 / 134635 | 1057 / 172920 | 1058 / 209925 | 1041 / 225468 | 979 / 218386 |
+| HBH+MLA* | 2837 / 39113 | 1286 / 53308 | 1025 / 104053 | 976 / 152189 | 1033 / 187934 | 1029 / 197525 | 984 / 204728 |
+| CENTRAL-CBS | 2685 / 37189 | 1211 / 49509 | 1008 / 113281 | 942 / 158756 | 970 / 186373 | 934 / 198837 | 896 / 205789 |
+| CENTRAL-fixed-CBS | 2680 / 36426 | 1200 / 53766 | 1032 / 111141 | 953 / 156360 | 961 / 191056 | 961 / 202873 | 892 / 206031 |
+| TA-Prioritized-STA* | — | — | — | — | — | — | 1656 / 385855 |
+| TA-Hybrid-STA* | — | — | — | — | — | — | × |
+| LNS(1s)+PBS-MLA* | 2603 / **33656** | **1113** / **39192** | **913** / 86324 | 906 / 123605 | 875 / 149592 | 884 / 159251 | 871 / 166184 |
+| LNS(1s)+wPBS-MLA* | 2607 / 34233 | 1167 / 39886 | 937 / 87446 | 910 / 123900 | 880 / 149598 | **871** / 158592 | **858** / **165365** |
+| TPTS-MLSIPP | 2686 / 39505 | 1231 / 66163 | 1108 / 136875 | 1112 / 174778 | 1014 / 203815 | 1072 / 218975 | 1032 / 218624 |
+| Hungarian+PBS-MLA* | **2602** / 33845 | 1140 / 39522 | 932 / 87253 | 898 / **122932** | 896 / 150451 | 894 / 158969 | 885 / 166233 |
+| Hungarian+wPBS-MLA* | 2603 / 34127 | 1149 / 40614 | 921 / 88227 | **895** / 123603 | 894 / **149199** | 877 / 158910 | 862 / 165677 |
+| Hungarian+PBS-MLSIPP | 2605 / 33728 | 1131 / 39767 | 914 / 87072 | 904 / 123573 | 887 / 149865 | 884 / 159751 | 879 / 166246 |
+| Hungarian+wPBS-MLSIPP | 2607 / 34220 | 1118 / 40598 | 928 / 87210 | 906 / 124098 | 921 / 149489 | 906 / 158775 | 875 / 166068 |
+| LNS(1s)+PBS-MLSIPP | 2610 / 33881 | 1152 / 40049 | 922 / **85140** | 912 / 123496 | **868** / 149488 | 876 / **158456** | 907 / 166467 |
+| LNS(1s)+wPBS-MLSIPP | 2606 / 34261 | 1153 / 39983 | 930 / 87539 | 899 / 123435 | 902 / 149664 | **871** / 158590 | 872 / 165712 |
+
+**50 agents** (makespan / SWT; — not run; × no result in 1000 s)
+
+| Method | f 0.2 | f 0.5 | f 1 | f 2 | f 5 | f 10 | f all |
+|---|---|---|---|---|---|---|---|
+| TP-STA* | 2691 / 62997 | 1285 / 72360 | 1100 / 132432 | 1069 / 173344 | 1014 / 201674 | 1054 / 213626 | 958 / 188387 |
+| TPTS-STA* | 2601 / 36896 | 1158 / 50275 | 1044 / 101643 | 916 / 146554 | 876 / 171141 | 886 / 197793 | 836 / 187285 |
+| HBH+MLA* | 2639 / 37348 | 1270 / 51987 | 905 / 76496 | 877 / 127413 | 848 / 159928 | 857 / 171164 | 859 / 171947 |
+| CENTRAL-CBS | 2603 / 35610 | 1186 / 40983 | × | 818 / 132373 | × | 807 / 170054 | 800 / 176212 |
+| CENTRAL-fixed-CBS | 2589 / 35160 | 1158 / 42511 | 852 / 80874 | 909 / 132406 | 783 / 162272 | 795 / 171135 | 852 / 173868 |
+| TA-Prioritized-STA* | — | — | — | — | — | — | 1479 / 313810 |
+| TA-Hybrid-STA* | — | — | — | — | — | — | × |
+| LNS(1s)+PBS-MLA* | 2588 / **32254** | **1092** / **34903** | 780 / **58813** | 766 / 95977 | 725 / 119251 | 716 / 127257 | 711 / 134324 |
+| LNS(1s)+wPBS-MLA* | 2587 / 33172 | 1112 / 35508 | 767 / 59755 | 713 / 95024 | 743 / **118400** | 721 / **126986** | 713 / 133862 |
+| TPTS-MLSIPP | 2604 / 36652 | 1142 / 51427 | 946 / 98437 | 900 / 154828 | 956 / 194163 | 1022 / 207674 | 875 / 195747 |
+| Hungarian+PBS-MLA* | 2588 / 32270 | 1098 / 34997 | 770 / 60518 | 739 / 95001 | 735 / 119339 | 743 / 127381 | **700** / 135329 |
+| Hungarian+wPBS-MLA* | **2586** / 33200 | 1116 / 35623 | 767 / 60543 | 755 / **94337** | 724 / 118442 | 725 / 127130 | 709 / 134569 |
+| Hungarian+PBS-MLSIPP | 2588 / 32541 | 1112 / 35001 | 786 / 59702 | 746 / 94985 | 729 / 119018 | 711 / 127388 | **700** / 135332 |
+| Hungarian+wPBS-MLSIPP | **2586** / 33221 | 1101 / 35629 | **758** / 59988 | 716 / 95166 | 730 / 118685 | 716 / 127198 | 720 / 134797 |
+| LNS(1s)+PBS-MLSIPP | 2588 / 32439 | 1134 / 34906 | 773 / 59676 | **712** / 95458 | 725 / 119155 | **705** / 127453 | 726 / 134525 |
+| LNS(1s)+wPBS-MLSIPP | **2586** / 33405 | 1114 / 35547 | 767 / 59753 | 731 / 94950 | **723** / 118964 | 721 / **126986** | 713 / **133860** |
+
+Best method per setting:
+
+| Agents | Frequency | Best makespan | Best SWT |
+|---:|---:|---|---|
+| 10 | 0.2 | HBH+MLA* (3399) | Hungarian+PBS-MLA*, Hungarian+PBS-MLSIPP (216459) |
+| 10 | 0.5 | HBH+MLA* (3330) | Hungarian+PBS-MLSIPP (456965) |
+| 10 | 1 | TPTS-STA* (3323) | LNS(1s)+wPBS-MLA*, LNS(1s)+wPBS-MLSIPP (540465) |
+| 10 | 2 | HBH+MLA* (3288) | LNS(1s)+PBS-MLA* (590073) |
+| 10 | 5 | HBH+MLA* (3245) | LNS(1s)+PBS-MLA* (615897) |
+| 10 | 10 | HBH+MLA* (3259) | LNS(1s)+PBS-MLA*, LNS(1s)+PBS-MLSIPP (623546) |
+| 10 | all | CENTRAL-fixed-CBS (3269) | LNS(1s)+PBS-MLA*, LNS(1s)+PBS-MLSIPP (631487) |
+| 20 | 0.2 | LNS(1s)+PBS-MLA* (2582) | LNS(1s)+PBS-MLSIPP (40969) |
+| 20 | 0.5 | HBH+MLA* (1732) | Hungarian+wPBS-MLA*, Hungarian+wPBS-MLSIPP (147784) |
+| 20 | 1 | HBH+MLA* (1692) | Hungarian+wPBS-MLA*, Hungarian+wPBS-MLSIPP (226507) |
+| 20 | 2 | Hungarian+PBS-MLSIPP (1697) | LNS(1s)+PBS-MLA* (270201) |
+| 20 | 5 | HBH+MLA* (1638) | LNS(1s)+PBS-MLA* (293149) |
+| 20 | 10 | LNS(1s)+wPBS-MLA* (1674) | Hungarian+wPBS-MLSIPP (301610) |
+| 20 | all | HBH+MLA* (1644) | LNS(1s)+wPBS-MLSIPP (309417) |
+| 30 | 0.2 | CENTRAL-fixed-CBS (2571) | Hungarian+PBS-MLA* (36504) |
+| 30 | 0.5 | LNS(1s)+wPBS-MLSIPP (1274) | LNS(1s)+wPBS-MLA* (67437) |
+| 30 | 1 | Hungarian+wPBS-MLA* (1185) | LNS(1s)+wPBS-MLA* (131751) |
+| 30 | 2 | Hungarian+wPBS-MLA* (1176) | LNS(1s)+wPBS-MLSIPP (170944) |
+| 30 | 5 | LNS(1s)+PBS-MLA* (1154) | LNS(1s)+PBS-MLA* (197082) |
+| 30 | 10 | LNS(1s)+PBS-MLSIPP (1170) | Hungarian+wPBS-MLA* (205845) |
+| 30 | all | LNS(1s)+wPBS-MLA* (1153) | LNS(1s)+wPBS-MLSIPP (215283) |
+| 40 | 0.2 | Hungarian+PBS-MLA* (2602) | LNS(1s)+PBS-MLA* (33656) |
+| 40 | 0.5 | LNS(1s)+PBS-MLA* (1113) | LNS(1s)+PBS-MLA* (39192) |
+| 40 | 1 | LNS(1s)+PBS-MLA* (913) | LNS(1s)+PBS-MLSIPP (85140) |
+| 40 | 2 | Hungarian+wPBS-MLA* (895) | Hungarian+PBS-MLA* (122932) |
+| 40 | 5 | LNS(1s)+PBS-MLSIPP (868) | Hungarian+wPBS-MLA* (149199) |
+| 40 | 10 | LNS(1s)+wPBS-MLA*, LNS(1s)+wPBS-MLSIPP (871) | LNS(1s)+PBS-MLSIPP (158456) |
+| 40 | all | LNS(1s)+wPBS-MLA* (858) | LNS(1s)+wPBS-MLA* (165365) |
+| 50 | 0.2 | Hungarian+wPBS-MLA*, Hungarian+wPBS-MLSIPP, LNS(1s)+wPBS-MLSIPP (2586) | LNS(1s)+PBS-MLA* (32254) |
+| 50 | 0.5 | LNS(1s)+PBS-MLA* (1092) | LNS(1s)+PBS-MLA* (34903) |
+| 50 | 1 | Hungarian+wPBS-MLSIPP (758) | LNS(1s)+PBS-MLA* (58813) |
+| 50 | 2 | LNS(1s)+PBS-MLSIPP (712) | Hungarian+wPBS-MLA* (94337) |
+| 50 | 5 | LNS(1s)+wPBS-MLSIPP (723) | LNS(1s)+wPBS-MLA* (118400) |
+| 50 | 10 | LNS(1s)+PBS-MLSIPP (705) | LNS(1s)+wPBS-MLA*, LNS(1s)+wPBS-MLSIPP (126986) |
+| 50 | all | Hungarian+PBS-MLA*, Hungarian+PBS-MLSIPP (700) | LNS(1s)+wPBS-MLSIPP (133860) |
+
+Runs without a result: CENTRAL-CBS 1x (Pathfinding runtime timeout); CENTRAL-CBS 1x (TIMEOUT after 1000 seconds); CENTRAL-fixed-CBS 1x (TIMEOUT after 1000 seconds); TA-Hybrid-STA* 4x (Pathfinding runtime timeout); TA-Hybrid-STA* 1x (System runtime timeout); TPTS-STA* 1x (System runtime timeout).
+
+#### Structured MEDIUM (101 x 81, 1,000 tasks)
+
+80 runs: 56 completed every task; 15 error(1), 9 timeout.
+
+**100 agents** (makespan / SWT; — not run; × no result in 1000 s)
+
+| Method | f 50 | f all |
+|---|---|---|
+| TP-STA* | 1106 / 465769 | — |
+| TPTS-STA* | 988 / 439475 | — |
+| HBH+MLA* | 905 / 377738 | — |
+| CENTRAL-CBS | 794 / 366070 | — |
+| CENTRAL-fixed-CBS | × | — |
+| TA-Prioritized-STA* | — | **1626** / **698104** |
+| TA-Hybrid-STA* | — | × |
+| LNS(1s)+PBS-MLA* | 811 / 303663 | — |
+| LNS(1s)+wPBS-MLA* | 788 / 302615 | — |
+| TPTS-MLSIPP | 958 / 429556 | — |
+| Hungarian+PBS-MLA* | 808 / 304060 | — |
+| Hungarian+wPBS-MLA* | **787** / 303312 | — |
+| Hungarian+PBS-MLSIPP | 815 / 304080 | — |
+| Hungarian+wPBS-MLSIPP | 808 / 302521 | — |
+| LNS(1s)+PBS-MLSIPP | **787** / 303793 | — |
+| LNS(1s)+wPBS-MLSIPP | 798 / **302239** | — |
+
+**200 agents** (makespan / SWT; — not run; × no result in 1000 s)
+
+| Method | f 50 | f all |
+|---|---|---|
+| TP-STA* | 796 / 321166 | — |
+| TPTS-STA* | × | — |
+| HBH+MLA* | 618 / 217132 | — |
+| CENTRAL-CBS | × | — |
+| CENTRAL-fixed-CBS | × | — |
+| TA-Prioritized-STA* | — | **927** / **386776** |
+| TA-Hybrid-STA* | — | × |
+| LNS(1s)+PBS-MLA* | **431** / 171361 | — |
+| LNS(1s)+wPBS-MLA* | 433 / 171331 | — |
+| TPTS-MLSIPP | 625 / 276917 | — |
+| Hungarian+PBS-MLA* | 447 / 172698 | — |
+| Hungarian+wPBS-MLA* | 436 / 171180 | — |
+| Hungarian+PBS-MLSIPP | 446 / **170870** | — |
+| Hungarian+wPBS-MLSIPP | 439 / 171598 | — |
+| LNS(1s)+PBS-MLSIPP | 439 / 172113 | — |
+| LNS(1s)+wPBS-MLSIPP | 436 / 171117 | — |
+
+**300 agents** (makespan / SWT; — not run; × no result in 1000 s)
+
+| Method | f 50 | f all |
+|---|---|---|
+| TP-STA* | 767 / 298550 | — |
+| TPTS-STA* | × | — |
+| HBH+MLA* | 702 / 173940 | — |
+| CENTRAL-CBS | × | — |
+| CENTRAL-fixed-CBS | × | — |
+| TA-Prioritized-STA* | — | **706** / **291500** |
+| TA-Hybrid-STA* | — | × |
+| LNS(1s)+PBS-MLA* | 366 / 137892 | — |
+| LNS(1s)+wPBS-MLA* | **363** / 138022 | — |
+| TPTS-MLSIPP | × | — |
+| Hungarian+PBS-MLA* | 371 / 137611 | — |
+| Hungarian+wPBS-MLA* | 382 / 138414 | — |
+| Hungarian+PBS-MLSIPP | 364 / 137472 | — |
+| Hungarian+wPBS-MLSIPP | 373 / 138322 | — |
+| LNS(1s)+PBS-MLSIPP | 374 / **137287** | — |
+| LNS(1s)+wPBS-MLSIPP | 380 / 137802 | — |
+
+**400 agents** (makespan / SWT; — not run; × no result in 1000 s)
+
+| Method | f 50 | f all |
+|---|---|---|
+| TP-STA* | 782 / 255725 | — |
+| TPTS-STA* | × | — |
+| HBH+MLA* | 540 / 145729 | — |
+| CENTRAL-CBS | × | — |
+| CENTRAL-fixed-CBS | × | — |
+| TA-Prioritized-STA* | — | × |
+| TA-Hybrid-STA* | — | × |
+| LNS(1s)+PBS-MLA* | 323 / 118579 | — |
+| LNS(1s)+wPBS-MLA* | 303 / 120864 | — |
+| TPTS-MLSIPP | × | — |
+| Hungarian+PBS-MLA* | **294** / 119276 | — |
+| Hungarian+wPBS-MLA* | 298 / 121448 | — |
+| Hungarian+PBS-MLSIPP | 314 / 119093 | — |
+| Hungarian+wPBS-MLSIPP | 329 / 122147 | — |
+| LNS(1s)+PBS-MLSIPP | 315 / **118043** | — |
+| LNS(1s)+wPBS-MLSIPP | 310 / 121133 | — |
+
+**500 agents** (makespan / SWT; — not run; × no result in 1000 s)
+
+| Method | f 50 | f all |
+|---|---|---|
+| TP-STA* | 721 / 270393 | — |
+| TPTS-STA* | × | — |
+| HBH+MLA* | 522 / 134338 | — |
+| CENTRAL-CBS | × | — |
+| CENTRAL-fixed-CBS | × | — |
+| TA-Prioritized-STA* | — | × |
+| TA-Hybrid-STA* | — | × |
+| LNS(1s)+PBS-MLA* | × | — |
+| LNS(1s)+wPBS-MLA* | 282 / 109750 | — |
+| TPTS-MLSIPP | × | — |
+| Hungarian+PBS-MLA* | 255 / 105148 | — |
+| Hungarian+wPBS-MLA* | 275 / 110250 | — |
+| Hungarian+PBS-MLSIPP | 270 / 104659 | — |
+| Hungarian+wPBS-MLSIPP | 274 / 110192 | — |
+| LNS(1s)+PBS-MLSIPP | **254** / **104490** | — |
+| LNS(1s)+wPBS-MLSIPP | 264 / 110103 | — |
+
+Best method per setting:
+
+| Agents | Frequency | Best makespan | Best SWT |
+|---:|---:|---|---|
+| 100 | 50 | Hungarian+wPBS-MLA*, LNS(1s)+PBS-MLSIPP (787) | LNS(1s)+wPBS-MLSIPP (302239) |
+| 100 | all | TA-Prioritized-STA* (1626) | TA-Prioritized-STA* (698104) |
+| 200 | 50 | LNS(1s)+PBS-MLA* (431) | Hungarian+PBS-MLSIPP (170870) |
+| 200 | all | TA-Prioritized-STA* (927) | TA-Prioritized-STA* (386776) |
+| 300 | 50 | LNS(1s)+wPBS-MLA* (363) | LNS(1s)+PBS-MLSIPP (137287) |
+| 300 | all | TA-Prioritized-STA* (706) | TA-Prioritized-STA* (291500) |
+| 400 | 50 | Hungarian+PBS-MLA* (294) | LNS(1s)+PBS-MLSIPP (118043) |
+| 500 | 50 | LNS(1s)+PBS-MLSIPP (254) | LNS(1s)+PBS-MLSIPP (104490) |
+
+Runs without a result: CENTRAL-CBS 4x (TIMEOUT after 1000 seconds); CENTRAL-fixed-CBS 5x (TIMEOUT after 1000 seconds); LNS(1s)+PBS-MLA* 1x (System runtime timeout); TA-Hybrid-STA* 5x (Pathfinding runtime timeout); TA-Prioritized-STA* 2x (Pathfinding runtime timeout); TPTS-MLSIPP 3x (System runtime timeout); TPTS-STA* 4x (System runtime timeout).
+
+#### Structured LARGE (187 x 153, 1,000 agents)
+
+72 runs: 0 completed every task; 61 error(1), 11 timeout.
+
+**1000 agents** (makespan / SWT; — not run; × no result in 1000 s)
+
+| Method | f t1000_f100 | f t2000_f100 | f t3000_f100 | f t4000_f100 | f t5000_f100 | f all |
+|---|---|---|---|---|---|---|
+| TP-STA* | × | × | × | × | × | — |
+| TPTS-STA* | × | × | × | × | × | — |
+| HBH+MLA* | × | × | × | × | × | — |
+| CENTRAL-CBS | × | × | × | × | × | — |
+| CENTRAL-fixed-CBS | × | × | × | × | × | — |
+| TA-Prioritized-STA* | — | — | — | — | — | × |
+| TA-Hybrid-STA* | — | — | — | — | — | × |
+| LNS(1s)+PBS-MLA* | × | × | × | × | × | — |
+| LNS(1s)+wPBS-MLA* | × | × | × | × | × | — |
+| TPTS-MLSIPP | × | × | × | × | × | — |
+| Hungarian+PBS-MLA* | × | × | × | × | × | — |
+| Hungarian+wPBS-MLA* | × | × | × | × | × | — |
+| Hungarian+PBS-MLSIPP | × | × | × | × | × | — |
+| Hungarian+wPBS-MLSIPP | × | × | × | × | × | — |
+| LNS(1s)+PBS-MLSIPP | × | × | × | × | × | — |
+| LNS(1s)+wPBS-MLSIPP | × | × | × | × | × | — |
+
+No method completed a run within 1000 s.
+
+Runs without a result: CENTRAL-CBS 5x (TIMEOUT after 1000 seconds); CENTRAL-fixed-CBS 5x (TIMEOUT after 1000 seconds); HBH+MLA* 3x (Pathfinding runtime timeout); HBH+MLA* 2x (System runtime timeout); Hungarian+PBS-MLA* 5x (std::bad_alloc); Hungarian+PBS-MLSIPP 5x (std::bad_alloc); Hungarian+wPBS-MLA* 5x (System runtime timeout); Hungarian+wPBS-MLSIPP 4x (System runtime timeout); Hungarian+wPBS-MLSIPP 1x (TIMEOUT after 1000 seconds); LNS(1s)+PBS-MLA* 5x (std::bad_alloc); LNS(1s)+PBS-MLSIPP 5x (std::bad_alloc); LNS(1s)+wPBS-MLA* 5x (System runtime timeout); LNS(1s)+wPBS-MLSIPP 5x (System runtime timeout); TA-Hybrid-STA* 1x (Pathfinding runtime timeout); TA-Prioritized-STA* 1x (Pathfinding runtime timeout); TP-STA* 5x (System runtime timeout); TPTS-MLSIPP 5x (System runtime timeout); TPTS-STA* 5x (System runtime timeout).
+
 
 ## Full paper-result matrix
 
