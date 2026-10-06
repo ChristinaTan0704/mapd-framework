@@ -444,7 +444,8 @@ private:
         const vector<vector<int>>& constraint_paths,
         const vector<vector<int>>& old_paths, bool use_old_paths,
         int stop_time = INT_MAX, const CBSConstraintTable* constraints = nullptr);
-    pair<int,int> plan_token_task(Agent& agent, Task& task, int hidden_agent = -1);
+    pair<int,int> plan_token_task(Agent& agent, Task& task,
+                                   int hidden_agent = -1, int first_goal_before = INT_MAX);
     bool sta_is_constrained(int agent_id, int current_loc, int next_loc,
                             int next_time, int hidden_agent) const;
     void sta_update_path(Agent& agent, const SearchNode& goal_node);

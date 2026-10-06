@@ -683,7 +683,8 @@ bool Simulation::assign_tpts(Agent& agent, int depth) {
         };
 
         int hidden_agent = task->status >= 0 ? task->status : -1;
-        pair<int,int> arrival = plan_token_task(agent, *task, hidden_agent);
+        pair<int,int> arrival = plan_token_task(agent, *task, hidden_agent,
+                                                unassigned ? INT_MAX : task->ag_arrive_start);
         if (arrival.first < 0 ||
             (!unassigned && arrival.first >= task->ag_arrive_start)) {
             rollback_candidate();
@@ -4732,7 +4733,7 @@ void Simulation::sta_update_path(Agent& agent, const SearchNode& goal_node) {
 // collision-free and its final goal can be held forever, the token-passing
 // invariant. Returns (first-goal arrival, final-goal arrival), or (-1, -1).
 pair<int,int> Simulation::plan_token_task(Agent& agent, Task& task,
-                                          int hidden_agent) {
+                                          int hidden_agent, int first_goal_before) {
     const int hidden = hidden_agent >= 0 ? hidden_agent : agent.id;
     rested_at_[agent.id] = -1;
 
@@ -4767,7 +4768,12 @@ pair<int,int> Simulation::plan_token_task(Agent& agent, Task& task,
         if (path.empty()) path = std::move(segment);
         else for (int t = time; t < (int)path.size(); t++)
             path[t] = segment[min(t, (int)segment.size() - 1)];
-        if (first_goal_time < 0) first_goal_time = arrival;
+        if (first_goal_time < 0) {
+            // A steal that does not reach the first goal earlier fails
+            // whatever the later goals give, so they are not planned.
+            if (arrival >= first_goal_before) return {-1, -1};
+            first_goal_time = arrival;
+        }
         final_goal_time = arrival;
         location = goal.first;
         // The reference starts the next search after the pickup's wait.
