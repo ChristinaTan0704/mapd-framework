@@ -4782,17 +4782,24 @@ pair<int,int> Simulation::plan_token_task(Agent& agent, Task& task,
     }
     if (first_goal_time < 0 || final_goal_time < 0) return {-1, -1};
 
-    for (int t = (int)cur_time_ + 1;
-         t <= final_goal_time && t < (int)maxtime; t++)
-        if (sta_is_constrained(agent.id, path[t - 1], path[t], t, hidden))
+    // The plan avoids every other committed path (sta_is_constrained, here
+    // one path at a time, which reads the table in order), and nobody else
+    // enters the final goal after the agent stays there.
+    const int last = min(final_goal_time, (int)maxtime - 1);
+    for (int t = (int)cur_time_ + 1; t <= last; t++)
+        if (path[t] < 0 || path[t] >= (int)mapd_map.grid.size() || !mapd_map.grid[path[t]])
             return {-1, -1};
-
-    for (unsigned int t = final_goal_time + 1; t < maxtime; t++)
-        for (int other = 0; other < (int)path_table_.size(); other++) {
-            if (other == agent.id || other == hidden) continue;
-            if (path_table_[other][t] == (unsigned int)goals.back().first)
+    const unsigned int final_goal = (unsigned int)goals.back().first;
+    for (int other = 0; other < (int)path_table_.size(); other++) {
+        if (other == agent.id || other == hidden) continue;
+        const vector<unsigned int>& row = path_table_[other];
+        for (int t = (int)cur_time_ + 1; t <= last; t++)
+            if (row[t] == (unsigned int)path[t] ||
+                (row[t - 1] == (unsigned int)path[t] && row[t] == (unsigned int)path[t - 1]))
                 return {-1, -1};
-        }
+        for (unsigned int t = final_goal_time + 1; t < maxtime; t++)
+            if (row[t] == final_goal) return {-1, -1};
+    }
 
     for (int t = (int)cur_time_; t < (int)path.size() && t < (int)maxtime; t++)
         agent.path[t] = path[t];   // keep the executed history
@@ -5107,11 +5114,35 @@ vector<int> Simulation::plan_sta_star(const SingleAgentRequest& request,
     auto at = [](const vector<int>& path, int t) {
         return path[min(t, (int)path.size() - 1)];
     };
-    auto blocked = [&](int from, int to, int t) {
-        for (const vector<int>* path : others) {
-            const int next = at(*path, t);
-            if (next == to || (next == from && at(*path, t - 1) == to)) return true;
+    // The other paths' cells at each timestep, (cell, path) sorted by cell,
+    // built when the search first reaches that timestep: a move is checked
+    // with two lookups instead of a pass over every other path.
+    const int base = request.start_time;
+    vector<vector<pair<int,int>>> occupants;
+    vector<char> occupants_ready;
+    auto occupants_at = [&](int t) -> const vector<pair<int,int>>& {
+        const int i = t - base;
+        if (i >= (int)occupants.size()) {
+            occupants.resize(i + 64);
+            occupants_ready.resize(i + 64, 0);
         }
+        if (!occupants_ready[i]) {
+            occupants_ready[i] = 1;
+            vector<pair<int,int>>& cells = occupants[i];
+            cells.reserve(others.size());
+            for (int p = 0; p < (int)others.size(); p++) cells.push_back({at(*others[p], t), p});
+            sort(cells.begin(), cells.end());
+        }
+        return occupants[i];
+    };
+    auto blocked = [&](int from, int to, int t) {
+        const vector<pair<int,int>>& cells = occupants_at(t);
+        auto first = [&](int cell) {
+            return lower_bound(cells.begin(), cells.end(), make_pair(cell, INT_MIN)); };
+        auto it = first(to);
+        if (it != cells.end() && it->first == to) return true;                // vertex
+        for (it = first(from); it != cells.end() && it->first == from; ++it)   // swap
+            if (at(*others[it->second], t - 1) == to) return true;
         return request.constraints && request.constraints->blocks(from, to, t);
     };
 
@@ -5134,6 +5165,10 @@ vector<int> Simulation::plan_sta_star(const SingleAgentRequest& request,
                 hold_from = max(hold_from, holdable - 1);
             }
         }
+        // As the reference AStar, the heuristic does not know when the goal can
+        // be held from: a larger one would search far less on crowded maps
+        // but changes which of the equally fast paths is taken, and TP's
+        // results with it (kiva small: up to 18% worse than the original).
         auto heuristic = [&](int loc, int t) {
             return max(goal_h[loc], release - t);
         };
