@@ -69,6 +69,10 @@ struct SingleAgentRequest {
     // Token passing: of the equally fast MLSIPP paths, one that waits at the
     // goal or as early as possible (see sipp_search_impl).
     bool wait_early = false;
+    // Only an arrival at the first goal before this timestep is of use (a
+    // TPTS steal): STA* gives up once no earlier arrival is left; the other
+    // searches may ignore it, so the caller still checks the arrival.
+    int arrive_before = INT_MAX;
 };
 
 // Strategy objects used by Simulation's dispatchers. They receive the live

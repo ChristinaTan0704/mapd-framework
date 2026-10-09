@@ -4759,6 +4759,7 @@ pair<int,int> Simulation::plan_token_task(Agent& agent, Task& task,
         SingleAgentRequest request{agent.id, location, time, one_goal,
                                    constraints, no_old_paths, false};
         request.wait_early = true;
+        if (&goal == &goals.front()) request.arrive_before = first_goal_before;
         vector<int> segment = plan_single_agent(request);
         if (segment.empty() || segment.back() != goal.first) return {-1, -1};
         // The goal is reached where the path settles on it for good.
@@ -5154,6 +5155,9 @@ vector<int> Simulation::plan_sta_star(const SingleAgentRequest& request,
             SearchNode* current = open.top();
             open.pop();
             current->in_openlist = false;
+            // f never decreases (consistent heuristic), and a goal node's f is
+            // its arrival time.
+            if (k == 0 && current->timestep + current->h_val >= request.arrive_before) break;
             if ((current->loc == goal && current->timestep >= release &&
                  current->timestep >= hold_from) ||
                 current->timestep >= request.stop_time) {
