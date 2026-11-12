@@ -230,11 +230,11 @@ goal through `choose_dummy_endpoint()`.
 
 | Family | Multi-goal implementation |
 |---|---|
-| TP/TPTS STA* | As the reference token passing, two searches: one to the first goal, then one through the remaining ordered goals to the final goal (sequential STA* legs); each search ends where its goal can be held for good, the goals in between are passed through. Task swapping compares arrival at the first goal and completion at the final goal. |
+| TP/TPTS STA* | As the reference token passing, two searches: one to the first goal, then one through the remaining ordered goals to the final goal (sequential STA* legs); each search ends where its goal can be held for good, the goals in between are passed through. Task swapping compares arrival at the first goal and completion at the final goal. As the reference's pickup/delivery rule, extended to every goal: a task is open to an agent only while none of its goals ends another agent's path, and a resting agent moves away when it rests on a later (not the first) goal of an open task. Tasks that share goal cells are therefore served one at a time, which makes TP/TPTS slow on the multi-goal maps with many agents. |
 | TP/TPTS MLSIPP | The same two searches; the second is one ordered MLSIPP request over the remaining goals. |
 | HBH+MLA* or HBH+MLSIPP | The selected low-level planner receives the complete goal sequence and completion is recorded at its final goal. |
 | HBH+2-segment SIPP | Each ordered goal leg is planned by a separate SIPP request; only the final leg reserves its endpoint through the planning horizon. |
-| CENTRAL-CBS | An agent is planned to its matched pickup; once it carries the task, every remaining goal is planned (`GOAL_REACHED`). |
+| CENTRAL-CBS | An agent is planned to its matched pickup; once it carries the task, every remaining goal is planned (`GOAL_REACHED`). As the reference's delivery rule, extended to every later goal: an agent on a pickup takes the task only when none of its later goals ends any agent's path or is a remaining goal of a carried task, so on multi-goal tasks agents can wait on the pickup for a while. |
 | TA-Prioritized | The offline sequence planner iterates every goal of every assigned task before selecting parking. |
 | TA-Hybrid | Group 2 plans to the first goal; subsequent Group-1 CBS calls advance through every remaining goal. |
 | Hungarian/LNS with PP/PBS/wPBS | Assignment estimates, LNS costs, goal construction, and low-level MLA*/MLSIPP planning all iterate the full ordered goal list. |
