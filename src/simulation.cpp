@@ -4540,23 +4540,26 @@ void Simulation::pbs_set_path(PBSNode* node, int agent_id, const vector<int>& pa
     node->cost += pbs_path_cost(agent_id, *row);
 }
 
+// Last timestep at which this path still moves (cur_time_ if it stands still).
+int Simulation::pbs_last_move(const vector<int>& path) const {
+    int li = (int)path.size() - 1;
+    while (li > (int)cur_time_ && path[li] == path[li-1]) li--;
+    return max(li, (int)cur_time_);
+}
+
 // Last timestep at which ANY agent still moves.  Beyond it every position is
 // frozen, so a conflict in the tail already shows up here — bounding the
 // conflict scan at settle+1 is exact and skips the long constant tail.
 int Simulation::pbs_settle_time(const PBSPaths& paths) const {
     int last_move = (int)cur_time_;
-    for (int i = 0; i < pbs_.num_ag; i++) {
-        const vector<int>& path = *paths[i];
-        int li = (int)path.size() - 1;
-        while (li > (int)cur_time_ && path[li] == path[li-1]) li--;
-        if (li > last_move) last_move = li;
-    }
+    for (int i = 0; i < pbs_.num_ag; i++)
+        last_move = max(last_move, pbs_last_move(*paths[i]));
     return last_move;
 }
 
 // Conflicts count up to the settle time, or only inside the wPBS window.
-int Simulation::pbs_conflict_horizon(const PBSPaths& paths) const {
-    int horizon = min(pbs_.max_t, pbs_settle_time(paths) + 1);
+int Simulation::pbs_conflict_horizon(int settle) const {
+    int horizon = min(pbs_.max_t, settle + 1);
     if (pbs_.window != INT_MAX) horizon = min(horizon, (int)cur_time_ + pbs_.window + 1);
     return horizon;
 }
@@ -4564,7 +4567,7 @@ int Simulation::pbs_conflict_horizon(const PBSPaths& paths) const {
 // First vertex/edge conflict of each agent pair (at most one per pair).
 void Simulation::pbs_detect_conflicts(const PBSPaths& paths,
                                       list<Conflict>& out) const {
-    int horizon = pbs_conflict_horizon(paths);
+    int horizon = pbs_conflict_horizon(pbs_settle_time(paths));
     for (int a1 = 0; a1 < pbs_.num_ag; a1++) {
         if (!pbs_.planned[a1]) continue;   // fixed paths are not branched on
         const vector<int>& p1 = *paths[a1];
@@ -4665,7 +4668,8 @@ PBSNode* Simulation::pbs_generate_child(PBSNode* parent, int lower, int higher) 
 // conflict contradicts the priority order.  Failing inside the budget makes the
 // whole child invalid (keeping it would let the DFS re-expand it forever).
 bool Simulation::pbs_resolve_cascade(PBSNode* node, int replanned_agent, const PBSNode* parent) {
-    int horizon = pbs_conflict_horizon(node->paths);
+    int settle = pbs_settle_time(node->paths);
+    int horizon = pbs_conflict_horizon(settle);
 
     // Parent's conflicts first, the re-planned agent's new ones appended (the
     // order breaks ties when choosing the earliest conflict).
@@ -4699,6 +4703,10 @@ bool Simulation::pbs_resolve_cascade(PBSNode* node, int replanned_agent, const P
         vector<int> np = pbs_plan_agent(a, a_cons, true);
         if (np.empty()) return false;
         pbs_set_path(node, a, np);
+        // The new path may move after the settle time the horizon came from;
+        // its conflicts up to its last move count too.
+        settle = max(settle, pbs_last_move(*node->paths[a]));
+        horizon = pbs_conflict_horizon(settle);
 
         node->conflicts.remove_if([a](const Conflict& cf) {
             return get<0>(cf) == a || get<1>(cf) == a;

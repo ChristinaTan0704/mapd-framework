@@ -386,8 +386,9 @@ private:
     bool pbs_resolve_cascade(PBSNode* node, int replanned_agent, const PBSNode* parent);
     int  pbs_path_cost(int agent_id, const vector<int>& path) const;
     void pbs_set_path(PBSNode* node, int agent_id, const vector<int>& path);
+    int  pbs_last_move(const vector<int>& path) const;
     int  pbs_settle_time(const PBSPaths& paths) const;
-    int  pbs_conflict_horizon(const PBSPaths& paths) const;
+    int  pbs_conflict_horizon(int settle) const;
     void pbs_commit(const PBSNode* node);
 
     // --- Shared old-path constraint table -------------------------------
