@@ -1,5 +1,8 @@
 CXX       ?= c++
-CXXFLAGS  ?= -std=c++14 -O2 -Wno-deprecated
+# Functions start on 64-byte boundaries: otherwise an unrelated change can
+# move a hot function (dlib's Hungarian matching) within its cache line and
+# change its runtime by 5-20 %.
+CXXFLAGS  ?= -std=c++14 -O2 -Wno-deprecated -falign-functions=64
 CPPFLAGS  ?=
 LDFLAGS   ?=
 LDLIBS    ?= -lboost_program_options

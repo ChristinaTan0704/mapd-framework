@@ -134,8 +134,13 @@ set. It checks:
 - exact makespan/SWT agreement for non-LNS methods;
 - informational makespan/SWT agreement for LNS methods.
 
-LNS uses a one-CPU-second improvement budget, so another CPU/compiler may
-execute a different number of LNS iterations. Its seed remains 0, but a small
+LNS uses a one-CPU-second improvement budget (`std::clock()`, as the
+reference), so another CPU/compiler may execute a different number of LNS
+iterations. Unlike the reference, which always spends the whole budget, a call
+also stops after 2000 rejected moves in a row (`--lns_no_improvement_limit`,
+0 disables it); this mainly shortens the runtime, and the results stay close
+(structured small multi-goal f2: a20-a50 gave the same SWT without the stop,
+a10 within 0.5%). Its seed remains 0, but a small
 LNS metric difference alone is not a failed port. Runtime is never expected to
 match across machines.
 
@@ -154,8 +159,8 @@ Representative seed-0 baselines are:
 | TA-Prioritized-STA* | 10 / offline | 1052 | 263485 |
 | TA-Hybrid-STA* | 10 / offline | 1050 | 263910 |
 
-The runner contains the complete 29-method smoke baseline, including the eight
-`task_sequence_limit=1` variants.
+The runner contains the complete 37-method smoke baseline, including the
+`task_sequence_limit` 1 and 2 variants of the Hungarian and LNS methods.
 
 The structured-small 10-agent, frequency-0.2 validation for the added
 low-level combinations produced the following seed-0 results (the TP and
@@ -177,7 +182,7 @@ non-negative `--seed` to obtain a different but repeatable equal-cost search
 ordering. The exact smoke baselines in `scripts/run_server_matrix.py` use the
 default reference tie-breaking.
 
-GitHub Actions runs the same repository-manifest, Linux build, and 29-method
+GitHub Actions runs the same repository-manifest, Linux build, and 37-method
 smoke checks on every push and pull request. Its smoke logs are uploaded as the
 `mapd-validation-results` workflow artifact.
 
@@ -185,8 +190,13 @@ Component combinations are validated before a run starts: `validate_config()`
 (`src/config_validate.cpp`) lists every supported pairing of assignment and
 MAPF method with its triggers, single-agent searches, endpoint strategies and
 modes, and rejects anything else with the supported values. The combination
-check runs every preset against every override and fails if a combination is
-neither rejected nor completed collision-free:
+check runs every preset against every override, plus the combinations this
+README calls supported that those axes miss, and fails if a combination is
+neither rejected before the simulation starts nor completed (exit 0) with
+executed paths that pass its own check (moves, collisions, every goal visited
+in order by the carrier, the reported makespan and waiting time); a supported
+combination that is rejected, or a run still going 30 s past its runtime
+limit, also fails:
 
 ```bash
 python3 scripts/check_combinations.py --max-parallel 5
@@ -220,8 +230,8 @@ goal through `choose_dummy_endpoint()`.
 
 | Family | Multi-goal implementation |
 |---|---|
-| TP/TPTS STA* | Sequential STA* legs visit every ordered goal; task swapping compares arrival at the first goal and completion at the final goal. |
-| TP/TPTS MLSIPP | One ordered MLSIPP request contains every goal. |
+| TP/TPTS STA* | As the reference token passing, two searches: one to the first goal, then one through the remaining ordered goals to the final goal (sequential STA* legs); each search ends where its goal can be held for good, the goals in between are passed through. Task swapping compares arrival at the first goal and completion at the final goal. |
+| TP/TPTS MLSIPP | The same two searches; the second is one ordered MLSIPP request over the remaining goals. |
 | HBH+MLA* or HBH+MLSIPP | The selected low-level planner receives the complete goal sequence and completion is recorded at its final goal. |
 | HBH+2-segment SIPP | Each ordered goal leg is planned by a separate SIPP request; only the final leg reserves its endpoint through the planning horizon. |
 | CENTRAL-CBS | An agent is planned to its matched pickup; once it carries the task, every remaining goal is planned (`GOAL_REACHED`). |
@@ -1198,13 +1208,13 @@ options override. The experiment scripts run the configuration files.
 
 | # | Component | (1) How to set | (2) Values | (3) Pay attention to |
 |---|---|---|---|---|
-| 1 | When to call task assignment | `--assign_trigger` | `ON_FREE_WAITS`<br>`EVERY_TIMESTEP`<br>`ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE` (alias `ON_NEW_TASK_OR_AGENT_BECOMES_FREE`)<br>`ONCE` | Every trigger with every assignment that plans as a separate step; `ON_FREE_WAITS` with `--replan_on WHEN_ASSIGNED` is TP/TPTS/HBH as published.<br>`ONCE` only for `LKH3_*` (`OFFLINE`); `LKH3_*` + `PP_TASK_SEQUENCE` only `ONCE` or `ON_NEW_OR_DEFERRED_...` (it replans whole tours after each assignment).<br>A known task's actual release is an event too (`OFFLINE`, `SEMI_ONLINE`).<br>`EVERY_TIMESTEP` assigns and advances every step, which is slow on large maps. |
-| 2 | Task assignment | `--assign_method` | `DECOUPLED_GREEDY` (TP)<br>`DECOUPLED_GREEDY_SWAPS` (TPTS)<br>`CENTRALIZED_GREEDY` (HBH)<br>`CENTRAL_HUNGARIAN`<br>`REPEATED_HUNGARIAN`<br>`REPEATED_HUNGARIAN_LNS`<br>`LKH3_TSP`<br>`LKH3_TSP_REASSIGN` | Every method feeds every planner `PP`, `PP_TASK_SEQUENCE`, `PBS`, `wPBS`, `CBS`; `TA_HYBRID_TWO_GROUP` takes only `LKH3_TSP_REASSIGN`.<br>`LKH3_*` need `--tour <file>` and `OFFLINE`.<br>LNS budget is `--lns_time` (wall-clock seconds), so its results vary slightly between runs. |
+| 1 | When to call task assignment | `--assign_trigger` | `ON_FREE_WAITS`<br>`EVERY_TIMESTEP`<br>`ON_NEW_OR_DEFERRED_TASK_OR_AGENT_BECOMES_FREE` (alias `ON_NEW_TASK_OR_AGENT_BECOMES_FREE`)<br>`ON_AGENT_FREE_OR_AT_PICKUP`<br>`ONCE` | Every trigger with every assignment that plans as a separate step; `ON_FREE_WAITS` with `--replan_on WHEN_ASSIGNED` is TP/TPTS/HBH as published.<br>`ONCE` only for `LKH3_TSP` (`OFFLINE`; `LKH3_TSP_REASSIGN` reassigns after time 0, so it rejects `ONCE`); `LKH3_*` + `PP_TASK_SEQUENCE` only `ON_NEW_OR_DEFERRED_...`, or `ONCE` for `LKH3_TSP` (it replans whole tours after each assignment).<br>A known task's actual release is an event too (`OFFLINE`, `SEMI_ONLINE`).<br>`EVERY_TIMESTEP` assigns and advances every step, which is slow on large maps. |
+| 2 | Task assignment | `--assign_method` | `DECOUPLED_GREEDY` (TP)<br>`DECOUPLED_GREEDY_SWAPS` (TPTS)<br>`CENTRALIZED_GREEDY` (HBH)<br>`CENTRAL_HUNGARIAN`<br>`REPEATED_HUNGARIAN`<br>`REPEATED_HUNGARIAN_LNS`<br>`LKH3_TSP`<br>`LKH3_TSP_REASSIGN` | Every method feeds every planner `PP`, `PP_TASK_SEQUENCE`, `PBS`, `wPBS`, `CBS`; `TA_HYBRID_TWO_GROUP` takes only `LKH3_TSP_REASSIGN`.<br>`LKH3_*` need `--tour <file>` and `OFFLINE`.<br>LNS budget is `--lns_time` (CPU seconds per call, early stop `--lns_no_improvement_limit`), so its results vary slightly between runs. |
 | 3 | When to plan paths | `--replan_on` | `WHEN_ASSIGNED` (alias `NONE`), or a comma-separated set of `AFTER_ASSIGNMENT`, `EVERY_TIMESTEP`, `GOAL_REACHED`, `PERIODIC` (e.g. `AFTER_ASSIGNMENT,PERIODIC`) | `WHEN_ASSIGNED` = each agent is planned when it is assigned a task, inside the assignment; only TP/TPTS/HBH with `ON_FREE_WAITS`.<br>`PERIODIC` alone plans new assignments at the next period; a set with `EVERY_TIMESTEP` is `EVERY_TIMESTEP`; `GOAL_REACHED` alone is rejected (new assignments would never be planned).<br>`wPBS` needs `PERIODIC` or `EVERY_TIMESTEP`; so does every planner fed by `LKH3_*` (it plans the next tasks of a tour) except `PP_TASK_SEQUENCE`, which plans whole tours: `AFTER_ASSIGNMENT` only.<br>After `CENTRAL_HUNGARIAN` (an agent is planned to its pickup) a `GOAL_REACHED`, `PERIODIC` or `EVERY_TIMESTEP` replan plans the next leg; TA-Hybrid needs `GOAL_REACHED` or `EVERY_TIMESTEP`.<br>A planner that fails also replans at the next timestep. |
-| 4 | Which agents to plan | `--agent_selection` | `ALL`<br>`CHANGED` | Either, for every planner and assignment, except TP/TPTS/HBH as published (`WHEN_ASSIGNED`): `CHANGED`, since their assignment plans one agent at a time against the others' committed paths (for `ALL`, plan after the assignment: `--replan_on AFTER_ASSIGNMENT`).<br>Kept paths can block the changed agents; when `CHANGED` has reached no goal for 2 (rows + cols) steps while work remains, every agent is planned.<br>`CBS` with `ALL` (one CBS over every agent's goal sequence) is slow with 50 agents. |
+| 4 | Which agents to plan | `--agent_selection` | `ALL`<br>`CHANGED`<br>`CHANGED_OR_NOT_CARRYING` | Either, for every planner and assignment, except TP/TPTS/HBH as published (`WHEN_ASSIGNED`): `CHANGED`, since their assignment plans one agent at a time against the others' committed paths (for `ALL`, plan after the assignment: `--replan_on AFTER_ASSIGNMENT`).<br>Kept paths can block the changed agents; when `CHANGED` has reached no goal for 2 (rows + cols) steps while work remains, every agent is planned.<br>`CBS` with `ALL` (one CBS over every agent's goal sequence) is slow with 50 agents. |
 | 5 | High-level planner | `--mapf` | `PP` (alias `PP_PER_TASK`)<br>`PP_TASK_SEQUENCE`<br>`CBS`<br>`PBS`<br>`wPBS`<br>`TA_HYBRID_TWO_GROUP` | `PBS`/`wPBS`/`CBS` plan the first `--task_sequence_limit` tasks (built-in default 2; the eight Hungarian/LNS PBS/wPBS configurations set 1, as the original code does); `PP` plans one task.<br>`PP_TASK_SEQUENCE` plans every agent's whole sequence and tentatively plans every remaining agent at each priority level (n(n+1)/2 searches per plan).<br>Every planner runs in every mode the assignment allows.<br>`TA_HYBRID_TWO_GROUP` only with `LKH3_TSP_REASSIGN` (its Group 2 routes free agents under the LKH3 tour's makespan bound and may swap their sequences). |
 | 5.1 | wPBS window | `--wpbs_replan_window` | integer, default 10 | At least 2 for `wPBS`.<br>Also the `PERIODIC` replan interval for any planner. |
-| 6 | Low-level planner | `--single_agent` | `STA`<br>`MLA`<br>`MLSIPP` (alias `SIPP`)<br>`SIPP2` (alias `2SEG_SIPP`)<br>`SEQ_STA` | Every planner takes any of the five; under `CBS` the search obeys the high-level constraints.<br>TA-Hybrid plans its carriers (Group 1) and its free agents' fallback paths with it; `SEQ_STA` is its original search. |
+| 6 | Low-level planner | `--single_agent` | `STA`<br>`MLA`<br>`MLSIPP` (alias `SIPP`)<br>`SIPP2` (alias `2SEG_SIPP`)<br>`SEQ_STA` | Every planner takes any of the five; under `CBS` the search obeys the high-level constraints.<br>`CBS` set up as CENTRAL's plain ECBS (earliest conflict, no ICBS improvements, reference ties) with `MLA` runs the port of the reference ECBS (the same paths) when every planned agent has one released endpoint goal; any other search runs in the framework's CBS.<br>TA-Hybrid plans its carriers (Group 1) and its free agents' fallback paths with it; `SEQ_STA` is its original search. |
 | 7 | Task endpoint | `--endpoint_strategy`<br>`--dummy_path 0/1` | `WAIT_OR_NEAREST_SAFE`<br>`WAIT_OR_NEAREST_FREE_NONTASK`<br>`NEAREST_AVAILABLE`<br>`NEAREST_WITH_STRICT_EXCLUSIONS`<br>`PAIRWISE_TASK_THEN_HOME`<br>`RETURN_TO_HOME` | Every strategy, with either `--dummy_path`, for every planner; the Table 1 configurations keep their original value.<br>`--dummy_path 0`: an agent stops at its last goal (or stays where it is) unless another task or agent needs that cell.<br>`PAIRWISE` skips endpoints others need unless the planner is `wPBS` (a windowed plan does not hold them).<br>`CENTRAL` parks idle agents at the strategy's endpoint. |
 | 8 | Task setup | `--mode` | `ONLINE`<br>`SEMI_ONLINE` (with `--semi_online_lookahead_batches k`, default 1)<br>`OFFLINE` | `LKH3_*` and `TA_HYBRID_TWO_GROUP` only `OFFLINE` (the tour covers the complete task set); every other method runs in every mode.<br>`CENTRAL_HUNGARIAN` then also matches known tasks released within rows + cols steps (the agent waits at the pickup).<br>TP/TPTS/HBH as published can run `OFFLINE`, but do not use the advance knowledge and perform poorly. |
 | 9 | Task type | `--task_type` | `MAPD`<br>`MG_MAPD` (default) | `MAPD` checks that every task in the task file has exactly 2 goals, otherwise errors.<br>Multi-goal task files need `MG_MAPD`. |
@@ -1222,7 +1232,21 @@ General:
   it missed planned first. TA-Hybrid's Group 1 CBS (bounded to about 2 GB of
   nodes) falls back to planning its carriers one at a time. If that fails too it prints a `Warning:` line; the
   agents it could not plan keep their collision-free committed paths, and it
-  plans again at the next timestep.
+  plans again at the next timestep. A TA-Hybrid free agent that not even the
+  complete prioritized fallback paths place also prints a `Warning:` line; it
+  keeps its path and is planned again at the next assignment.
+- `--save_output` writes `output/<algorithm>[_sa-…][_mapf-…]_<map>_<task>.txt`:
+  the summary, every agent's path (`# Agent paths`, one location per
+  timestep), and one line per task (`# Tasks (task_id release_time pickup_loc
+  delivery_loc status completion_time pickup_time carrier)`), where
+  `pickup_time` is the step at which the method counts the first goal as
+  reached and `carrier` is the agent at the final goal at completion (-1 if not
+  completed). Most methods count the first arrival; TP and TPTS count, as the
+  reference token passing does (and as for completion), the arrival from which
+  the agent can stay, and CENTRAL the step at which an agent standing on the
+  pickup takes the task, so their agents can be at the goal earlier. Earlier
+  versions wrote only the first six columns, with the status column labelled
+  `agent`.
 - `./mapd --help` lists every option and its values.
 
 ### Values in detail
@@ -1244,7 +1268,7 @@ components, and the Table 1 configurations (`configs/table1/`) that use them:
 
 | Value | Meaning | Used by |
 |---|---|---|
-| `DECOUPLED_GREEDY` | each free agent takes its nearest task; planning inside the assignment, it plans the task goal by goal, each goal reached when it can be held (the reference token passing) | TP |
+| `DECOUPLED_GREEDY` | each free agent takes its nearest task; planning inside the assignment, it plans the task as the reference token passing does, to the pickup and then to the delivery, each reached when it can be held (a multi-goal task's goals in between are passed through) | TP |
 | `DECOUPLED_GREEDY_SWAPS` | as above; may take over a task another agent would reach later | TPTS |
 | `CENTRALIZED_GREEDY` | the globally nearest (agent, task) pairs first | HBH |
 | `CENTRAL_HUNGARIAN` | Ma's CENTRAL (the reference code). Phase 1: an agent that carries no task and stands on a released pickup takes that task if no carried task and no agent's path ends at its delivery. The agents that took a task are planned first, with the configured planner (two-stage planning). Phase 2: Hungarian matching of the other agents to released pickups (one task per pickup cell, pickups not on a carried task's goal) or parking endpoints (chosen by the endpoint strategy), costs = path lengths against the carriers' paths. An agent owns a task once it picks it up; until then it is planned to the pickup and rematched at every assignment | CENTRAL |
@@ -1333,7 +1357,10 @@ destinations are pairwise distinct, and so are the endpoints of the agents a
 planner plans. Under a planner that holds the final endpoint for good (all but
 `wPBS`), `PAIRWISE` also skips endpoints other tasks or agents need. An idle
 agent whose final cell another task needs is replanned (`CHANGED`; in
-TA-Hybrid it moves to its rest endpoint). See
+TA-Hybrid it moves to its rest endpoint). In TP, TPTS and HBH, an idle agent
+that must vacate its endpoint while the strategy picks that same endpoint
+(another agent's committed path crosses it, and no other endpoint is
+better) steps aside and comes back to it, instead of staying in the way. See
 [Parking endpoint support](#parking-endpoint-support).
 
 **8. Task setup** — `--mode`
@@ -1383,8 +1410,17 @@ sequences, i.e. LKH3 tours with an endpoint other agents' tours cross
 (`NEAREST_AVAILABLE`, `NEAREST_WITH_STRICT_EXCLUSIONS`, `WAIT_OR_NEAREST_SAFE`,
 `PAIRWISE`; every leg must be able to hold that endpoint), or every known task
 in `OFFLINE` (n(n+1)/2 whole-sequence searches per plan, `SEQ_STA` the
-slowest); `LKH3_TSP` + `PP`/`PBS` with periodic replans at 50 agents and
-frequency 0.2; and LNS with every task known upfront (`OFFLINE`).
+slowest, minutes even at kiva frequency 1); `LKH3_TSP` + `PP`/`PBS` with periodic replans at 50 agents and
+frequency 0.2; LNS with every task known upfront (`OFFLINE`); 50 agents with
+every task known: CENTRAL at kiva frequency 500 (about 4 min with the defaults,
+longer with `--dummy_path 1`) and TP with `PBS` and `--agent_selection ALL` in
+`OFFLINE` or `SEMI_ONLINE` at frequency 0.2; and CENTRAL
+with a single-agent search other than `MLA` (`MLSIPP`, `SIPP2`, `STA`,
+`SEQ_STA`): it runs the framework CBS, not the reference ECBS port, with
+CENTRAL's expansion limit of 1000000, so a replan whose CBS has no solution
+expands up to a million nodes before prioritized planning takes over (kiva a10
+frequency 1 with `MLSIPP`: 626 s; with `--cbs_high_level_expansion_limit
+10000` such a run takes seconds).
 
 ## Algorithm setup
 

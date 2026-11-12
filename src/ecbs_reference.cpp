@@ -4,8 +4,10 @@
 // inputs give the reference's paths. Departures: nodes live in pools instead of
 // leaking, an initial path that cannot be found fails the search (the
 // reference goes on with an empty path), indices past a constraint path's end
-// read its last cell, and the high level stops after `expansion_limit` nodes.
+// read its last cell, the high level stops after `expansion_limit` nodes, and
+// both levels stop at the run's runtime deadline (RuntimeDeadline, as CBS).
 #include "ecbs_reference.h"
+#include "types.h"
 
 #include <boost/heap/fibonacci_heap.hpp>
 #include <climits>
@@ -190,14 +192,18 @@ bool SingleAgentECBS::findPath(double f_weight, const ConstraintsByTime* constra
 
     int lastGoalConsTime = extractLastGoalTimestep(goal_location, constraints);
 
+    uint64_t expanded = 0;
     while (!focal_list.empty()) {
+        RuntimeDeadline::check_periodic(expanded++, "CENTRAL ECBS low-level search");
         Node* curr = focal_list.top();
         focal_list.pop();
         open_list.erase(curr->open_handle);
         curr->in_openlist = false;
 
         if (curr->loc == goal_location && curr->timestep > lastGoalConsTime) {
-            // the agent must be able to stay at its goal for good
+            // the agent must be able to stay at its goal for good (a scan of
+            // every committed path to the horizon, so the deadline is checked)
+            RuntimeDeadline::check("CENTRAL ECBS goal-holding test");
             bool hold = true;
             for (size_t ag = 0; ag < cons_paths.size() && hold; ag++)
                 for (size_t t = curr->timestep + curr_time + 1;
@@ -503,6 +509,7 @@ bool ECBSSearch::run() {
     s.focal_list_threshold = focal_w_ * s.dummy_start->sum_min_f_vals;
 
     while (!s.focal_list.empty()) {
+        RuntimeDeadline::check_periodic(s.HL_num_expanded, "CENTRAL ECBS high-level search");
         if (s.HL_num_expanded >= expansion_limit_) return false;
         ECBSNode* curr = s.focal_list.top();
         s.focal_list.pop();

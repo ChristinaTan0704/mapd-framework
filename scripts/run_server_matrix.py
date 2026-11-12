@@ -37,6 +37,10 @@ class Method:
 
 MLSIPP = ("--single_agent", "MLSIPP")
 TS1 = ("--task_sequence_limit", "1")
+# The Multi-Goal MAPD paper's sequence length C = 2 (the configurations keep the
+# original code's 1): LNS then keeps its improvements to each agent's second task,
+# and Hungarian plans each agent's second task as well.
+TS2 = ("--task_sequence_limit", "2")
 METHODS = (
     Method("TP-STA*", "table1/TP"),
     Method("TPTS-STA*", "table1/TPTS"),
@@ -67,6 +71,14 @@ METHODS = (
     Method("Hungarian+wPBS-MLSIPP (ts 1)", "variants/Hungarian-wPBS-MLSIPP", TS1),
     Method("LNS(1s)+PBS-MLSIPP (ts 1)", "variants/LNS-PBS-MLSIPP", TS1),
     Method("LNS(1s)+wPBS-MLSIPP (ts 1)", "variants/LNS-wPBS-MLSIPP", TS1),
+    Method("LNS(1s)+PBS-MLA* (ts 2)", "table1/LNS-PBS", TS2),
+    Method("LNS(1s)+wPBS-MLA* (ts 2)", "table1/LNS-wPBS", TS2),
+    Method("LNS(1s)+PBS-MLSIPP (ts 2)", "variants/LNS-PBS-MLSIPP", TS2),
+    Method("LNS(1s)+wPBS-MLSIPP (ts 2)", "variants/LNS-wPBS-MLSIPP", TS2),
+    Method("Hungarian+PBS-MLA* (ts 2)", "variants/Hungarian-PBS", TS2),
+    Method("Hungarian+wPBS-MLA* (ts 2)", "variants/Hungarian-wPBS", TS2),
+    Method("Hungarian+PBS-MLSIPP (ts 2)", "variants/Hungarian-PBS-MLSIPP", TS2),
+    Method("Hungarian+wPBS-MLSIPP (ts 2)", "variants/Hungarian-wPBS-MLSIPP", TS2),
 )
 BASE_METHOD_COUNT = 21
 
@@ -106,10 +118,18 @@ SMOKE_BASELINE = {
     "Hungarian+wPBS-MLSIPP (ts 1)": (2513, 13780),
     "LNS(1s)+PBS-MLSIPP (ts 1)": (2512, 13817),
     "LNS(1s)+wPBS-MLSIPP (ts 1)": (2513, 13677),
+    "LNS(1s)+PBS-MLA* (ts 2)": (2512, 13681),
+    "LNS(1s)+wPBS-MLA* (ts 2)": (2513, 13637),
+    "LNS(1s)+PBS-MLSIPP (ts 2)": (2515, 13759),
+    "LNS(1s)+wPBS-MLSIPP (ts 2)": (2514, 13648),
+    "Hungarian+PBS-MLA* (ts 2)": (2512, 13684),
+    "Hungarian+wPBS-MLA* (ts 2)": (2513, 13762),
+    "Hungarian+PBS-MLSIPP (ts 2)": (2512, 13701),
+    "Hungarian+wPBS-MLSIPP (ts 2)": (2512, 13652),
 }
 
 MULTIGOAL_BASELINE = {
-    "TP-STA*": (161, 1060),
+    "TP-STA*": (171, 1066),
     "TPTS-STA*": (161, 1014),
     "CENTRAL-CBS": (168, 1092),
     "CENTRAL-fixed-CBS": (159, 1029),
@@ -126,7 +146,7 @@ MULTIGOAL_BASELINE = {
     "Hungarian+wPBS-MLSIPP": (163, 1031),
     "LNS(1s)+PBS-MLSIPP": (158, 1028),
     "LNS(1s)+wPBS-MLSIPP": (163, 1031),
-    "TP-MLSIPP": (161, 1060),
+    "TP-MLSIPP": (161, 1049),
     "TPTS-MLSIPP": (161, 1016),
     "Hungarian+PP-SIPP": (161, 1048),
     "LNS(1s)+PP-SIPP": (161, 1048),
@@ -138,6 +158,14 @@ MULTIGOAL_BASELINE = {
     "Hungarian+wPBS-MLSIPP (ts 1)": (163, 1031),
     "LNS(1s)+PBS-MLSIPP (ts 1)": (158, 1028),
     "LNS(1s)+wPBS-MLSIPP (ts 1)": (163, 1031),
+    "LNS(1s)+PBS-MLA* (ts 2)": (158, 1029),
+    "LNS(1s)+wPBS-MLA* (ts 2)": (162, 1030),
+    "LNS(1s)+PBS-MLSIPP (ts 2)": (158, 1028),
+    "LNS(1s)+wPBS-MLSIPP (ts 2)": (163, 1031),
+    "Hungarian+PBS-MLA* (ts 2)": (158, 1029),
+    "Hungarian+wPBS-MLA* (ts 2)": (162, 1030),
+    "Hungarian+PBS-MLSIPP (ts 2)": (158, 1028),
+    "Hungarian+wPBS-MLSIPP (ts 2)": (163, 1031),
 }
 
 
@@ -160,6 +188,23 @@ def resolve_template(template: str | None, fallback: Path,
 def metric(pattern: str, output: str, cast):
     match = re.search(pattern, output)
     return cast(match.group(1)) if match else None
+
+
+SLOT_CGROUPS = Path("/sys/fs/cgroup/mapd-bench")
+
+
+def slot_oom_kills():
+    """{slot: oom_kill count of its cgroup} for the benchmark slots (empty outside them)."""
+    counts = {}
+    for events in SLOT_CGROUPS.glob("slot*/memory.events"):
+        try:
+            text = events.read_text()
+        except OSError:
+            continue
+        match = re.search(r"^oom_kill (\d+)", text, re.M)
+        if match:
+            counts[int(events.parent.name[4:])] = int(match.group(1))
+    return counts
 
 
 def build_jobs(args, selected_methods):
@@ -220,6 +265,7 @@ def run_one(args, output_dir: Path, job):
     if args.endpoint_strategy:
         command.extend(("--endpoint_strategy", args.endpoint_strategy))
 
+    oom_before = slot_oom_kills()
     started = time.monotonic()
     timed_out = False
     try:
@@ -248,10 +294,20 @@ def run_one(args, output_dir: Path, job):
         "EDGE COLLISION"))
     collision_passed = "COLLISION CHECK PASSED" in output
 
-    if timed_out:
+    # The simulator's own runtime limits end the run with an error (exit 1);
+    # a SIGKILL the runner did not send is the memory limit (OOM killer).
+    own_limit = re.search(r"(System|Pathfinding) runtime timeout in", output)
+    # bench_exec.py's line: which slot ran the job and how long it waited for one
+    # (the wall-clock --timeout runs while it waits).
+    slot = metric(r"\[bench\] slot (\d+) core", output, int)
+    slot_wait = metric(r"\[bench\] slot \d+ core \d+ \(waited (\d+) s\)", output, int)
+    slot_oom = slot is not None and slot_oom_kills().get(slot, 0) > oom_before.get(slot, 0)
+    if timed_out or (return_code != 0 and own_limit):
         status = "timeout"
     elif collision_failed:   # also exits with status 2
         status = "collision"
+    elif return_code == -9 and slot_oom:   # the slot's cgroup counted an OOM kill
+        status = "oom"
     elif return_code != 0:
         status = f"error({return_code})"
     elif not collision_passed:
@@ -278,10 +334,15 @@ def run_one(args, output_dir: Path, job):
         "tasks_completed": completed_tasks,
         "tasks_total": total_tasks,
         "status": status,
+        "slot": slot,
+        "slot_wait_s": slot_wait,
         "command": command,
         "log": str(log_path),
     }
-    cache_path.write_text(json.dumps(result, indent=2) + "\n")
+    # Written whole or not at all: a batch driver may read it while this runner ends.
+    partial = cache_path.with_name(cache_path.name + ".tmp")
+    partial.write_text(json.dumps(result, indent=2) + "\n")
+    partial.replace(cache_path)
     print(f"[DONE] {method.label} {agents}/{frequency}: ms={makespan} "
           f"swt={swt} wall={wall_runtime:.2f}s [{status}]", flush=True)
     return result

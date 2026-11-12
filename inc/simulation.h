@@ -7,12 +7,14 @@
 #include "config.h"
 #include "map_loader.h"
 #include "path_planners.h"
+#include <functional>
 #include <map>
 #include <unordered_map>
 #include <unordered_set>
 #include <queue>
 #include <vector>
 #include <list>
+#include <memory>
 #include <string>
 #include <set>
 #include <stack>
@@ -113,10 +115,13 @@ private:
 // ============================================================================
 typedef std::tuple<int,int,int,int,int> Conflict;   // (a1, a2, loc1, loc2, timestep)
 
+// A PBS node's paths, one row per agent ((*paths[agent])[t] = location). A
+// child shares its parent's rows and copies only the rows it re-plans.
+typedef std::vector<std::shared_ptr<const std::vector<int>>> PBSPaths;
+
 struct PBSNode {
-    PBSNode* parent;
     PriorityGraph priorities;
-    std::vector<std::vector<int>> paths;   // paths[agent][t] = location
+    PBSPaths paths;
     std::list<Conflict> conflicts;
     Conflict conflict;                     // the conflict chosen for branching
     std::pair<int,int> priority;           // (lower, higher) added by this node
@@ -124,7 +129,7 @@ struct PBSNode {
     int earliest_collision;
     int cost;
 
-    PBSNode() : parent(nullptr), num_collisions(0), earliest_collision(INT_MAX), cost(0) {}
+    PBSNode() : num_collisions(0), earliest_collision(INT_MAX), cost(0) {}
 };
 
 struct DummyEndpointRequest {
@@ -255,6 +260,9 @@ private:
                           const vector<char>* vertex_reservations,
                           int reservation_size, const vector<int>* last_occupation,
                           unordered_map<long long, int>& visited);
+    // assign_central_hungarian()'s (time, cell) table of the fixed paths, kept
+    // between calls and all zero outside them.
+    vector<char> central_reservations_;
     void assign_repeated_hungarian_lns();      // Hungarian, then the 1 s LNS spin
     void assign_repeated_hungarian();          //   Phase 1
     void truncate_online_task_sequences();     // keep only the executable C-task prefix
@@ -288,6 +296,8 @@ private:
     bool pp_retry_ = false;        // path_planning_pp: retry pass (pp_first_ first)
     vector<int> pp_first_;
     bool select_all_ = false;      // fall back to replanning every agent
+    // Set by a planner whose replan of every agent would repeat its failed plan.
+    bool repeat_on_replan_all_ = false;
     bool kept_paths_conflict() const;
     bool plan_paths(bool assignment_triggered);
 
@@ -313,6 +323,8 @@ private:
     int endpoint_nearest_available(const DummyEndpointRequest& request) const;
     int endpoint_pairwise(const DummyEndpointRequest& request) const;
     int endpoint_strict(const DummyEndpointRequest& request) const;
+    int nearest_endpoint(int location,
+                         const std::function<bool(const Endpoint&)>& allowed) const;
     vector<vector<pair<int,int>>> split_into_task_groups(
         int agent_id, const vector<pair<int,int>>& goal_seq) const;
     int planned_task_count() const;
@@ -362,11 +374,10 @@ private:
     bool central_assignment() const;   // CENTRAL_HUNGARIAN or its fixed variant
     bool path_planning_reference_ecbs(vector<int> agent_ids);
     vector<int> pbs_plan_agent(int agent_id, const vector<vector<int>>& cons_paths,
-                               const vector<vector<int>>& old_paths, bool use_old);
-    vector<vector<int>> pbs_others_old_paths(int agent_id) const;
+                               bool use_old);
     PBSNode* pbs_generate_root();
-    void pbs_detect_conflicts(const vector<vector<int>>& paths, list<Conflict>& out) const;
-    void pbs_detect_conflicts_for(int agent_id, const vector<vector<int>>& paths,
+    void pbs_detect_conflicts(const PBSPaths& paths, list<Conflict>& out) const;
+    void pbs_detect_conflicts_for(int agent_id, const PBSPaths& paths,
                                   int horizon, list<Conflict>& out) const;
     void pbs_find_replan_agents(const PriorityGraph& priorities,
                                 const list<Conflict>& conflicts,
@@ -375,8 +386,8 @@ private:
     bool pbs_resolve_cascade(PBSNode* node, int replanned_agent, const PBSNode* parent);
     int  pbs_path_cost(int agent_id, const vector<int>& path) const;
     void pbs_set_path(PBSNode* node, int agent_id, const vector<int>& path);
-    int  pbs_settle_time(const vector<vector<int>>& paths) const;
-    int  pbs_conflict_horizon(const vector<vector<int>>& paths) const;
+    int  pbs_settle_time(const PBSPaths& paths) const;
+    int  pbs_conflict_horizon(const PBSPaths& paths) const;
     void pbs_commit(const PBSNode* node);
 
     // --- Shared old-path constraint table -------------------------------
@@ -391,7 +402,10 @@ private:
     std::vector<int> shared_old_holds_;  // [num_ag] permanently-held final location
     std::vector<int> shared_old_holdcnt_;// [map_size] # agents parked on each cell
     std::vector<int> shared_old_movers_; // agents whose old path actually moves
-    std::vector<std::vector<std::tuple<int,int,int>>> shared_old_sipp_ranges_;
+    // MLSIPP: each old path's stays (agent, begin, end) = on one cell during
+    // [begin, end), by cell: cell loc's are [first[loc], first[loc + 1])
+    std::vector<std::tuple<int,int,int>> shared_old_sipp_ranges_;
+    std::vector<int> shared_old_sipp_first_;
 
     void pbs_build_shared_old_table();
     void pbs_clear_shared_old_table() { shared_old_valid_ = false; }
@@ -420,7 +434,8 @@ private:
                              const vector<vector<int>>& old_paths,
                              bool use_old_paths,
                              bool skip_holding = false, int stop_time = INT_MAX,
-                             const CBSConstraintTable* constraints = nullptr);
+                             const CBSConstraintTable* constraints = nullptr,
+                             int extra_horizon = 0);
 
     vector<int> sipp_search_impl(int agent_id, int start_loc, int start_time,
                                 const vector<pair<int,int>>& goals,
@@ -435,7 +450,8 @@ private:
                                 const vector<vector<int>>& cons_paths,
                                 const vector<vector<int>>& old_paths,
                                 bool use_old_paths, bool skip_holding, int stop_time,
-                                const CBSConstraintTable* constraints, bool wait_early);
+                                const CBSConstraintTable* constraints, bool wait_early,
+                                int extra_horizon = 0);
 
     // TP/TPTS ordered-goal low-level planning and endpoint-vacating fallback.
     vector<int> plan_sipp_segments(
@@ -446,6 +462,27 @@ private:
         int stop_time = INT_MAX, const CBSConstraintTable* constraints = nullptr);
     pair<int,int> plan_token_task(Agent& agent, Task& task,
                                    int hidden_agent = -1, int first_goal_before = INT_MAX);
+    // Planning inside assignment (TP, TPTS, HBH) keeps, per committed path
+    // (row of path_table_), the time from which it stays where it ends, and
+    // plan_token_task's full-length int copies of the rows. Both are
+    // refreshed only after the row changed: every write to path_table_ calls
+    // token_row_changed (-1 = every row).
+    mutable vector<int> path_settle_;
+    mutable vector<char> path_settle_stale_;
+    vector<vector<int>> token_rows_;
+    vector<char> token_row_stale_;
+    vector<unsigned int> token_row_version_;   // counts token_row_changed calls per row
+    void token_row_changed(int agent_id);
+    // Every committed path as an int row (index = agent), moved out of
+    // token_rows_ (stale rows copied first) and moved back by give_token_rows;
+    // a row whose path changed meanwhile is copied again before its next use.
+    vector<unsigned int> take_token_rows(vector<vector<int>>& rows);
+    void give_token_rows(vector<vector<int>>& rows, const vector<unsigned int>& versions);
+    int path_settle(int agent_id) const;
+    // Whether an agent other than agent_id/hidden is at loc at some time >= from.
+    bool others_at(int agent_id, int hidden, int loc, int from) const;
+    // The last time > after at which an agent other than agent_id is at loc, else after.
+    int others_last_at(int agent_id, int loc, int after) const;
     bool sta_is_constrained(int agent_id, int current_loc, int next_loc,
                             int next_time, int hidden_agent) const;
     void sta_update_path(Agent& agent, const SearchNode& goal_node);

@@ -60,6 +60,9 @@ struct SingleAgentRequest {
     const std::vector<std::vector<std::pair<int,int>>>& goal_groups;
     const std::vector<std::vector<int>>& constraint_paths;   // never collide
     const std::vector<std::vector<int>>& old_paths;          // PBS: previous plans
+    // PBS's root searches only: the searches then read old_paths from PBS's
+    // shared old-path table (pbs_build_shared_old_table), built from the same
+    // committed paths, while it is valid.
     bool use_old_paths;
     // Windowed planning: the search ends at this timestep and returns the best
     // partial path (the agent then holds its last cell).
@@ -73,6 +76,10 @@ struct SingleAgentRequest {
     // TPTS steal): STA* gives up once no earlier arrival is left; the other
     // searches may ignore it, so the caller still checks the arrival.
     int arrive_before = INT_MAX;
+    // Optional, one per constraint path: a time from which that path stays
+    // where it ends, so a search looking for the last time a path visits a
+    // cell need not read the times after it (STA*'s hold time).
+    const std::vector<int>* constraint_settle = nullptr;
 };
 
 // Strategy objects used by Simulation's dispatchers. They receive the live
