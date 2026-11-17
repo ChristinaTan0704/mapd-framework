@@ -24,7 +24,8 @@ and HBH planning as a separate step with every trigger, the tour assignments
 with every planner, every endpoint strategy and dummy-path setting with every
 planner as a separate step (MAPD and multi-goal), CBS with known future tasks,
 multi-goal tasks in every mode and agent selection and with 50 agents, random
-tie-breaking, the PERIODIC/wPBS window and CENTRAL-fixed. Those combinations
+tie-breaking, the PERIODIC/wPBS window and CENTRAL-fixed (also with the paper's
+T' test). Those combinations
 are supported by the README, so a rejection fails the check.
 
 A run passes when it
@@ -62,7 +63,8 @@ MULTIGOAL = ("mg5", "ssmg")
 
 # CENTRAL-fixed runs the same components as CENTRAL; the thesis's fixed
 # matching (CENTRAL_HUNGARIAN_FIXED) is crossed with the planners below.
-CONFIGS = ("table1/TP", "table1/TPTS", "table1/HBH", "table1/CENTRAL",
+# CENTRAL-ma is CENTRAL with the paper's every-timestep trigger and T' test.
+CONFIGS = ("table1/TP", "table1/TPTS", "table1/HBH", "table1/CENTRAL", "variants/CENTRAL-ma",
            "variants/Hungarian-PBS", "variants/Hungarian-wPBS",
            "table1/LNS-PBS", "table1/LNS-wPBS", "table1/TA-Prioritized",
            "table1/TA-Hybrid")
@@ -91,7 +93,7 @@ PLANNER_SETUPS = (
     ("wPBS", REFRESH, "PAIRWISE_TASK_THEN_HOME"),
     ("CBS", "AFTER_ASSIGNMENT,GOAL_REACHED", "NEAREST_WITH_STRICT_EXCLUSIONS"),
 )
-CENTRAL = ("table1/CENTRAL",)
+CENTRAL = ("table1/CENTRAL", "variants/CENTRAL-ma")
 # Releases far ahead of the agents, in both modes: the planners fed by
 # repeated Hungarian with 10 agents and by TP's greedy batch assignment with 50
 # (Hungarian rematching ~500 known tasks at every event outlasts the time
@@ -248,6 +250,9 @@ def readme_claims() -> list[tuple[str, int, str, list[str]]]:
     claims.append(("variants/Hungarian-wPBS", 10, "1", ["--wpbs_replan_window", "2"]))
     # CENTRAL-fixed as configured.
     claims += [("table1/CENTRAL-fixed", a, f, []) for a, f in ((10, "1"), (50, "1"), (10, "ssmg"))]
+    # The paper's T' test with the thesis's fixed matching too.
+    claims += [("table1/CENTRAL-fixed", a, f, ["--central_check_all_goals", "1"])
+               for a, f in ((10, "1"), (50, "1"), (10, "ssmg"))]
     MUST_RUN.update((c, a, f, tuple(e)) for c, a, f, e in claims)
     return claims
 

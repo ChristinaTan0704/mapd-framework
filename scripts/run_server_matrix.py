@@ -46,6 +46,7 @@ METHODS = (
     Method("TPTS-STA*", "table1/TPTS"),
     Method("CENTRAL-CBS", "table1/CENTRAL"),
     Method("CENTRAL-fixed-CBS", "table1/CENTRAL-fixed"),
+    Method("CENTRAL-ma-CBS", "variants/CENTRAL-ma"),
     Method("HBH+MLA*", "table1/HBH"),
     Method("HBH+MLSIPP", "table1/HBH", MLSIPP),
     Method("HBH+2-segment SIPP", "table1/HBH", ("--single_agent", "SIPP2")),

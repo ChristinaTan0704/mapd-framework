@@ -1246,7 +1246,11 @@ void Simulation::assign_central_hungarian() {
         // As in the reference AssignTasks, only the pickup is tested against
         // the goals of executing tasks and of earlier candidates in T' (the
         // delivery test is commented out there); all goals are then held.
+        // central_check_all_goals tests every goal, as Ma et al. 2017 (Sec 5).
         if (held[task->goals.front()]) continue;
+        if (config.central_check_all_goals &&
+            any_of(task->goals.begin(), task->goals.end(), [&](int goal) { return held[goal]; }))
+            continue;
 
         int pickup_endpoint = mapd_map.ep_index(task->goals.front());
         if (pickup_endpoint < 0)

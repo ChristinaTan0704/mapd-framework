@@ -235,6 +235,7 @@ goal through `choose_dummy_endpoint()`.
 | HBH+MLA* or HBH+MLSIPP | The selected low-level planner receives the complete goal sequence and completion is recorded at its final goal. |
 | HBH+2-segment SIPP | Each ordered goal leg is planned by a separate SIPP request; only the final leg reserves its endpoint through the planning horizon. |
 | CENTRAL-CBS | An agent is planned to its matched pickup; once it carries the task, every remaining goal is planned (`GOAL_REACHED`). As the reference's delivery rule, extended to every later goal: an agent on a pickup takes the task only when none of its later goals ends any agent's path or is a remaining goal of a carried task, so on multi-goal tasks agents can wait on the pickup for a while. |
+| CENTRAL-ma-CBS | As CENTRAL-CBS; a task is matched only if none of its goals is a remaining goal of a carried task or a goal of a task matched before it (the paper's pickup-and-delivery test, applied to every goal). |
 | TA-Prioritized | The offline sequence planner iterates every goal of every assigned task before selecting parking. |
 | TA-Hybrid | Group 2 plans to the first goal; subsequent Group-1 CBS calls advance through every remaining goal. |
 | Hungarian/LNS with PP/PBS/wPBS | Assignment estimates, LNS costs, goal construction, and low-level MLA*/MLSIPP planning all iterate the full ordered goal list. |
@@ -1271,7 +1272,7 @@ components, and the Table 1 configurations (`configs/table1/`) that use them:
 | `DECOUPLED_GREEDY` | each free agent takes its nearest task; planning inside the assignment, it plans the task as the reference token passing does, to the pickup and then to the delivery, each reached when it can be held (a multi-goal task's goals in between are passed through) | TP |
 | `DECOUPLED_GREEDY_SWAPS` | as above; may take over a task another agent would reach later | TPTS |
 | `CENTRALIZED_GREEDY` | the globally nearest (agent, task) pairs first | HBH |
-| `CENTRAL_HUNGARIAN` | Ma's CENTRAL (the reference code). Phase 1: an agent that carries no task and stands on a released pickup takes that task if no carried task and no agent's path ends at its delivery. The agents that took a task are planned first, with the configured planner (two-stage planning). Phase 2: Hungarian matching of the other agents to released pickups (one task per pickup cell, pickups not on a carried task's goal) or parking endpoints (chosen by the endpoint strategy), costs = path lengths against the carriers' paths. An agent owns a task once it picks it up; until then it is planned to the pickup and rematched at every assignment | CENTRAL |
+| `CENTRAL_HUNGARIAN` | Ma's CENTRAL (the reference code). Phase 1: an agent that carries no task and stands on a released pickup takes that task if no carried task and no agent's path ends at its delivery. The agents that took a task are planned first, with the configured planner (two-stage planning). Phase 2: Hungarian matching of the other agents to released pickups (one task per pickup cell, pickups not on a carried task's goal) or parking endpoints (chosen by the endpoint strategy), costs = path lengths against the carriers' paths. With `--central_check_all_goals 1` (Ma et al. 2017, Sec 5; the reference tests only the pickup) a task is matched only if none of its goals is a carried task's goal or a goal of a task matched before it. An agent owns a task once it picks it up; until then it is planned to the pickup and rematched at every assignment | CENTRAL |
 | `CENTRAL_HUNGARIAN_FIXED` | as above, but a match persists until its task is picked up; only agents without one are matched, to unmatched tasks (Ma's thesis, Sec 6.5.3) | CENTRAL-fixed |
 | `REPEATED_HUNGARIAN` | repeated Hungarian matching of agents to task sequences | Hungarian-PBS, Hungarian-wPBS (variants) |
 | `REPEATED_HUNGARIAN_LNS` | as above, improved by LNS (`--lns_time`, default 1 s) | LNS-PBS, LNS-wPBS |
@@ -1442,7 +1443,8 @@ barrier constraints along its far edges); all four keep CBS optimal for the
 paths its single-agent search returns.
 `--cbs_conflict_selection earliest`, `--cbs_bypass 0`,
 `--cbs_target_reasoning 0`, and `--cbs_rectangle_reasoning 0` restore plain
-earliest-conflict CBS. The standalone executable's whole-run
+earliest-conflict CBS. `--central_check_all_goals 1` makes CENTRAL test every
+goal of a task, not only its pickup, before matching it (see CENTRAL-ma). The standalone executable's whole-run
 wall-clock limit defaults to 1000 seconds, while each planning cycle defaults
 to 600 seconds. Use `--runtime_limit 0` or
 `--pathfinding_runtime_limit 0` to disable the respective limit.
@@ -1455,6 +1457,7 @@ to 600 seconds. Use `--runtime_limit 0` or
 | TPTS-MLSIPP | `--config configs/variants/TPTS-MLSIPP.cfg` | Online extension |
 | CENTRAL-CBS | `--config configs/table1/CENTRAL.cfg` | Online, the reference code |
 | CENTRAL-fixed-CBS | `--config configs/table1/CENTRAL-fixed.cfg` | Online, Ma's thesis Sec 6.5.3 (see the note below) |
+| CENTRAL-ma-CBS | `--config configs/variants/CENTRAL-ma.cfg` | Online, Ma et al. 2017 Sec 5 (see the note below) |
 | HBH+MLA* | `--config configs/table1/HBH.cfg` | Online |
 | HBH+MLSIPP | `--config configs/table1/HBH.cfg --single_agent MLSIPP` | Online extension |
 | HBH+2-segment SIPP | `--config configs/table1/HBH.cfg --single_agent SIPP2` | Online extension |
@@ -1482,6 +1485,19 @@ CENTRAL-fixed are the reference CENTRAL code's, so CENTRAL-fixed is expected
 to be worse than them. (The reference directory `CENTRAL-fixed/` is a
 min-cost-flow variant of TA-Hybrid whose flow sees unreleased tasks; it is not
 used.)
+CENTRAL-ma is CENTRAL as the AAMAS 2017 paper describes it (Sec 5): it
+assigns in every timestep (`--assign_trigger EVERY_TIMESTEP`; the reference
+code assigns only when an agent becomes free or stands on a pickup, so a new
+task waits for the next such event), and a task enters T' only if its pickup
+and delivery both differ from the deliveries of carried tasks and from the
+goals of the tasks already in T' (`--central_check_all_goals 1`; the
+reference tests the pickup only). On kiva small, 30 rows of the paper's
+Table 1 (10-50 agents, frequencies 0.2-10), its service times are within
+-8.5% to +4.3% of the paper's (median +0.5%, mean absolute 2.1%); the
+reference CENTRAL is 7-15% above the paper at frequency 0.2 with 30-50
+agents. With the pickup-only test instead, the rows are within -3.9% to +5.0%
+(median +0.5%): at frequencies 2-10 the paper's numbers sit between the two
+tests (pickup only +0.2% on average, every goal -1.6%).
 
 The eight Hungarian/LNS PBS or wPBS MLA*/MLSIPP configurations plan one task
 per agent (`task_sequence_limit = 1`, as the original code); their `(ts 1)`

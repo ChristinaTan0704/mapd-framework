@@ -151,6 +151,11 @@ struct MAPDConfig {
     // monotonically and collide inside the rectangle spanned by their paths
     // branch on barrier constraints along the rectangle's far edges.
     bool cbs_rectangle_reasoning;
+    // CENTRAL_HUNGARIAN(_FIXED) only: an open task enters T' if its pickup
+    // (false, the reference code) or every goal (true, Ma et al. 2017, Sec 5)
+    // differs from the held goals: carried tasks' remaining goals and the
+    // goals of the tasks already in T'.
+    bool central_check_all_goals;
     // Semi-online only: number of future release batches known in advance.
     int semi_online_lookahead_batches;
 
@@ -167,6 +172,7 @@ struct MAPDConfig {
         cbs_high_level_expansion_limit(10000),
         cbs_conflict_selection(CBS_CONFLICT_CARDINAL), cbs_bypass(true),
         cbs_target_reasoning(true), cbs_rectangle_reasoning(true),
+        central_check_all_goals(false),
         semi_online_lookahead_batches(1) {}
 };
 

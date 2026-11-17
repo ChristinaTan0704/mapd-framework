@@ -88,6 +88,9 @@ void set_parameters(MAPDConfig& config, const po::variables_map& vm)
     if (vm.count("cbs_rectangle_reasoning"))
         config.cbs_rectangle_reasoning =
             vm["cbs_rectangle_reasoning"].as<int>() != 0;
+    if (vm.count("central_check_all_goals"))
+        config.central_check_all_goals =
+            vm["central_check_all_goals"].as<int>() != 0;
     if (vm.count("semi_online_lookahead_batches")) {
         config.semi_online_lookahead_batches =
             vm["semi_online_lookahead_batches"].as<int>();
@@ -144,6 +147,7 @@ int main(int argc, char** argv)
         ("cbs_bypass",     po::value<int>(),                           "CBS/ECBS only: 1=ICBS bypass, 0=always branch (default 1)")
         ("cbs_target_reasoning", po::value<int>(),                     "CBS/ECBS only: 1=target-conflict reasoning, 0=vertex constraints (default 1)")
         ("cbs_rectangle_reasoning", po::value<int>(),                  "CBS/ECBS only: 1=rectangle (barrier) reasoning, 0=vertex constraints (default 1)")
+        ("central_check_all_goals", po::value<int>(),                  "CENTRAL only: 1=a task enters T' only if none of its goals is held (Ma et al. 2017), 0=only its pickup is tested (the reference code; default 0)")
         ("semi_online_lookahead_batches", po::value<int>(),            "SEMI_ONLINE only: future task-release batches known in advance (default 1)")
     ;
 
