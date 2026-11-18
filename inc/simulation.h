@@ -12,6 +12,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <queue>
+#include <random>
 #include <vector>
 #include <list>
 #include <memory>
@@ -220,6 +221,7 @@ private:
     bool should_replan(bool assignment_triggered) const;
     void path_planning(bool assignment_triggered); // mapf
     bool replan_pending_ = false;    // a planner failed: plan again next timestep
+    bool planned_in_assignment_ = false;   // REPEATED_HUNGARIAN_REAL_PATH_LNS planned: skip the planning step
 
     // Assignment-trigger state is separate from open_tasks_: that pool may
     // contain truncated suffixes that should not cause reassignment by
@@ -272,6 +274,20 @@ private:
     void lns_destroy(vector<int>& removed_tasks);
     void lns_repair(vector<int>& removed_tasks);
     void lns_estimate_task_times(unordered_map<int, pair<int,int>>& task_times) const;
+    // REPEATED_HUNGARIAN_REAL_PATH_LNS: repeated Hungarian, then LNS (random
+    // destroy, the regret repair above) whose candidates are planned by the
+    // configured prioritized planner and judged on the real paths. It leaves
+    // the best candidate truncated and planned (planned_in_assignment_).
+    void assign_real_path_lns();
+    long long real_path_cost(const vector<deque<int>>& full_sequences,
+                             const vector<Agent>& planned) const;
+    void real_path_lns_destroy(vector<int>& removed_tasks);
+    void real_path_lns_repair(vector<int>& removed_tasks);
+    std::mt19937 real_path_lns_rng_;       // its random moves (seeded once, from --seed)
+    // The prioritized planner's order (agent ids, highest first) while the
+    // method plans its candidates; empty = the planner's own order.
+    vector<int> pp_order_;
+    vector<int> real_path_lns_order_;      // the order the method last chose (its next start)
 
 
     // ======================================================================

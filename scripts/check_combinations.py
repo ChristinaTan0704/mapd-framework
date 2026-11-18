@@ -67,7 +67,10 @@ MULTIGOAL = ("mg5", "ssmg")
 CONFIGS = ("table1/TP", "table1/TPTS", "table1/HBH", "table1/CENTRAL", "variants/CENTRAL-ma",
            "variants/Hungarian-PBS", "variants/Hungarian-wPBS",
            "table1/LNS-PBS", "table1/LNS-wPBS", "table1/TA-Prioritized",
-           "table1/TA-Hybrid")
+           "table1/TA-Hybrid", "variants/LNS-real-PP-MLSIPP")
+# LNS judged on real paths plans every candidate: its 1 s per assignment call
+# outlasts the time limit on every instance, so the check stops it early.
+REAL_PATH_LNS = "variants/LNS-real-PP-MLSIPP"
 OFFLINE_ONLY = {"table1/TA-Prioritized", "table1/TA-Hybrid"}
 # Assignments that plan as published (WHEN_ASSIGNED), one agent at a time.
 PLAN_IN_ASSIGNMENT = ("table1/TP", "table1/TPTS", "table1/HBH")
@@ -238,8 +241,9 @@ def readme_claims() -> list[tuple[str, int, str, list[str]]]:
             claims += [(config, 10, "ssmg", ["--mode", m]) for m in ("SEMI_ONLINE", "OFFLINE")]
         # TP/TPTS/HBH plan inside the assignment as published: other selections plan after it.
         after = ["--replan_on", "AFTER_ASSIGNMENT"] if config in PLAN_IN_ASSIGNMENT else []
+        # LNS on real paths plans every agent of each candidate (ALL only).
         claims += [(config, 10, "ssmg", (after if a != "CHANGED" else []) + ["--agent_selection", a])
-                   for a in SELECTIONS]
+                   for a in (("ALL",) if config == REAL_PATH_LNS else SELECTIONS)]
         claims.append((config, 50, "ssmg", []))
         # Random tie-breaking takes other code paths (CBS repeat check, ECBS port).
         claims.append((config, 10, "500" if config in OFFLINE_ONLY else "1",
@@ -253,6 +257,17 @@ def readme_claims() -> list[tuple[str, int, str, list[str]]]:
     # The paper's T' test with the thesis's fixed matching too.
     claims += [("table1/CENTRAL-fixed", a, f, ["--central_check_all_goals", "1"])
                for a, f in ((10, "1"), (50, "1"), (10, "ssmg"))]
+    # LNS on real paths with both prioritized planners, multi-goal and in every mode.
+    claims += [(REAL_PATH_LNS, a, f, e) for a, f, e in (
+        (10, "1", []), (50, "1", []), (10, "ssmg", []),
+        (10, "1", ["--mapf", "PP_TASK_SEQUENCE"]), (10, "1", ["--single_agent", "MLA"]),
+        (10, "0.2", ["--mode", "SEMI_ONLINE"]), (10, "0.2", ["--mode", "OFFLINE"]),
+        (10, "1", ["--lns_time", "0"]),
+        (10, "1", ["--real_lns_destroy_planned", "1", "--real_lns_repair_top", "3",
+                   "--real_lns_priority_share", "0.5", "--real_lns_patience", "50",
+                   "--real_lns_tail_weight", "0.5"]),
+        (10, "ssmg", ["--real_lns_destroy_size", "3", "--real_lns_destroy_planned", "1",
+                      "--real_lns_priority_share", "0.5"]))]
     # Repeated Hungarian costed at the pickup; MLA*'s node cap scaled both ways.
     claims += [(c, a, f, ["--hungarian_pickup_cost", "1"])
                for c in ("variants/Hungarian-PBS", "variants/Hungarian-wPBS-MLSIPP", "table1/LNS-wPBS")
@@ -292,7 +307,8 @@ def run_in(workdir: Path, executable: Path, config: str, agents: int, frequency:
     files = instance(config, agents, frequency)
     # 500 structured multi-goal tasks: LNS's up to 1 s per assignment call
     # alone outlasts the time limit, so the check stops it early.
-    budget = ["--lns_no_improvement_limit", "50"] if frequency == "ssmg" else []
+    budget = (["--lns_no_improvement_limit", "50"]
+              if frequency == "ssmg" or config == REAL_PATH_LNS else [])
     command = [str(executable), *files, *budget,
                "--config", str(ROOT / "configs" / f"{config}.cfg"), "--seed", "0", "-s", "1",
                "--runtime_limit", str(timeout), "--pathfinding_runtime_limit", str(timeout),

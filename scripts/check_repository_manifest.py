@@ -133,7 +133,8 @@ for name in ("TP", "TPTS", "CENTRAL", "CENTRAL-fixed", "HBH", "TA-Prioritized",
              "TA-Hybrid", "LNS-PBS", "LNS-wPBS"):
     REQUIRED.add(f"configs/table1/{name}.cfg")
 for name in ("TPTS-MLSIPP", "Hungarian-PBS", "Hungarian-wPBS", "Hungarian-PBS-MLSIPP",
-             "Hungarian-wPBS-MLSIPP", "LNS-PBS-MLSIPP", "LNS-wPBS-MLSIPP"):
+             "Hungarian-wPBS-MLSIPP", "LNS-PBS-MLSIPP", "LNS-wPBS-MLSIPP", "CENTRAL-ma",
+             "LNS-real-PP-MLSIPP"):
     REQUIRED.add(f"configs/variants/{name}.cfg")
 
 for agents in (10, 20, 30, 40, 50):

@@ -21,7 +21,10 @@ enum AssignMethod {
     AM_DECOUPLED_GREEDY_SWAPS,
     AM_LKH3_TSP,
     AM_LKH3_TSP_REASSIGN,
-    AM_REPEATED_HUNGARIAN_LNS
+    AM_REPEATED_HUNGARIAN_LNS,
+    // Repeated Hungarian, then LNS whose moves are judged on the real paths of
+    // prioritized planning (the assignment plans the paths itself).
+    AM_REPEATED_HUNGARIAN_REAL_PATH_LNS
 };
 enum AssignTrigger {
     AT_ON_FREE_WAITS,     // an agent is free (TP: one agent per call)
@@ -37,6 +40,8 @@ enum AssignTrigger {
 };
 // When paths are replanned: a set of these flags. With none, the assignment
 // method plans the paths itself while assigning (TP, TPTS, HBH).
+// REPEATED_HUNGARIAN_REAL_PATH_LNS also plans while assigning, but runs with
+// AFTER_ASSIGNMENT (the event-driven clock) and skips that planning step.
 enum ReplanEvent {
     REPLAN_AFTER_ASSIGNMENT = 1,   // whenever tasks were assigned
     REPLAN_EVERY_TIMESTEP = 2,
@@ -164,6 +169,19 @@ struct MAPDConfig {
     // MLA* only: multiplies the node cap of one search,
     // min(500000, map cells x (20 + release wait)) (default 1).
     double mla_node_cap_scale;
+    // REPEATED_HUNGARIAN_REAL_PATH_LNS only. Tasks removed per move; whether
+    // one of them is always a task the planner plans (an agent's next task);
+    // the repair: 0 = regret-2 (lns_repair), r >= 1 = the removed tasks in
+    // random order, each at one of its r cheapest estimated positions; the
+    // share of moves that swap two agents in the prioritized planner's order
+    // instead; and a stop after this many planned candidates in a row that
+    // were not cheaper (0 = off).
+    int real_lns_destroy_size;
+    bool real_lns_destroy_planned;
+    int real_lns_repair_top;
+    double real_lns_priority_share;
+    int real_lns_patience;
+    double real_lns_tail_weight;   // weight of the estimated (unplanned) tail in the cost (default 1)
 
     MAPDConfig() : mode(MODE_ONLINE), task_type(TASK_MG_MAPD),
         assign_method(AM_DECOUPLED_GREEDY), assign_trigger(AT_ON_FREE_WAITS), replan_on(0),
@@ -180,7 +198,9 @@ struct MAPDConfig {
         cbs_target_reasoning(true), cbs_rectangle_reasoning(true),
         central_check_all_goals(false),
         semi_online_lookahead_batches(1), hungarian_pickup_cost(false),
-        mla_node_cap_scale(1.0) {}
+        mla_node_cap_scale(1.0), real_lns_destroy_size(2), real_lns_destroy_planned(false),
+        real_lns_repair_top(0), real_lns_priority_share(0.0), real_lns_patience(0),
+        real_lns_tail_weight(1.0) {}
 };
 
 // ============ Algorithm Presets ============
