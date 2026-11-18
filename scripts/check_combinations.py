@@ -264,10 +264,11 @@ def readme_claims() -> list[tuple[str, int, str, list[str]]]:
         (10, "0.2", ["--mode", "SEMI_ONLINE"]), (10, "0.2", ["--mode", "OFFLINE"]),
         (10, "1", ["--lns_time", "0"]),
         (10, "1", ["--real_lns_destroy_planned", "1", "--real_lns_repair_top", "3",
-                   "--real_lns_priority_share", "0.5", "--real_lns_patience", "50",
-                   "--real_lns_tail_weight", "0.5"]),
-        (10, "ssmg", ["--real_lns_destroy_size", "3", "--real_lns_destroy_planned", "1",
-                      "--real_lns_priority_share", "0.5"]))]
+                   "--real_lns_patience", "50", "--real_lns_tail_weight", "0.5"]),
+        (10, "1", ["--real_lns_warm_start", "0", "--real_lns_keep_busy", "1",
+                   "--real_lns_planned_no_worse", "1", "--real_lns_skip_no_tail", "1"]),
+        (10, "ssmg", ["--real_lns_destroy_size", "3", "--real_lns_warm_start", "1"]),
+        (50, "1", ["--real_lns_warm_start", "1", "--real_lns_destroy_size", "1"]))]
     # Repeated Hungarian costed at the pickup; MLA*'s node cap scaled both ways.
     claims += [(c, a, f, ["--hungarian_pickup_cost", "1"])
                for c in ("variants/Hungarian-PBS", "variants/Hungarian-wPBS-MLSIPP", "table1/LNS-wPBS")

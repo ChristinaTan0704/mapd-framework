@@ -1774,10 +1774,6 @@ void Simulation::assign_real_path_lns() {
     assign_repeated_hungarian();
 
     const int num_agents = (int)agents.size();
-    if ((int)real_path_lns_order_.size() != num_agents) {   // the planner's own order to start
-        real_path_lns_order_.resize(num_agents);
-        for (int i = 0; i < num_agents; i++) real_path_lns_order_[i] = i;
-    }
     auto capture = [&]() {
         RealPathState state{agents, path_table_, open_tasks_, {}, planned_goals_, has_plan_,
                             last_planned_, replan_pending_, select_all_, repeat_on_replan_all_};
@@ -1808,42 +1804,176 @@ void Simulation::assign_real_path_lns() {
         for (int i = 0; i < (int)all_tasks.size(); i++) status[i] = all_tasks[i].status;
         return status;
     };
-    // Truncate and plan the current sequences as the planning step would, in
-    // the given priority order.
-    auto plan_candidate = [&](const vector<int>& order) {
-        const vector<deque<int>> full = sequences();
-        truncate_online_task_sequences();
-        pp_order_ = order;
-        path_planning(true);
-        pp_order_.clear();
-        return replan_pending_ ? LLONG_MAX : real_path_cost(full, agents);
+    auto set_assignment = [&](const vector<deque<int>>& seqs, const vector<int>& status) {
+        for (int i = 0; i < num_agents; i++) agents[i].task_sequence = seqs[i];
+        for (int i = 0; i < (int)all_tasks.size(); i++) all_tasks[i].status = status[i];
     };
-    // The tasks the planner plans (truncate_online_task_sequences keeps them).
+
+    // The planner plans each agent's first `keep` tasks (truncation keeps
+    // them). A candidate's plan depends only on those tasks (the rest of the
+    // state is base), so every plan of this call is remembered by them.
     const int keep = planned_task_count();
-    auto same_planned_tasks = [&](const vector<deque<int>>& a, const vector<deque<int>>& b) {
-        for (int i = 0; i < num_agents; i++) {
-            const int na = min((int)a[i].size(), keep), nb = min((int)b[i].size(), keep);
-            if (na != nb || !equal(a[i].begin(), a[i].begin() + na, b[i].begin())) return false;
+    auto planned_key = [&](const vector<deque<int>>& seqs) {
+        vector<int> key;
+        for (const auto& seq : seqs) {
+            for (int k = 0; k < (int)seq.size() && k < keep; k++) key.push_back(seq[k]);
+            key.push_back(-1);
         }
-        return true;
+        return key;
+    };
+    std::map<vector<int>, RealPathPrefix> plans;
+    // Truncate and plan the current sequences as the planning step would; the
+    // plan's summary is remembered under the sequences' planned tasks.
+    auto plan_candidate = [&]() -> const RealPathPrefix& {
+        const vector<int> key = planned_key(sequences());
+        truncate_online_task_sequences();
+        path_planning(true);
+        RealPathPrefix prefix;
+        if (!replan_pending_) real_path_prefix(agents, prefix);
+        return plans[key] = prefix;
+    };
+    auto cost_of = [&](const vector<deque<int>>& full, const RealPathPrefix& prefix) {
+        return prefix.ok ? prefix.planned + real_path_tail(full, prefix) : LLONG_MAX;
+    };
+    // keep_busy: an agent without a task while another agent has tasks the
+    // planner does not plan (their estimate is optimistic, the agent idles).
+    auto leaves_agent_idle = [&](const vector<deque<int>>& seqs) {
+        if (!config.real_lns_keep_busy) return false;
+        bool idle = false, tail = false;
+        for (const auto& seq : seqs) {
+            if (seq.empty()) idle = true;
+            if ((int)seq.size() > keep) tail = true;
+        }
+        return idle && tail;
     };
 
     const bool reassignable = lns_has_reassignable_task();   // on the whole sequences
+    bool has_tail = false;
+    for (const Agent& ag : agents) has_tail |= (int)ag.task_sequence.size() > keep;
     const RealPathState base = capture();          // the assignment, not yet planned
     vector<deque<int>> incumbent = sequences();
     vector<int> incumbent_status = base.task_status;
-    vector<int> incumbent_order = real_path_lns_order_;
-    long long best_cost = plan_candidate(incumbent_order);
+    RealPathPrefix incumbent_prefix = plan_candidate();
+    long long best_cost = cost_of(incumbent, incumbent_prefix);
     RealPathState best = capture();                // the incumbent, truncated and planned
     planned_in_assignment_ = true;
+    bool dirty = true;   // the state differs from base beyond sequences and statuses
 
-    if (config.lns_time_limit <= 0 || !reassignable) return;
+    if (config.lns_time_limit <= 0 || !reassignable ||
+        (config.real_lns_skip_no_tail && !has_tail)) {
+        real_path_lns_previous_ = incumbent;
+        return;
+    }
 
-    std::uniform_real_distribution<double> coin(0.0, 1.0);
+    // A candidate (sequences and statuses, on base) replaces the incumbent if
+    // it is cheaper (and, with planned_no_worse, its planned part is not more
+    // expensive). The paths of an accepted candidate are those planned for its
+    // planned tasks; if they were remembered from an earlier candidate, they
+    // are planned again to keep its state (the same plan).
+    auto consider = [&](const vector<deque<int>>& candidate, const vector<int>& candidate_status) {
+        const vector<int> key = planned_key(candidate);
+        auto it = plans.find(key);
+        const bool remembered = it != plans.end();
+        if (!remembered) {
+            if (dirty) restore(base);
+            set_assignment(candidate, candidate_status);
+            plan_candidate();
+            dirty = true;
+            it = plans.find(key);
+        }
+        const RealPathPrefix& prefix = it->second;
+        const long long cost = cost_of(candidate, prefix);
+        if (!(cost < best_cost) ||
+            (config.real_lns_planned_no_worse && prefix.planned > incumbent_prefix.planned))
+            return std::make_pair(false, !remembered);
+        best_cost = cost;
+        if (remembered) {
+            // Its plan: the incumbent's paths when the planned tasks are the
+            // same, else planned again; the truncation is the candidate's own.
+            const bool same_plan = key == planned_key(incumbent);
+            if (dirty) restore(base);
+            set_assignment(candidate, candidate_status);
+            if (same_plan) {
+                truncate_online_task_sequences();
+                best.open_tasks = open_tasks_;
+                best.task_status = statuses();
+            } else {
+                plan_candidate();
+                best = capture();
+            }
+            dirty = true;
+        } else {
+            best = capture();
+        }
+        incumbent = candidate;
+        incumbent_status = candidate_status;
+        incumbent_prefix = prefix;
+        return std::make_pair(true, !remembered);
+    };
+
+    // Warm start: the previous call's best sequences, kept where their tasks are
+    // still in this call's pool (a carried task stays first), the other pool
+    // tasks reinserted by the regret repair; it becomes the incumbent if cheaper.
+    if (config.real_lns_warm_start && (int)real_path_lns_previous_.size() == num_agents) {
+        if (dirty) restore(base);
+        dirty = false;
+        vector<char> in_pool(all_tasks.size(), 0), placed(all_tasks.size(), 0);
+        for (const auto& seq : incumbent)
+            for (int tid : seq) in_pool[tid] = 1;
+        vector<deque<int>> warm(num_agents);
+        for (int i = 0; i < num_agents; i++)
+            if (agents[i].status == AG_CARRYING && !incumbent[i].empty() &&
+                incumbent[i].front() == agents[i].current_task) {
+                warm[i].push_back(incumbent[i].front());
+                placed[incumbent[i].front()] = 1;
+            }
+        for (int i = 0; i < num_agents; i++)
+            for (int tid : real_path_lns_previous_[i])
+                if (tid >= 0 && tid < (int)all_tasks.size() && in_pool[tid] && !placed[tid]) {
+                    warm[i].push_back(tid);
+                    placed[tid] = 1;
+                }
+        vector<int> leftover;
+        for (int tid = 0; tid < (int)all_tasks.size(); tid++)
+            if (in_pool[tid]) {
+                all_tasks[tid].status = -1;
+                if (!placed[tid]) leftover.push_back(tid);
+            }
+        for (int i = 0; i < num_agents; i++) {
+            agents[i].task_sequence = warm[i];
+            for (int tid : warm[i]) all_tasks[tid].status = i;
+        }
+        lns_repair(leftover);
+        const vector<deque<int>> candidate = sequences();
+        const vector<int> candidate_status = statuses();
+        if (candidate != incumbent && !leaves_agent_idle(candidate))
+            consider(candidate, candidate_status);
+    }
+
+    // The removals tried on the incumbent: the repair is deterministic, so the
+    // same removal rebuilds the same candidate until the incumbent changes.
+    // Once every removal of two tasks has been tried, the call stops.
+    std::set<vector<int>> tried;
+    auto removals = [&]() -> long long {   // distinct removals of the destroy, for size <= 2
+        long long eligible = 0, planned = 0;
+        for (const Agent& ag : agents)
+            for (int idx = 0; idx < (int)ag.task_sequence.size(); idx++) {
+                if (ag.status == AG_CARRYING && ag.current_task == ag.task_sequence[idx]) continue;
+                eligible++;
+                if (idx < keep) planned++;
+            }
+        const long long size = min<long long>(config.real_lns_destroy_size, eligible);
+        if (size == 1) return config.real_lns_destroy_planned && planned ? planned : eligible;
+        if (size != 2) return LLONG_MAX;
+        const long long all = eligible * (eligible - 1) / 2;
+        if (!config.real_lns_destroy_planned || planned == 0) return all;
+        return all - (eligible - planned) * (eligible - planned - 1) / 2;
+    };
+    long long removal_count = -1;
+
     clock_t lns_start = clock();
     double time_limit_ms = config.lns_time_limit * 1000.0;
     int no_improve = 0, planned_no_improve = 0, empty_streak = 0;
-    bool dirty = true;   // the state differs from base beyond sequences and statuses
     while (true) {
         RuntimeDeadline::check("real-path LNS");
         double elapsed = (double)(clock() - lns_start) / CLOCKS_PER_SEC * 1000.0;
@@ -1854,120 +1984,102 @@ void Simulation::assign_real_path_lns() {
         if (config.real_lns_patience > 0 && planned_no_improve >= config.real_lns_patience)
             break;
 
-        // The incumbent assignment, before truncation and planning (only the
-        // sequences and task statuses changed unless the last candidate was planned).
+        // The incumbent assignment on base (only the sequences and statuses
+        // changed unless a candidate was planned since).
         if (dirty) restore(base);
         dirty = false;
-        for (int i = 0; i < num_agents; i++) agents[i].task_sequence = incumbent[i];
-        for (int i = 0; i < (int)all_tasks.size(); i++) all_tasks[i].status = incumbent_status[i];
+        set_assignment(incumbent, incumbent_status);
 
-        // A move: swap two working agents in the planner's order, or remove
-        // tasks at random and repair.
-        vector<int> order = incumbent_order;
-        bool priority_move = false;
-        if (config.real_lns_priority_share > 0 &&
-            coin(real_path_lns_rng_) < config.real_lns_priority_share) {
-            vector<int> working;
-            for (int i = 0; i < num_agents; i++)
-                if (!incumbent[i].empty()) working.push_back(i);
-            if (working.size() >= 2) {
-                std::uniform_int_distribution<int> pick(0, (int)working.size() - 1);
-                const int a = working[pick(real_path_lns_rng_)];
-                int b = a;
-                while (b == a) b = working[pick(real_path_lns_rng_)];
-                swap(*find(order.begin(), order.end(), a), *find(order.begin(), order.end(), b));
-                priority_move = true;
+        if (removal_count < 0) removal_count = removals();
+
+        // A move: remove tasks at random and repair.
+        vector<int> removed;
+        real_path_lns_destroy(removed);
+        if (removed.empty()) { if (++empty_streak > 200) break; continue; }
+        empty_streak = 0;
+        if (config.real_lns_repair_top == 0) {   // a deterministic repair
+            vector<int> key = removed;
+            sort(key.begin(), key.end());
+            if (!tried.insert(key).second) {
+                no_improve++;
+                if ((long long)tried.size() >= removal_count) break;   // all tried
+                continue;
             }
         }
-        if (!priority_move) {
-            vector<int> removed;
-            real_path_lns_destroy(removed);
-            if (removed.empty()) { if (++empty_streak > 200) break; continue; }
-            empty_streak = 0;
-            if (config.real_lns_repair_top > 0) real_path_lns_repair(removed);
-            else lns_repair(removed);
-        }
+        if (config.real_lns_repair_top > 0) real_path_lns_repair(removed);
+        else lns_repair(removed);
+
         const vector<deque<int>> candidate = sequences();
-        const vector<int> candidate_status = statuses();
-        if (!priority_move && candidate == incumbent) { no_improve++; continue; }
-
-        long long cost;
-        bool planned = true;
-        if (!priority_move && same_planned_tasks(candidate, incumbent)) {
-            // The planner would plan the incumbent's tasks in the incumbent's
-            // order again, i.e. return its paths: cost the candidate on them.
-            planned = false;
-            cost = real_path_cost(candidate, best.agents);
-        } else {
-            for (int i = 0; i < num_agents; i++) agents[i].task_sequence = candidate[i];
-            cost = plan_candidate(order);
-            dirty = true;
-        }
-        if (cost < best_cost) {
-            best_cost = cost;
-            incumbent = candidate;
-            incumbent_status = candidate_status;
-            incumbent_order = order;
-            if (planned) {
-                best = capture();
-            } else {
-                // The incumbent's paths with the candidate's truncation (the
-                // order of the tasks it returns to the open pool).
-                // (the state is base with the candidate's sequences and statuses)
-                truncate_online_task_sequences();
-                best.open_tasks = open_tasks_;
-                best.task_status = statuses();
-                dirty = true;
-            }
+        if (candidate == incumbent || leaves_agent_idle(candidate)) { no_improve++; continue; }
+        const pair<bool, bool> outcome = consider(candidate, statuses());   // (accepted, planned)
+        if (outcome.first) {
             no_improve = 0;
             planned_no_improve = 0;
+            tried.clear();
+            removal_count = -1;
         } else {
             no_improve++;
-            if (planned) planned_no_improve++;
+            if (outcome.second) planned_no_improve++;
         }
     }
     restore(best);
-    real_path_lns_order_ = incumbent_order;
+    real_path_lns_previous_ = incumbent;
 }
 
-// Sum over every task in full_sequences of (delivery - release): planned tasks
-// (each agent's truncated task_sequence in planned_agents) at the first arrival
-// on the agent's path, as the simulation will count them, later tasks
-// estimated from there and weighted by real_lns_tail_weight (default 1).
-long long Simulation::real_path_cost(const vector<deque<int>>& full_sequences,
-                                     const vector<Agent>& planned_agents) const {
-    long long total = 0;
-    double tail = 0;   // the estimated part, weighted by real_lns_tail_weight
+// The planned part of the cost: each agent's planned tasks (its truncated
+// task_sequence in planned_agents) at their first arrival on its path, as the
+// simulation will count them, i.e. the sum of (delivery - release), and where
+// and when each agent finishes them. Not ok if a planned goal is not reached.
+void Simulation::real_path_prefix(const vector<Agent>& planned_agents, RealPathPrefix& out) const {
+    out = RealPathPrefix();
+    out.count.assign(planned_agents.size(), 0);
+    out.end_time.assign(planned_agents.size(), (int)cur_time_);
+    out.end_loc.assign(planned_agents.size(), 0);
     for (int i = 0; i < (int)planned_agents.size(); i++) {
         const Agent& ag = planned_agents[i];
-        const deque<int>& full = full_sequences[i];
         int t = (int)cur_time_;
         int loc = ag.loc;
-        for (int idx = 0; idx < (int)full.size(); idx++) {
-            const Task& task = all_tasks[full[idx]];
+        for (int idx = 0; idx < (int)ag.task_sequence.size(); idx++) {
+            const Task& task = all_tasks[ag.task_sequence[idx]];
             const int start_goal = (idx == 0 && ag.current_task == task.id)
                 ? ag.current_goal_index : 0;
-            const bool planned = idx < (int)ag.task_sequence.size();
             for (int g = start_goal; g < (int)task.goals.size(); g++) {
                 const int earliest = g == 0 ? task.release_time : 0;
-                if (planned) {
-                    while (t < (int)maxtime &&
-                           !((int)ag.path[t] == task.goals[g] && t >= earliest))
-                        t++;
-                    if (t >= (int)maxtime) return LLONG_MAX;
-                } else {
-                    const int ep = mapd_map.ep_index(task.goals[g]);
-                    int d = ep >= 0 ? mapd_map.endpoints[ep].h_val[loc] : 0;
-                    if (d == INT_MAX) d = 0;
-                    t = max(t + d, earliest);
-                }
+                while (t < (int)maxtime && !((int)ag.path[t] == task.goals[g] && t >= earliest))
+                    t++;
+                if (t >= (int)maxtime) return;   // not ok
                 loc = task.goals[g];
             }
-            if (planned) total += t - task.release_time;
-            else tail += t - task.release_time;
+            out.planned += t - task.release_time;
+        }
+        out.count[i] = (int)ag.task_sequence.size();
+        out.end_time[i] = t;
+        out.end_loc[i] = loc;
+    }
+    out.ok = true;
+}
+
+// The estimated part: every task of full_sequences after an agent's planned
+// ones, from where and when it finishes them, by endpoint distances as
+// estimate_sequence_cost, weighted by real_lns_tail_weight (default 1).
+long long Simulation::real_path_tail(const vector<deque<int>>& full_sequences,
+                                     const RealPathPrefix& prefix) const {
+    double tail = 0;
+    for (int i = 0; i < (int)full_sequences.size(); i++) {
+        int t = prefix.end_time[i], loc = prefix.end_loc[i];
+        for (int idx = prefix.count[i]; idx < (int)full_sequences[i].size(); idx++) {
+            const Task& task = all_tasks[full_sequences[i][idx]];
+            for (int g = 0; g < (int)task.goals.size(); g++) {
+                const int ep = mapd_map.ep_index(task.goals[g]);
+                int d = ep >= 0 ? mapd_map.endpoints[ep].h_val[loc] : 0;
+                if (d == INT_MAX) d = 0;
+                t = max(t + d, g == 0 ? task.release_time : 0);
+                loc = task.goals[g];
+            }
+            tail += t - task.release_time;
         }
     }
-    return total + llround(tail * config.real_lns_tail_weight);
+    return llround(tail * config.real_lns_tail_weight);
 }
 
 // Random removal: up to real_lns_destroy_size queued tasks, never one its agent
@@ -4501,11 +4613,6 @@ bool Simulation::path_planning_pp() {
         if (!selected[i]) endpoints[i] = paths[i][max_time - 1];
         else if (final_goal_assigned(i)) endpoints[i] = task_goals[i].back().first;
         if (selected[i]) remaining.push_back(i);
-    }
-    if (!pp_order_.empty()) {   // REPEATED_HUNGARIAN_REAL_PATH_LNS's candidate order
-        vector<int> rank(num_agents);
-        for (int k = 0; k < num_agents; k++) rank[pp_order_[k]] = k;
-        sort(remaining.begin(), remaining.end(), [&](int a, int b) { return rank[a] < rank[b]; });
     }
     stable_sort(remaining.begin(), remaining.end(), [&](int a, int b) {
         return agents[a].task_sequence.empty() < agents[b].task_sequence.empty();

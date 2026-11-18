@@ -106,11 +106,6 @@ void set_parameters(MAPDConfig& config, const po::variables_map& vm)
         if (config.real_lns_repair_top < 0)
             throw invalid_argument("real_lns_repair_top must be non-negative");
     }
-    if (vm.count("real_lns_priority_share")) {
-        config.real_lns_priority_share = vm["real_lns_priority_share"].as<double>();
-        if (!(config.real_lns_priority_share >= 0 && config.real_lns_priority_share <= 1))
-            throw invalid_argument("real_lns_priority_share must be in [0, 1]");
-    }
     if (vm.count("real_lns_patience")) {
         config.real_lns_patience = vm["real_lns_patience"].as<int>();
         if (config.real_lns_patience < 0)
@@ -118,9 +113,17 @@ void set_parameters(MAPDConfig& config, const po::variables_map& vm)
     }
     if (vm.count("real_lns_tail_weight")) {
         config.real_lns_tail_weight = vm["real_lns_tail_weight"].as<double>();
-        if (!(config.real_lns_tail_weight >= 0))
-            throw invalid_argument("real_lns_tail_weight must be non-negative");
+        if (!(config.real_lns_tail_weight >= 0 && config.real_lns_tail_weight <= 100))
+            throw invalid_argument("real_lns_tail_weight must be in [0, 100]");
     }
+    if (vm.count("real_lns_warm_start"))
+        config.real_lns_warm_start = vm["real_lns_warm_start"].as<int>() != 0;
+    if (vm.count("real_lns_keep_busy"))
+        config.real_lns_keep_busy = vm["real_lns_keep_busy"].as<int>() != 0;
+    if (vm.count("real_lns_skip_no_tail"))
+        config.real_lns_skip_no_tail = vm["real_lns_skip_no_tail"].as<int>() != 0;
+    if (vm.count("real_lns_planned_no_worse"))
+        config.real_lns_planned_no_worse = vm["real_lns_planned_no_worse"].as<int>() != 0;
     if (vm.count("mla_node_cap_scale")) {
         config.mla_node_cap_scale = vm["mla_node_cap_scale"].as<double>();
         if (!(config.mla_node_cap_scale > 0))
@@ -188,9 +191,12 @@ int main(int argc, char** argv)
         ("real_lns_destroy_size", po::value<int>(),                    "REPEATED_HUNGARIAN_REAL_PATH_LNS only: tasks removed per move (default 2)")
         ("real_lns_destroy_planned", po::value<int>(),                 "REPEATED_HUNGARIAN_REAL_PATH_LNS only: 1 = one removed task is always an agent's planned (next) task (default 0)")
         ("real_lns_repair_top", po::value<int>(),                      "REPEATED_HUNGARIAN_REAL_PATH_LNS only: 0 = regret-2 repair; r >= 1 = each removed task, in random order, at one of its r cheapest estimated positions (default 0)")
-        ("real_lns_priority_share", po::value<double>(),               "REPEATED_HUNGARIAN_REAL_PATH_LNS only: share of moves that swap two agents in the prioritized planner's order (default 0)")
         ("real_lns_patience", po::value<int>(),                        "REPEATED_HUNGARIAN_REAL_PATH_LNS only: stop after this many planned candidates in a row that were not cheaper; 0 = off (default 0)")
         ("real_lns_tail_weight", po::value<double>(),                  "REPEATED_HUNGARIAN_REAL_PATH_LNS only: weight of the estimated, unplanned tail of each sequence in the cost (default 1)")
+        ("real_lns_warm_start", po::value<int>(),                      "REPEATED_HUNGARIAN_REAL_PATH_LNS only: 1 = also start from the previous call's best sequences, projected to now (default 0)")
+        ("real_lns_keep_busy", po::value<int>(),                       "REPEATED_HUNGARIAN_REAL_PATH_LNS only: 1 = reject a candidate that leaves an agent without a task while another has unplanned tasks (default 0)")
+        ("real_lns_skip_no_tail", po::value<int>(),                    "REPEATED_HUNGARIAN_REAL_PATH_LNS only: 1 = no LNS when no agent has more tasks than the planner plans (default 0)")
+        ("real_lns_planned_no_worse", po::value<int>(),                "REPEATED_HUNGARIAN_REAL_PATH_LNS only: 1 = a candidate that changes planned tasks must not make their real cost worse (default 0)")
         ("mla_node_cap_scale", po::value<double>(),                    "MLA* only: multiplies the per-search node cap min(500000, cells x (20 + release wait)) (default 1)")
     ;
 

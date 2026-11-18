@@ -279,15 +279,18 @@ private:
     // configured prioritized planner and judged on the real paths. It leaves
     // the best candidate truncated and planned (planned_in_assignment_).
     void assign_real_path_lns();
-    long long real_path_cost(const vector<deque<int>>& full_sequences,
-                             const vector<Agent>& planned) const;
+    struct RealPathPrefix {   // a planned candidate's planned tasks
+        bool ok = false;      // every planned goal is reached on the paths
+        long long planned = 0;            // their sum of (delivery - release)
+        vector<int> count, end_time, end_loc;   // per agent: how many, finished when and where
+    };
+    void real_path_prefix(const vector<Agent>& planned_agents, RealPathPrefix& out) const;
+    long long real_path_tail(const vector<deque<int>>& full_sequences,
+                             const RealPathPrefix& prefix) const;
     void real_path_lns_destroy(vector<int>& removed_tasks);
     void real_path_lns_repair(vector<int>& removed_tasks);
     std::mt19937 real_path_lns_rng_;       // its random moves (seeded once, from --seed)
-    // The prioritized planner's order (agent ids, highest first) while the
-    // method plans its candidates; empty = the planner's own order.
-    vector<int> pp_order_;
-    vector<int> real_path_lns_order_;      // the order the method last chose (its next start)
+    vector<deque<int>> real_path_lns_previous_;   // its last best full sequences (warm start)
 
 
     // ======================================================================
