@@ -253,6 +253,13 @@ def readme_claims() -> list[tuple[str, int, str, list[str]]]:
     # The paper's T' test with the thesis's fixed matching too.
     claims += [("table1/CENTRAL-fixed", a, f, ["--central_check_all_goals", "1"])
                for a, f in ((10, "1"), (50, "1"), (10, "ssmg"))]
+    # Repeated Hungarian costed at the pickup; MLA*'s node cap scaled both ways.
+    claims += [(c, a, f, ["--hungarian_pickup_cost", "1"])
+               for c in ("variants/Hungarian-PBS", "variants/Hungarian-wPBS-MLSIPP", "table1/LNS-wPBS")
+               for a, f in ((10, "1"), (50, "1"), (10, "ssmg"))]
+    claims += [(c, a, f, ["--mla_node_cap_scale", x])
+               for c in ("table1/HBH", "variants/Hungarian-PBS") for x in ("0.1", "10")
+               for a, f in ((10, "1"), (50, "1"), (10, "ssmg"))]
     MUST_RUN.update((c, a, f, tuple(e)) for c, a, f, e in claims)
     return claims
 

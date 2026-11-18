@@ -1898,6 +1898,8 @@ int Simulation::hungarian_arrival_estimate(const Agent& ag, const Task& task) co
     }
 
     est_time = max(est_time, task.release_time);
+    // --hungarian_pickup_cost 1: the cost is the arrival at the pickup.
+    if (config.hungarian_pickup_cost) return est_time;
 
     // Add every remaining leg through the task's ordered goal sequence.
     for (int g = 0; g + 1 < (int)task.goals.size(); g++) {
@@ -5921,7 +5923,10 @@ vector<int> Simulation::seq_mla_star(int agent_id, int start_loc, int start_time
     // until a far-future deadline) and is abandoned cheaply. Waiting for a
     // release far ahead (SEMI_ONLINE, OFFLINE) takes a layer per step.
     const int release_wait = max(0, last_release - start_time);
-    const int mla_max_nodes = (int)min(500000L, (long)map_size * (20 + release_wait));
+    long mla_cap = min(500000L, (long)map_size * (20 + release_wait));
+    if (config.mla_node_cap_scale != 1.0)   // --mla_node_cap_scale
+        mla_cap = max(1L, min((long)INT_MAX, (long)llround((double)mla_cap * config.mla_node_cap_scale)));
+    const int mla_max_nodes = (int)mla_cap;
 
     mla_arena_used_chunk_ = 0;
     mla_arena_used_in_chunk_ = 0;

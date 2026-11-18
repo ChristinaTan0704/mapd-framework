@@ -158,6 +158,12 @@ struct MAPDConfig {
     bool central_check_all_goals;
     // Semi-online only: number of future release batches known in advance.
     int semi_online_lookahead_batches;
+    // REPEATED_HUNGARIAN(_LNS) only: the matching cost of a task is the
+    // estimated arrival at its first goal (pickup) instead of its last goal.
+    bool hungarian_pickup_cost;
+    // MLA* only: multiplies the node cap of one search,
+    // min(500000, map cells x (20 + release wait)) (default 1).
+    double mla_node_cap_scale;
 
     MAPDConfig() : mode(MODE_ONLINE), task_type(TASK_MG_MAPD),
         assign_method(AM_DECOUPLED_GREEDY), assign_trigger(AT_ON_FREE_WAITS), replan_on(0),
@@ -173,7 +179,8 @@ struct MAPDConfig {
         cbs_conflict_selection(CBS_CONFLICT_CARDINAL), cbs_bypass(true),
         cbs_target_reasoning(true), cbs_rectangle_reasoning(true),
         central_check_all_goals(false),
-        semi_online_lookahead_batches(1) {}
+        semi_online_lookahead_batches(1), hungarian_pickup_cost(false),
+        mla_node_cap_scale(1.0) {}
 };
 
 // ============ Algorithm Presets ============

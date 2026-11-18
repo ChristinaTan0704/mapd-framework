@@ -91,6 +91,14 @@ void set_parameters(MAPDConfig& config, const po::variables_map& vm)
     if (vm.count("central_check_all_goals"))
         config.central_check_all_goals =
             vm["central_check_all_goals"].as<int>() != 0;
+    if (vm.count("hungarian_pickup_cost"))
+        config.hungarian_pickup_cost =
+            vm["hungarian_pickup_cost"].as<int>() != 0;
+    if (vm.count("mla_node_cap_scale")) {
+        config.mla_node_cap_scale = vm["mla_node_cap_scale"].as<double>();
+        if (!(config.mla_node_cap_scale > 0))
+            throw invalid_argument("mla_node_cap_scale must be positive");
+    }
     if (vm.count("semi_online_lookahead_batches")) {
         config.semi_online_lookahead_batches =
             vm["semi_online_lookahead_batches"].as<int>();
@@ -149,6 +157,8 @@ int main(int argc, char** argv)
         ("cbs_rectangle_reasoning", po::value<int>(),                  "CBS/ECBS only: 1=rectangle (barrier) reasoning, 0=vertex constraints (default 1)")
         ("central_check_all_goals", po::value<int>(),                  "CENTRAL only: 1=a task enters T' only if none of its goals is held (Ma et al. 2017), 0=only its pickup is tested (the reference code; default 0)")
         ("semi_online_lookahead_batches", po::value<int>(),            "SEMI_ONLINE only: future task-release batches known in advance (default 1)")
+        ("hungarian_pickup_cost", po::value<int>(),                    "REPEATED_HUNGARIAN(_LNS) only: 1=a task's matching cost is the estimated arrival at its first goal (pickup), 0=at its last goal (default 0)")
+        ("mla_node_cap_scale", po::value<double>(),                    "MLA* only: multiplies the per-search node cap min(500000, cells x (20 + release wait)) (default 1)")
     ;
 
     po::variables_map vm;

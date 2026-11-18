@@ -83,6 +83,31 @@ METHODS = (
 )
 BASE_METHOD_COUNT = 21
 
+# Follow-up experiments (11-18), selectable by label but not part of "all":
+#   [LAk]          semi-online, the next k release batches known in advance (MG paper Table VI)
+#   [pickup cost]  repeated Hungarian costs a task by the arrival at its pickup, not its last goal
+#   [cap xS]       MLA*'s per-search node cap multiplied by S
+def _lookahead(label, config, extra, k):
+    return Method(f"{label} [LA{k}]", config,
+                  extra + ("--mode", "SEMI_ONLINE", "--semi_online_lookahead_batches", str(k)))
+
+
+_BY_LABEL = {method.label: method for method in METHODS}
+EXPERIMENT_METHODS = tuple(
+    _lookahead(label, _BY_LABEL[label].config, _BY_LABEL[label].extra, k)
+    for label in ("Hungarian+wPBS-MLA*", "LNS(1s)+wPBS-MLA*", "Hungarian+PBS-MLA*",
+                  "LNS(1s)+PBS-MLA*", "LNS(1s)+wPBS-MLA* (ts 2)")
+    for k in (1, 5, 10)
+) + tuple(
+    Method(f"{label} [pickup cost]", _BY_LABEL[label].config,
+           _BY_LABEL[label].extra + ("--hungarian_pickup_cost", "1"))
+    for label in ("Hungarian+PBS-MLA*", "Hungarian+wPBS-MLA*", "Hungarian+PBS-MLSIPP",
+                  "Hungarian+wPBS-MLSIPP", "Hungarian+PP-SIPP")
+) + tuple(
+    Method(f"HBH+MLA* [cap x{scale}]", "table1/HBH", ("--mla_node_cap_scale", scale))
+    for scale in ("0.1", "10")
+)
+
 # Seed-0 results with the default reference tie-breaking (validated on Linux,
 # 2026-10-03; CENTRAL rows after the reference ECBS port and the TP/TPTS
 # MLSIPP rows after its goal waiting, 2026-10-04).
@@ -493,7 +518,7 @@ def main():
     if not args.executable.is_file():
         parser.error(f"executable not found: {args.executable}; run make first")
 
-    by_label = {method.label: method for method in METHODS}
+    by_label = {method.label: method for method in METHODS + EXPERIMENT_METHODS}
     if args.methods == "all":
         selected = METHODS[:BASE_METHOD_COUNT] if args.base_methods else METHODS
     else:

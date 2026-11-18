@@ -1444,7 +1444,11 @@ paths its single-agent search returns.
 `--cbs_conflict_selection earliest`, `--cbs_bypass 0`,
 `--cbs_target_reasoning 0`, and `--cbs_rectangle_reasoning 0` restore plain
 earliest-conflict CBS. `--central_check_all_goals 1` makes CENTRAL test every
-goal of a task, not only its pickup, before matching it (see CENTRAL-ma). The standalone executable's whole-run
+goal of a task, not only its pickup, before matching it (see CENTRAL-ma).
+`--hungarian_pickup_cost 1` makes repeated Hungarian (and LNS's initial matching) cost a task by the
+estimated arrival at its first goal (pickup) instead of its last goal; the default favours short tasks.
+`--mla_node_cap_scale x` multiplies MLA*'s per-search node cap, min(500000, cells × (20 + release wait))
+(default 1); a search that reaches the cap fails. The standalone executable's whole-run
 wall-clock limit defaults to 1000 seconds, while each planning cycle defaults
 to 600 seconds. Use `--runtime_limit 0` or
 `--pathfinding_runtime_limit 0` to disable the respective limit.
