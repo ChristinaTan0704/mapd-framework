@@ -101,29 +101,13 @@ void set_parameters(MAPDConfig& config, const po::variables_map& vm)
     }
     if (vm.count("real_lns_destroy_planned"))
         config.real_lns_destroy_planned = vm["real_lns_destroy_planned"].as<int>() != 0;
-    if (vm.count("real_lns_repair_top")) {
-        config.real_lns_repair_top = vm["real_lns_repair_top"].as<int>();
-        if (config.real_lns_repair_top < 0)
-            throw invalid_argument("real_lns_repair_top must be non-negative");
-    }
     if (vm.count("real_lns_patience")) {
         config.real_lns_patience = vm["real_lns_patience"].as<int>();
         if (config.real_lns_patience < 0)
             throw invalid_argument("real_lns_patience must be non-negative");
     }
-    if (vm.count("real_lns_tail_weight")) {
-        config.real_lns_tail_weight = vm["real_lns_tail_weight"].as<double>();
-        if (!(config.real_lns_tail_weight >= 0 && config.real_lns_tail_weight <= 100))
-            throw invalid_argument("real_lns_tail_weight must be in [0, 100]");
-    }
     if (vm.count("real_lns_warm_start"))
         config.real_lns_warm_start = vm["real_lns_warm_start"].as<int>() != 0;
-    if (vm.count("real_lns_keep_busy"))
-        config.real_lns_keep_busy = vm["real_lns_keep_busy"].as<int>() != 0;
-    if (vm.count("real_lns_skip_no_tail"))
-        config.real_lns_skip_no_tail = vm["real_lns_skip_no_tail"].as<int>() != 0;
-    if (vm.count("real_lns_planned_no_worse"))
-        config.real_lns_planned_no_worse = vm["real_lns_planned_no_worse"].as<int>() != 0;
     if (vm.count("mla_node_cap_scale")) {
         config.mla_node_cap_scale = vm["mla_node_cap_scale"].as<double>();
         if (!(config.mla_node_cap_scale > 0))
@@ -178,7 +162,7 @@ int main(int argc, char** argv)
         ("task_sequence_limit", po::value<int>(),                       "tasks planned per agent by PBS, wPBS and CBS, and kept per agent by repeated Hungarian/LNS (default 2)")
         ("wpbs_replan_window", po::value<int>(),                       "steps between PERIODIC replans; also the wPBS planning window (default 10)")
         ("lns_time",       po::value<int>(),                           "LNS and real-path LNS only: assignment-improvement budget in CPU seconds per call (default 1)")
-        ("lns_no_improvement_limit", po::value<int>(),                 "LNS only: rejected moves before early stop; 0 disables (default 2000)")
+        ("lns_no_improvement_limit", po::value<int>(),                 "LNS and real-path LNS only: rejected moves before early stop; 0 disables (default 2000)")
         ("ecbs_focal_weight", po::value<double>(),                     "CBS/ECBS only: focal bound; 1.0=optimal CBS, >1.0=ECBS (default 1.0)")
         ("cbs_high_level_expansion_limit", po::value<int>(),           "CBS/ECBS only: maximum high-level expansions per batch (default 10000); a search that reaches it fails, and the planner falls back")
         ("cbs_conflict_selection", po::value<string>(),                "CBS/ECBS only: earliest or cardinal (ICBS MDD prioritization) (default cardinal)")
@@ -190,13 +174,8 @@ int main(int argc, char** argv)
         ("hungarian_pickup_cost", po::value<int>(),                    "REPEATED_HUNGARIAN(_LNS, _REAL_PATH_LNS) only: 1=a task's matching cost is the estimated arrival at its first goal (pickup), 0=at its last goal (default 0)")
         ("real_lns_destroy_size", po::value<int>(),                    "REPEATED_HUNGARIAN_REAL_PATH_LNS only: tasks removed per move (default 2)")
         ("real_lns_destroy_planned", po::value<int>(),                 "REPEATED_HUNGARIAN_REAL_PATH_LNS only: 1 = one removed task is always an agent's planned (next) task (default 0)")
-        ("real_lns_repair_top", po::value<int>(),                      "REPEATED_HUNGARIAN_REAL_PATH_LNS only: 0 = regret-2 repair; r >= 1 = each removed task, in random order, at one of its r cheapest estimated positions (default 0)")
         ("real_lns_patience", po::value<int>(),                        "REPEATED_HUNGARIAN_REAL_PATH_LNS only: stop after this many planned candidates in a row that were not cheaper; 0 = off (default 0)")
-        ("real_lns_tail_weight", po::value<double>(),                  "REPEATED_HUNGARIAN_REAL_PATH_LNS only: weight of the estimated, unplanned tail of each sequence in the cost (default 1)")
         ("real_lns_warm_start", po::value<int>(),                      "REPEATED_HUNGARIAN_REAL_PATH_LNS only: 1 = also start from the previous call's best sequences, projected to now (default 0)")
-        ("real_lns_keep_busy", po::value<int>(),                       "REPEATED_HUNGARIAN_REAL_PATH_LNS only: 1 = reject a candidate that leaves an agent without a task while another has unplanned tasks (default 0)")
-        ("real_lns_skip_no_tail", po::value<int>(),                    "REPEATED_HUNGARIAN_REAL_PATH_LNS only: 1 = no LNS when no agent has more tasks than the planner plans (default 0)")
-        ("real_lns_planned_no_worse", po::value<int>(),                "REPEATED_HUNGARIAN_REAL_PATH_LNS only: 1 = a candidate that changes planned tasks must not make their real cost worse (default 0)")
         ("mla_node_cap_scale", po::value<double>(),                    "MLA* only: multiplies the per-search node cap min(500000, cells x (20 + release wait)) (default 1)")
     ;
 

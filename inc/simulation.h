@@ -288,7 +288,6 @@ private:
     long long real_path_tail(const vector<deque<int>>& full_sequences,
                              const RealPathPrefix& prefix) const;
     void real_path_lns_destroy(vector<int>& removed_tasks);
-    void real_path_lns_repair(vector<int>& removed_tasks);
     std::mt19937 real_path_lns_rng_;       // its random moves (seeded once, from --seed)
     vector<deque<int>> real_path_lns_previous_;   // its last best full sequences (warm start)
 

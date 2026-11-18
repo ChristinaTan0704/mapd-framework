@@ -68,8 +68,8 @@ CONFIGS = ("table1/TP", "table1/TPTS", "table1/HBH", "table1/CENTRAL", "variants
            "variants/Hungarian-PBS", "variants/Hungarian-wPBS",
            "table1/LNS-PBS", "table1/LNS-wPBS", "table1/TA-Prioritized",
            "table1/TA-Hybrid", "variants/LNS-real-PP-MLSIPP")
-# LNS judged on real paths plans every candidate: its 1 s per assignment call
-# outlasts the time limit on every instance, so the check stops it early.
+# LNS judged on real paths plans its candidates: several times slower than
+# Hungarian + PP, so the check stops it early.
 REAL_PATH_LNS = "variants/LNS-real-PP-MLSIPP"
 OFFLINE_ONLY = {"table1/TA-Prioritized", "table1/TA-Hybrid"}
 # Assignments that plan as published (WHEN_ASSIGNED), one agent at a time.
@@ -263,10 +263,9 @@ def readme_claims() -> list[tuple[str, int, str, list[str]]]:
         (10, "1", ["--mapf", "PP_TASK_SEQUENCE"]), (10, "1", ["--single_agent", "MLA"]),
         (10, "0.2", ["--mode", "SEMI_ONLINE"]), (10, "0.2", ["--mode", "OFFLINE"]),
         (10, "1", ["--lns_time", "0"]),
-        (10, "1", ["--real_lns_destroy_planned", "1", "--real_lns_repair_top", "3",
-                   "--real_lns_patience", "50", "--real_lns_tail_weight", "0.5"]),
-        (10, "1", ["--real_lns_warm_start", "0", "--real_lns_keep_busy", "1",
-                   "--real_lns_planned_no_worse", "1", "--real_lns_skip_no_tail", "1"]),
+        (10, "1", ["--real_lns_warm_start", "0", "--real_lns_destroy_size", "2"]),
+        (10, "1", ["--real_lns_destroy_size", "2", "--real_lns_destroy_planned", "0"]),
+        (10, "1", ["--hungarian_pickup_cost", "1"]),
         (10, "ssmg", ["--real_lns_destroy_size", "3", "--real_lns_warm_start", "1"]),
         (50, "1", ["--real_lns_warm_start", "1", "--real_lns_destroy_size", "1"]))]
     # Repeated Hungarian costed at the pickup; MLA*'s node cap scaled both ways.

@@ -169,27 +169,15 @@ struct MAPDConfig {
     // MLA* only: multiplies the node cap of one search,
     // min(500000, map cells x (20 + release wait)) (default 1).
     double mla_node_cap_scale;
-    // REPEATED_HUNGARIAN_REAL_PATH_LNS only. Tasks removed per move; whether
+    // REPEATED_HUNGARIAN_REAL_PATH_LNS only: tasks removed per move; whether
     // one of them is always a task the planner plans (an agent's next task);
-    // the repair: 0 = regret-2 (lns_repair), r >= 1 = the removed tasks in
-    // random order, each at one of its r cheapest estimated positions; and a
-    // stop after this many planned candidates in a row that were not cheaper
-    // (0 = off).
+    // a stop after this many planned candidates in a row that were not
+    // cheaper (0 = off); whether each call also starts from the previous
+    // call's best sequences, projected to now.
     int real_lns_destroy_size;
     bool real_lns_destroy_planned;
-    int real_lns_repair_top;
     int real_lns_patience;
-    double real_lns_tail_weight;   // weight of the estimated (unplanned) tail in the cost (default 1)
-    // Also start from the previous call's best sequences, projected to now;
-    // reject candidates that leave an agent without a task while another has
-    // an unplanned tail; skip the LNS when no agent has a tail.
     bool real_lns_warm_start;
-    bool real_lns_keep_busy;
-    bool real_lns_skip_no_tail;
-    // Accept a candidate that changes planned tasks only if its planned (real)
-    // part is not more expensive either: the estimated tail, which truncation
-    // discards, cannot pay for a worse executed plan.
-    bool real_lns_planned_no_worse;
 
     MAPDConfig() : mode(MODE_ONLINE), task_type(TASK_MG_MAPD),
         assign_method(AM_DECOUPLED_GREEDY), assign_trigger(AT_ON_FREE_WAITS), replan_on(0),
@@ -207,9 +195,7 @@ struct MAPDConfig {
         central_check_all_goals(false),
         semi_online_lookahead_batches(1), hungarian_pickup_cost(false),
         mla_node_cap_scale(1.0), real_lns_destroy_size(2), real_lns_destroy_planned(false),
-        real_lns_repair_top(0), real_lns_patience(0),
-        real_lns_tail_weight(1.0), real_lns_warm_start(false), real_lns_keep_busy(false),
-        real_lns_skip_no_tail(false), real_lns_planned_no_worse(false) {}
+        real_lns_patience(0), real_lns_warm_start(false) {}
 };
 
 // ============ Algorithm Presets ============
