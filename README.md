@@ -1483,7 +1483,7 @@ to 600 seconds. Use `--runtime_limit 0` or
 | LNS(1s)+PBS-MLSIPP | `--config configs/variants/LNS-PBS-MLSIPP.cfg` | Online extension |
 | LNS(1s)+wPBS-MLSIPP | `--config configs/variants/LNS-wPBS-MLSIPP.cfg` | Online extension |
 | LNS(1s)+PP-SIPP | `--config configs/variants/LNS-PBS-MLSIPP.cfg --mapf PP` | Online extension |
-| LNS-real(1s)+PP-MLSIPP | `--config configs/variants/LNS-real-PP-MLSIPP.cfg` | Online extension: LNS judged on real paths |
+| LNS-real+PP-MLSIPP | `--config configs/variants/LNS-real-PP-MLSIPP.cfg` | Online extension: LNS judged on real paths (warm start, destroy 4, count-based stop) |
 
 CENTRAL runs the reference CENTRAL code's components; its ECBS is ported, so
 the runs reproduce that code (on kiva small 31 of the 35 rows are identical to

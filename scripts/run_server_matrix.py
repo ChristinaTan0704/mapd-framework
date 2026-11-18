@@ -109,7 +109,7 @@ EXPERIMENT_METHODS = tuple(
     for scale in ("0.1", "10")
 ) + (
     # Repeated Hungarian + LNS judged on the real paths of PP with MLSIPP (11-18).
-    Method("LNS-real(1s)+PP-MLSIPP", "variants/LNS-real-PP-MLSIPP"),
+    Method("LNS-real+PP-MLSIPP", "variants/LNS-real-PP-MLSIPP"),
 )
 
 # Seed-0 results with the default reference tie-breaking (validated on Linux,
