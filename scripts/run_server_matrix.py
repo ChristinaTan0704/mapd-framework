@@ -301,7 +301,11 @@ def run_one(args, output_dir: Path, job):
     # bench_exec.py's line: which slot ran the job and how long it waited for one
     # (the wall-clock --timeout runs while it waits).
     slot = metric(r"\[bench\] slot (\d+) core", output, int)
-    slot_wait = metric(r"\[bench\] slot \d+ core \d+ \(waited (\d+) s\)", output, int)
+    # Since 11-17 bench_exec.py also prints the wait to the millisecond; wall_runtime_s - slot_wait_s is the
+    # time the job ran in its slot. Before that only whole seconds were printed.
+    slot_wait = metric(r"\[bench\] slot wait ([0-9.]+) s", output, float)
+    if slot_wait is None:
+        slot_wait = metric(r"\[bench\] slot \d+ core \d+ \(waited (\d+) s\)", output, int)
     slot_oom = slot is not None and slot_oom_kills().get(slot, 0) > oom_before.get(slot, 0)
     if timed_out or (return_code != 0 and own_limit):
         status = "timeout"

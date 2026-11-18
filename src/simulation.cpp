@@ -2029,6 +2029,16 @@ void Simulation::lns_destroy(vector<int>& removed_tasks) {
     }
     removed_tasks.push_back(seed_tid);
 
+    // The seed's goals' distance tables, found once per destroy (a search of
+    // every endpoint per eligible task left LNS a few hundred moves per 1 s
+    // call on structured medium).
+    const Endpoint* seed_last_ep = nullptr;
+    const Endpoint* seed_first_ep = nullptr;
+    for (auto& ep : mapd_map.endpoints) {
+        if (!seed_last_ep && ep.loc == seed_last_goal) seed_last_ep = &ep;
+        if (!seed_first_ep && ep.loc == seed_first_goal) seed_first_ep = &ep;
+    }
+
     vector<pair<int,int>> relatedness;
     for (int tid : eligible) {
         if (tid == seed_tid) continue;
@@ -2036,11 +2046,8 @@ void Simulation::lns_destroy(vector<int>& removed_tasks) {
         int t_last_goal = t.goals.empty() ? t.pickup_loc : t.goals.back();
         int t_first_goal = t.goals.empty() ? t.pickup_loc : t.goals[0];
 
-        int dist_last = 0, dist_first = 0;
-        for (auto& ep : mapd_map.endpoints)
-            if (ep.loc == seed_last_goal) { dist_last = ep.h_val[t_last_goal]; break; }
-        for (auto& ep : mapd_map.endpoints)
-            if (ep.loc == seed_first_goal) { dist_first = ep.h_val[t_first_goal]; break; }
+        int dist_last = seed_last_ep ? seed_last_ep->h_val[t_last_goal] : 0;
+        int dist_first = seed_first_ep ? seed_first_ep->h_val[t_first_goal] : 0;
         if (dist_last == INT_MAX) dist_last = mapd_map.col * mapd_map.row;
         if (dist_first == INT_MAX) dist_first = mapd_map.col * mapd_map.row;
 
