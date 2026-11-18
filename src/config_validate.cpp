@@ -102,13 +102,16 @@ std::vector<Support> supported_rows() {
                         ANY_SEARCH, ALL_ENDPOINTS, ALL_MODES, EITHER});
     }
     // Repeated Hungarian + LNS on real paths plans its candidates with the
-    // prioritized planners (its cost reads each agent's planned path) and keeps
-    // the best one's paths, so the planning step after the assignment is
-    // skipped: replan_on AFTER_ASSIGNMENT only (WHEN_ASSIGNED would switch to
-    // the token-passing clock). A candidate must plan every agent, so ALL.
-    for (MAPFMethod mapf : {MAPF_PP_PER_TASK, MAPF_PP_TASK_SEQUENCE})
+    // prioritized planners, PBS or wPBS (its cost reads each agent's planned
+    // path) and keeps the best one's paths, so the planning step after the
+    // assignment is skipped: replan_on AFTER_ASSIGNMENT only (WHEN_ASSIGNED
+    // would switch to the token-passing clock), plus PERIODIC for wPBS, whose
+    // periodic replans run as usual. A candidate must plan every agent, so ALL.
+    for (MAPFMethod mapf : {MAPF_PP_PER_TASK, MAPF_PP_TASK_SEQUENCE, MAPF_PBS})
         rows.push_back({AM_REPEATED_HUNGARIAN_REAL_PATH_LNS, mapf, triggers, {AFTER},
                         {SELECT_ALL}, ANY_SEARCH, ALL_ENDPOINTS, ALL_MODES, EITHER});
+    rows.push_back({AM_REPEATED_HUNGARIAN_REAL_PATH_LNS, MAPF_wPBS, triggers, {WINDOWED},
+                    {SELECT_ALL}, ANY_SEARCH, ALL_ENDPOINTS, ALL_MODES, EITHER});
     // CENTRAL plans an agent to its matched pickup only, so a replan must
     // follow when it gets there (wPBS reaches it at its periodic replan).
     for (AssignMethod method : {AM_CENTRAL_HUNGARIAN, AM_CENTRAL_HUNGARIAN_FIXED}) {

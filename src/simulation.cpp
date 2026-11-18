@@ -1747,11 +1747,13 @@ bool Simulation::lns_has_reassignable_task() const {
 //           agent's planned next task) and reinsert them with the regret
 //           repair (lns_repair). Each candidate is truncated and planned
 //           exactly as the planning step would (truncate_online_task_sequences,
-//           path_planning with the configured prioritized planner, e.g. PP with
-//           MLSIPP), and judged on its real paths: the sum over tasks of
+//           path_planning with the configured planner, PP, PBS or wPBS, e.g.
+//           with MLSIPP), and judged on its real paths: the sum over tasks of
 //           (delivery - release), each planned task's delivery read off its
-//           agent's path, the later tasks of a sequence, which the planner does
-//           not plan, estimated from there as estimate_sequence_cost does. A
+//           agent's path (estimated from where the path stops when it stops
+//           short, as wPBS's paths stop at the window), the later tasks of a
+//           sequence, which the planner does not plan, estimated from there as
+//           estimate_sequence_cost does. A
 //           candidate replaces the incumbent only if it is cheaper; one the
 //           planner cannot plan for every agent counts as infinitely expensive.
 //           A call plans each set of planned tasks once (the plan depends only
@@ -1761,7 +1763,8 @@ bool Simulation::lns_has_reassignable_task() const {
 //           cheaper, or when every removal of two tasks was tried.
 //  The best candidate stays truncated and planned, so the separate planning
 //  step is skipped (planned_in_assignment_). With --lns_time 0 the method is
-//  repeated Hungarian followed by the planning step, i.e. Hungarian + PP.
+//  repeated Hungarian followed by the planning step, i.e. Hungarian + the
+//  planner.
 // ============================================================================
 
 namespace {
@@ -2025,25 +2028,53 @@ void Simulation::assign_real_path_lns() {
 // The planned part of the cost: each agent's planned tasks (its truncated
 // task_sequence in planned_agents) at their first arrival on its path, as the
 // simulation will count them, i.e. the sum of (delivery - release), and where
-// and when each agent finishes them. Not ok if a planned goal is not reached.
+// and when each agent finishes them.
+// With periodic replans (replan_on PERIODIC) a path binds only until the next
+// one, which continues it (wPBS stops each path at its window): a planned goal
+// the path does not reach is estimated as real_path_tail estimates, from where
+// the path stops, from when it stops or the next periodic replan, whichever is
+// later. Otherwise, or if that path is still moving at the horizon, a planned
+// goal the path does not reach makes the plan not ok.
 void Simulation::real_path_prefix(const vector<Agent>& planned_agents, RealPathPrefix& out) const {
     out = RealPathPrefix();
     out.count.assign(planned_agents.size(), 0);
     out.end_time.assign(planned_agents.size(), (int)cur_time_);
     out.end_loc.assign(planned_agents.size(), 0);
+    const bool periodic = (config.replan_on & REPLAN_PERIODIC) != 0;
+    const int next_replan = (int)cur_time_ + config.wpbs_replan_window;
     for (int i = 0; i < (int)planned_agents.size(); i++) {
         const Agent& ag = planned_agents[i];
         int t = (int)cur_time_;
         int loc = ag.loc;
+        bool on_path = true;   // every goal so far was reached on the path
         for (int idx = 0; idx < (int)ag.task_sequence.size(); idx++) {
             const Task& task = all_tasks[ag.task_sequence[idx]];
             const int start_goal = (idx == 0 && ag.current_task == task.id)
                 ? ag.current_goal_index : 0;
             for (int g = start_goal; g < (int)task.goals.size(); g++) {
                 const int earliest = g == 0 ? task.release_time : 0;
-                while (t < (int)maxtime && !((int)ag.path[t] == task.goals[g] && t >= earliest))
-                    t++;
-                if (t >= (int)maxtime) return;   // not ok
+                if (on_path) {
+                    int arrival = t;
+                    while (arrival < (int)maxtime &&
+                           !((int)ag.path[arrival] == task.goals[g] && arrival >= earliest))
+                        arrival++;
+                    if (arrival < (int)maxtime) {
+                        t = arrival;
+                        loc = task.goals[g];
+                        continue;
+                    }
+                    if (!periodic) return;   // not ok
+                    int stop = (int)maxtime - 1;   // where and when the path stops
+                    while (stop > (int)cur_time_ && ag.path[stop] == ag.path[stop - 1]) stop--;
+                    if (stop >= (int)maxtime - 1) return;   // not ok
+                    on_path = false;
+                    t = max(t, max(stop, next_replan));
+                    loc = (int)ag.path[stop];
+                }
+                const int ep = mapd_map.ep_index(task.goals[g]);
+                int d = ep >= 0 ? mapd_map.endpoints[ep].h_val[loc] : 0;
+                if (d == INT_MAX) d = 0;
+                t = max(t + d, earliest);
                 loc = task.goals[g];
             }
             out.planned += t - task.release_time;

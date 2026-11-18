@@ -87,7 +87,7 @@ BASE_METHOD_COUNT = 21
 #   [LAk]          semi-online, the next k release batches known in advance (MG paper Table VI)
 #   [pickup cost]  repeated Hungarian costs a task by the arrival at its pickup, not its last goal
 #   [cap xS]       MLA*'s per-search node cap multiplied by S
-#   LNS-real       REPEATED_HUNGARIAN_REAL_PATH_LNS: LNS whose candidates are planned (PP, MLSIPP)
+#   LNS-real       REPEATED_HUNGARIAN_REAL_PATH_LNS: LNS whose candidates are planned (PP, PBS or wPBS; MLSIPP)
 def _lookahead(label, config, extra, k):
     return Method(f"{label} [LA{k}]", config,
                   extra + ("--mode", "SEMI_ONLINE", "--semi_online_lookahead_batches", str(k)))
@@ -108,8 +108,11 @@ EXPERIMENT_METHODS = tuple(
     Method(f"HBH+MLA* [cap x{scale}]", "table1/HBH", ("--mla_node_cap_scale", scale))
     for scale in ("0.1", "10")
 ) + (
-    # Repeated Hungarian + LNS judged on the real paths of PP with MLSIPP (11-18).
+    # Repeated Hungarian + LNS judged on the real paths of PP with MLSIPP (11-18), and of PBS and
+    # wPBS (each with its Hungarian variant's components).
     Method("LNS-real+PP-MLSIPP", "variants/LNS-real-PP-MLSIPP"),
+    Method("LNS-real+PBS-MLSIPP", "variants/LNS-real-PBS-MLSIPP"),
+    Method("LNS-real+wPBS-MLSIPP", "variants/LNS-real-wPBS-MLSIPP"),
 )
 
 # Seed-0 results with the default reference tie-breaking (validated on Linux,

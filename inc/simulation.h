@@ -276,11 +276,11 @@ private:
     void lns_estimate_task_times(unordered_map<int, pair<int,int>>& task_times) const;
     // REPEATED_HUNGARIAN_REAL_PATH_LNS: repeated Hungarian, then LNS (random
     // destroy, the regret repair above) whose candidates are planned by the
-    // configured prioritized planner and judged on the real paths. It leaves
+    // configured planner (PP, PBS or wPBS) and judged on the real paths. It leaves
     // the best candidate truncated and planned (planned_in_assignment_).
     void assign_real_path_lns();
     struct RealPathPrefix {   // a planned candidate's planned tasks
-        bool ok = false;      // every planned goal is reached on the paths
+        bool ok = false;      // every planned goal is reached on the paths or estimated (see real_path_prefix)
         long long planned = 0;            // their sum of (delivery - release)
         vector<int> count, end_time, end_loc;   // per agent: how many, finished when and where
     };

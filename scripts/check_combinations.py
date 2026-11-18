@@ -69,8 +69,10 @@ CONFIGS = ("table1/TP", "table1/TPTS", "table1/HBH", "table1/CENTRAL", "variants
            "table1/LNS-PBS", "table1/LNS-wPBS", "table1/TA-Prioritized",
            "table1/TA-Hybrid", "variants/LNS-real-PP-MLSIPP")
 # LNS judged on real paths plans its candidates: several times slower than
-# Hungarian + PP, so the check stops it early.
+# Hungarian + PP, so the check stops it early. It plans them with PP, and (in
+# the README claims) with PBS and wPBS.
 REAL_PATH_LNS = "variants/LNS-real-PP-MLSIPP"
+REAL_PATH_LNS_PBS = ("variants/LNS-real-PBS-MLSIPP", "variants/LNS-real-wPBS-MLSIPP")
 OFFLINE_ONLY = {"table1/TA-Prioritized", "table1/TA-Hybrid"}
 # Assignments that plan as published (WHEN_ASSIGNED), one agent at a time.
 PLAN_IN_ASSIGNMENT = ("table1/TP", "table1/TPTS", "table1/HBH")
@@ -268,6 +270,11 @@ def readme_claims() -> list[tuple[str, int, str, list[str]]]:
         (10, "1", ["--hungarian_pickup_cost", "1"]),
         (10, "ssmg", ["--real_lns_destroy_size", "3", "--real_lns_warm_start", "1"]),
         (50, "1", ["--real_lns_warm_start", "1", "--real_lns_destroy_size", "1"]))]
+    # ... and with PBS and wPBS planning the candidates (their Hungarian variants' components).
+    claims += [(c, a, f, e) for c in REAL_PATH_LNS_PBS for a, f, e in (
+        (10, "1", []), (50, "1", []), (10, "ssmg", []), (10, "ssmg", ["--mode", "OFFLINE"]),
+        (10, "0.2", ["--mode", "SEMI_ONLINE"]), (10, "1", ["--lns_time", "0"]),
+        (10, "1", ["--single_agent", "MLA"]), (10, "1", ["--tie_breaking", "random"]))]
     # Repeated Hungarian costed at the pickup; MLA*'s node cap scaled both ways.
     claims += [(c, a, f, ["--hungarian_pickup_cost", "1"])
                for c in ("variants/Hungarian-PBS", "variants/Hungarian-wPBS-MLSIPP", "table1/LNS-wPBS")
@@ -308,7 +315,7 @@ def run_in(workdir: Path, executable: Path, config: str, agents: int, frequency:
     # 500 structured multi-goal tasks: LNS's up to 1 s per assignment call
     # alone outlasts the time limit, so the check stops it early.
     budget = (["--lns_no_improvement_limit", "50"]
-              if frequency == "ssmg" or config == REAL_PATH_LNS else [])
+              if frequency == "ssmg" or config in (REAL_PATH_LNS, *REAL_PATH_LNS_PBS) else [])
     command = [str(executable), *files, *budget,
                "--config", str(ROOT / "configs" / f"{config}.cfg"), "--seed", "0", "-s", "1",
                "--runtime_limit", str(timeout), "--pathfinding_runtime_limit", str(timeout),
