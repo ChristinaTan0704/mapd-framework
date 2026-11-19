@@ -1405,10 +1405,13 @@ plans an agent to its pickup, so a `GOAL_REACHED`, `PERIODIC` (or
 window of at least 2. When the collision or task-order check fails, `mapd`
 exits with status 2.
 
-`REPEATED_HUNGARIAN_REAL_PATH_LNS` plans its candidates, so a run costs several times Hungarian + PP (the configuration
-LNS-real-PP-MLSIPP: about 7x on the small maps, 10-230 s). It stops by counts, so its results do not depend on the
-machine unless a call reaches the `--lns_time` cap (10 CPU s in that configuration; never on the small maps). With
-`--assign_trigger EVERY_TIMESTEP` it runs at every timestep.
+`REPEATED_HUNGARIAN_REAL_PATH_LNS` plans its candidates, so a run costs several times Hungarian with the same planner.
+On the small maps (875 instances): LNS-real-PP-MLSIPP about 6x Hungarian+PP-SIPP (median 27 s, at most 230 s),
+LNS-real-PBS-MLSIPP about 6x Hungarian+PBS-MLSIPP (median 32 s, at most 335 s), LNS-real-wPBS-MLSIPP about 8x
+Hungarian+wPBS-MLSIPP (median 23 s, at most 230 s); each 0.4-0.6x LNS(1s). It stops by counts, so its results do not
+depend on the machine unless a call reaches the `--lns_time` cap (10 CPU s in these configurations). On the small maps
+that happens only with PBS, in 1-3 calls of a few runs on structured_small_mg with 50 agents; with PP and wPBS no call
+comes near it. With `--assign_trigger EVERY_TIMESTEP` it runs at every timestep.
 
 Slow but supported (correct, collision-free, but minutes per run on kiva; the
 combination check lists them as slow): `CBS` with `ALL` and 50 agents (one CBS
