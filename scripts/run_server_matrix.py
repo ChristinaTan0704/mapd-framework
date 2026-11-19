@@ -113,6 +113,8 @@ EXPERIMENT_METHODS = tuple(
     Method("LNS-real+PP-MLSIPP", "variants/LNS-real-PP-MLSIPP"),
     Method("LNS-real+PBS-MLSIPP", "variants/LNS-real-PBS-MLSIPP"),
     Method("LNS-real+wPBS-MLSIPP", "variants/LNS-real-wPBS-MLSIPP"),
+    # ... and the wPBS one with the strict endpoints of the PP and PBS ones (11-19).
+    Method("LNS-real+wPBS-MLSIPP [strict]", "variants/LNS-real-wPBS-MLSIPP-strict"),
 )
 
 # Seed-0 results with the default reference tie-breaking (validated on Linux,

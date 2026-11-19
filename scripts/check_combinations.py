@@ -70,9 +70,10 @@ CONFIGS = ("table1/TP", "table1/TPTS", "table1/HBH", "table1/CENTRAL", "variants
            "table1/TA-Hybrid", "variants/LNS-real-PP-MLSIPP")
 # LNS judged on real paths plans its candidates: several times slower than
 # Hungarian + PP, so the check stops it early. It plans them with PP, and (in
-# the README claims) with PBS and wPBS.
+# the README claims) with PBS and wPBS (wPBS also with the strict endpoints).
 REAL_PATH_LNS = "variants/LNS-real-PP-MLSIPP"
-REAL_PATH_LNS_PBS = ("variants/LNS-real-PBS-MLSIPP", "variants/LNS-real-wPBS-MLSIPP")
+REAL_PATH_LNS_PBS = ("variants/LNS-real-PBS-MLSIPP", "variants/LNS-real-wPBS-MLSIPP",
+                     "variants/LNS-real-wPBS-MLSIPP-strict")
 OFFLINE_ONLY = {"table1/TA-Prioritized", "table1/TA-Hybrid"}
 # Assignments that plan as published (WHEN_ASSIGNED), one agent at a time.
 PLAN_IN_ASSIGNMENT = ("table1/TP", "table1/TPTS", "table1/HBH")
